@@ -1,0 +1,15 @@
+astro_venv/
+
+# Data
+data/
+*.h5
+
+# Results
+results/
+
+# Python
+__pycache__/
+*.pyc
+
+# Notebooks
+*.ipynb_checkpoints

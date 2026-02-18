@@ -1,15 +1,51 @@
-astro_venv/
+# Virtual environments
+venv/
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+build/
+dist/
+
+# PyTorch
+*.pt
+*.pth
+checkpoints/
+
+# Logs
+logs/
+*.log
 
 # Data
 data/
 *.h5
+*.npz
 
 # Results
 results/
 
-# Python
-__pycache__/
-*.pyc
-
 # Notebooks
-*.ipynb_checkpoints
+.ipynb_checkpoints/
+
+# Testing
+.pytest_cache/
+.coverage
+
+# System
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Docker
+*.tar
+
+# Misc
+proj_brief.png

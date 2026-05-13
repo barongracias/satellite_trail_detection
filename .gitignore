@@ -22,7 +22,7 @@ logs/
 *.log
 
 # Data
-data/
+/data/
 *.h5
 *.npz
 
@@ -47,5 +47,12 @@ Thumbs.db
 # Docker
 *.tar
 
+# Internal workflow and planning
+PLAN.md
+dissertation_context_satellite.md
+*_internal_plan*.md
+*_internal_context*.md
+
 # Misc
 proj_brief.png
+asta_proj_env.sh

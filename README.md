@@ -1,182 +1,197 @@
-# Automated Detection of Satellite Trails in Astronomical Images using Deep Learning
+# Automated Detection of Satellite Trails in Astronomical Images Using Deep Learning
 
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+This repository contains the code and analysis for a University of Cambridge MPhil dissertation project on automated detection of satellite trails in astronomical images.
 
-## Description
+The immediate dissertation objective is faithful replication of a paper that combines:
 
-This repository contains the code and analysis for the Research Project submitted as part of the MPhil in Data Intensive Science at the University of Cambridge.
+1. A U-Net segmentation pipeline for binary trail detection.
+2. A classical Hough transform baseline.
+3. Comparable evaluation metrics and reproducible experimental reporting.
 
-The objective of this project is to reproduce and extend the results of the target paper on automated detection of satellite trails in astronomical images using convolutional neural networks. The project focuses on:
+Replication takes priority over extensions. Planned extension work includes temporal analysis, sky-coordinate analysis, robustness studies, and alternative segmentation architectures.
 
-1. Reproducing the U-Net segmentation pipeline.
-2. Implementing a classical Hough transform baseline.
-3. Replicating reported segmentation metrics.
-4. Extending the work through robustness testing, temporal analysis, and alternative architectures.
+## Current Status
 
-The project report is located in `report/` and submission instructions are provided in `Instructions.md`.
+Implemented and usable now:
 
----
+- Patch-based image and mask loading under `src/data/`
+- Metadata catalogue access under `src/data/catalog.py`
+- Exploratory analysis utilities under `src/evaluation/eda.py`
+- Binary segmentation metrics shared by U-Net and Hough evaluation under `src/evaluation/segmentation.py`
+- A meeting-ready EDA notebook at `notebooks/01_dataset_eda.ipynb`
+- A classical Hough-transform baseline under `src/classical/`
+- A lightweight U-Net implementation under `src/models/unet.py`
+- A train, validation, and test experiment entry point under `src/training/train_unet.py`
+- Logging utilities that write timestamped runtime logs to `results/logs/`
+- Unit tests for data handling, EDA helpers, evaluation utilities, the Hough baseline, and the U-Net path
 
-## Project Structure
+Still to do:
 
-```
+- Tune the Hough baseline parameters against the target paper
+- Add paper-specific metric selection once the target paper comparison table is finalised
+- Extend U-Net training from local baseline runs to longer CSD3 experiments
+- Add richer experiment configuration files and final dissertation reporting
+
+## Repository Layout
+
+```text
 .
-├── configs/              # YAML configuration files for experiments
-├── data/                 # Local dataset (not version controlled)
-├── notebooks/            # EDA and analysis notebooks
-├── report/               # Dissertation report and summary
-├── results/              # Logs, figures, checkpoints
-├── slurm/                # HPC job submission scripts (CSD3)
+├── configs/                  # Configuration scaffolding for later experiments
+├── data/                     # Local dataset storage
+├── notebooks/                # Exploratory analysis notebooks
+├── results/                  # Logs, figures, checkpoints, and summaries
+├── scripts/                  # Small package-safe helper entry points
+├── slurm/                    # CSD3 job submission scripts
 ├── src/
-│   ├── classical/        # Hough transform baseline
-│   ├── data/             # Dataset loaders and preprocessing
-│   ├── evaluation/       # Metrics and validation tools
-│   ├── models/           # U-Net and extensions
-│   ├── training/         # Training loops
-│   └── utils/            # Utilities
-├── requirements.txt
-└── README.md
+│   ├── classical/            # Hough-transform baseline
+│   ├── data/                 # Datasets, metadata, transforms, splits
+│   ├── evaluation/           # EDA and segmentation evaluation helpers
+│   ├── models/               # U-Net and future model variants
+│   ├── training/             # Training entry points
+│   └── utils/                # Logging and decorators
+└── tests/                    # Unit tests
 ```
 
----
+## Data Layout
 
-## Data Availability
+The processed segmentation subset uses paired PNG files:
 
-The dataset consists of astronomical images with corresponding binary masks of satellite trails.
+- Image: `*_red.fits_full.png`
+- Mask: `*_red_mask.png`
+- Metadata CSV: `data/subset/metadata/Satellites_Catalog_Application.csv`
 
-* Images: `.png` astronomical exposures
-* Masks: `_mask.png` corresponding segmentation masks
-* Metadata: `Satellites_Catalog_Application.csv` containing RA/DEC information
+The full astronomical images are very large, so patch-based loading is the intended training workflow.
 
-The dataset is not stored in this repository due to size constraints.
+## Environment Setup
 
----
+### Local development
 
-## Installation
+Use Python 3.11 if practical. Python 3.10+ is supported by the repository code.
 
-### Requirements
-
-* Python 3.10+
-* pip
-* CUDA-enabled GPU (for training)
-* SLURM access (for CSD3 cluster usage)
-* Docker (optional, for containerisation)
-
----
-
-### Local Setup (Recommended for Development)
-
-1. Clone repository:
-
-```
-git clone <repo_url>
-cd <repo_name>
-```
-
-2. Create virtual environment:
-
-```
-python3 -m venv .venv
+```bash
+python -m venv .venv
 source .venv/bin/activate
+pip install --upgrade pip
+pip install -r local-requirements.txt
 ```
 
-3. Install dependencies:
+Optional notebook kernel registration:
 
-```
-pip install -r requirements.txt
-```
-
-4. (Optional for notebooks)
-
-```
-python -m ipykernel install --user --name astro_env
+```bash
+python -m ipykernel install --user --name satellite_trails
 ```
 
----
+### HPC or CSD3 environment
 
-## Usage
+Install the GPU-oriented environment separately:
 
-### Exploratory Data Analysis
-
+```bash
+pip install -r hpc-requirements.txt
 ```
+
+## Core Commands
+
+### Run tests
+
+```bash
+pytest -q
+```
+
+### Inspect the processed dataset from the command line
+
+```bash
+python -m scripts.inspect_dataset --data-root data/subset/processed --patch-size 512 --stride 512
+```
+
+### Launch the EDA notebook
+
+```bash
 jupyter notebook notebooks/01_dataset_eda.ipynb
 ```
 
----
+The notebook saves discussion-ready figures to `results/figures/`.
 
-### Training U-Net
+### Run the classical Hough baseline
 
-```
-python src/training/train_unet.py --config configs/unet.yaml
-```
-
----
-
-### Classical Hough Baseline
-
-```
-python src/classical/run_hough.py --config configs/hough.yaml
+```bash
+python -m src.classical.run_hough --data-root data/subset/processed
 ```
 
----
+This writes per-image metrics to `results/classical/hough_metrics.csv` and logs the aggregated metrics.
 
-### Evaluation
+### Run a short local U-Net smoke test
 
-```
-python src/evaluation/evaluate.py --model checkpoint.pth
-```
-
----
-
-## Running on CSD3 (SLURM)
-
-Submit training job:
-
-```
-sbatch slurm/train_gpu.sbatch
+```bash
+python -m src.training.train_unet \
+  --data-root data/subset/processed \
+  --epochs 1 \
+  --max-steps 5 \
+  --eval-max-batches 10 \
+  --auto-pos-weight \
+  --experiment-name unet_smoke
 ```
 
-Logs are written to `results/logs/`.
+### Run a baseline train and validation experiment
 
----
-
-## Docker Usage (Containerised Reproducibility)
-
-Build image:
-
-```
-docker build -t satellite-trail .
-```
-
-Run container:
-
-```
-docker run --gpus all -it satellite-trail
+```bash
+python -m src.training.train_unet \
+  --data-root data/subset/processed \
+  --epochs 3 \
+  --batch-size 2 \
+  --auto-pos-weight \
+  --experiment-name unet_baseline
 ```
 
----
+This produces:
 
-## Extension Directions
+- a latest checkpoint
+- a best-validation checkpoint
+- a JSON experiment summary with train, validation, and test metrics
 
-The project explores:
+## Dataset Snapshot
 
-* Performance across observation years
-* Correlation between satellite frequency and launch growth
-* Robustness to faint trails
-* Attention-based U-Net variants
-* Resolution sensitivity analysis
+On the current expanded local subset, using non-overlapping `512 x 512` patches:
 
----
+- Total full image-mask pairs: `21`
+- Total patches: `8400`
+- Empty patches: `7880`
+- Non-empty patches: `520`
+- Empty patch fraction: `0.9381`
+- Positive pixel fraction: `0.000714`
 
-## Project Status
+This remains a severely imbalanced segmentation problem. The current baseline therefore supports `BCEWithLogitsLoss(pos_weight=...)`, including automatic estimation from the processed masks.
 
-Currently in active development.
-Reproduction phase ongoing.
+## Evaluation
 
----
+The current evaluation module provides reusable binary segmentation metrics for both learned and classical baselines:
+
+- Precision
+- Recall
+- Dice or F1
+- Intersection over Union
+- Accuracy
+- Specificity
+
+These metrics are computed from shared confusion-count totals so the U-Net and Hough outputs can be compared on the same basis.
+
+## Reproducibility Notes
+
+- Reusable logic lives under `src/`.
+- Notebook plotting relies on reusable helpers rather than large inline analysis blocks.
+- Runtime logs are written to `results/logs/`.
+- Figures from the EDA workflow are written to `results/figures/`.
+- Training checkpoints and experiment summaries are written to `results/checkpoints/`.
+- The Hough baseline writes per-image metrics to `results/classical/`.
+
+## Near-Term Development Priorities
+
+1. Tune the Hough baseline and document its assumptions against the paper.
+2. Run longer U-Net training on CSD3 once the local baseline settings are stable.
+3. Add prediction visualisations from the trained U-Net.
+4. Extend the analysis to the dissertation-specific temporal and geometric questions.
 
 ## Author
 
-Baron Gracias
-University of Cambridge
+Baron Gracias  
+University of Cambridge  
 MPhil Data Intensive Science

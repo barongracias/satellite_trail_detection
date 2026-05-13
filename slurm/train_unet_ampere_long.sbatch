@@ -34,6 +34,44 @@ nvidia-smi
 
 #! ======= Run Training =========================================
 echo "Starting U-Net training..."
-python src/training/train_unet.py --config configs/unet.yaml
+DATA_ROOT="${DATA_ROOT:-data/subset/processed}"
+EPOCHS="${EPOCHS:-10}"
+BATCH_SIZE="${BATCH_SIZE:-2}"
+CHECKPOINT_DIR="${CHECKPOINT_DIR:-results/checkpoints}"
+LOG_DIR="${LOG_DIR:-results/logs}"
+EXPERIMENT_NAME="${EXPERIMENT_NAME:-unet_ampere_long}"
+EVAL_MAX_BATCHES="${EVAL_MAX_BATCHES:-}"
+
+if [ -n "${MAX_STEPS:-}" ] && [ -n "$EVAL_MAX_BATCHES" ]; then
+  python -m src.training.train_unet \
+    --data-root "$DATA_ROOT" \
+    --epochs "$EPOCHS" \
+    --batch-size "$BATCH_SIZE" \
+    --auto-pos-weight \
+    --checkpoint-dir "$CHECKPOINT_DIR" \
+    --log-dir "$LOG_DIR" \
+    --experiment-name "$EXPERIMENT_NAME" \
+    --max-steps "$MAX_STEPS" \
+    --eval-max-batches "$EVAL_MAX_BATCHES"
+elif [ -n "${MAX_STEPS:-}" ]; then
+  python -m src.training.train_unet \
+    --data-root "$DATA_ROOT" \
+    --epochs "$EPOCHS" \
+    --batch-size "$BATCH_SIZE" \
+    --auto-pos-weight \
+    --checkpoint-dir "$CHECKPOINT_DIR" \
+    --log-dir "$LOG_DIR" \
+    --experiment-name "$EXPERIMENT_NAME" \
+    --max-steps "$MAX_STEPS"
+else
+  python -m src.training.train_unet \
+    --data-root "$DATA_ROOT" \
+    --epochs "$EPOCHS" \
+    --batch-size "$BATCH_SIZE" \
+    --auto-pos-weight \
+    --checkpoint-dir "$CHECKPOINT_DIR" \
+    --log-dir "$LOG_DIR" \
+    --experiment-name "$EXPERIMENT_NAME"
+fi
 
 echo "Job finished."

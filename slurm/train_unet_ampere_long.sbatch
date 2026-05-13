@@ -15,7 +15,7 @@
 #SBATCH --time=12:00:00
 #SBATCH --output=results/logs/unet_%j.out
 #SBATCH --error=results/logs/unet_%j.err
-#SBATCH --qos=GPU
+#SBATCH --qos=gpu1
 
 set -euo pipefail
 
@@ -27,10 +27,11 @@ mkdir -p results/logs results/checkpoints
 . /etc/profile.d/modules.sh
 module purge
 module load rhel8/default-amp
-module load gcc/9 cuda/12.1 cudnn
+module load gcc/9 cuda/12.1 cudnn/8.9_cuda-12.1
 
 #! ======= Activate Virtual Environment =========================
-source ~/astro_env/bin/activate
+cd "$SLURM_SUBMIT_DIR"
+source venv/bin/activate
 
 #! ======= Diagnostics ==========================================
 echo "Job:      $SLURM_JOB_ID"

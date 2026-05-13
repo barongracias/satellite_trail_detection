@@ -32,7 +32,6 @@ module use /usr/local/software/spack/spack-modules/a100-20221118/linux-rocky8-ze
 module load python/3.11.9/gcc/57ayfwme
 
 #! ======= Activate Virtual Environment =========================
-cd "$SLURM_SUBMIT_DIR"
 source venv/bin/activate
 
 #! ======= Diagnostics ==========================================

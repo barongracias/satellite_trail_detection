@@ -28,6 +28,8 @@ mkdir -p results/logs results/checkpoints
 module purge
 module load rhel8/default-amp
 module load gcc/9 cuda/12.1 cudnn/8.9_cuda-12.1
+module use /usr/local/software/spack/spack-modules/a100-20221118/linux-rocky8-zen3
+module load python/3.11.9/gcc/57ayfwme
 
 #! ======= Activate Virtual Environment =========================
 cd "$SLURM_SUBMIT_DIR"

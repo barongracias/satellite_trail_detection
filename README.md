@@ -8,7 +8,7 @@ The immediate dissertation objective is faithful replication of a paper that com
 2. A classical Hough transform baseline.
 3. Comparable evaluation metrics and reproducible experimental reporting.
 
-Replication takes priority over extensions. Planned extension work includes temporal analysis, sky-coordinate analysis, robustness studies, and alternative segmentation architectures.
+Replication takes priority over extensions. Planned extension work is centred on a CNN-classifier two-stage detector (classifier filters patches before the U-Net), with robustness studies, a data-efficiency study, and an Attention U-Net comparison as secondary directions. Sky-coordinate and time-trend extensions are out of scope because the available data is PNG-only with no FITS headers.
 
 ## Current Status
 
@@ -27,10 +27,16 @@ Implemented and usable now:
 
 Still to do:
 
+- Verify EDA overlays and quantify mask undermasking before training metrics are trusted
+- Switch the training loss from `BCEWithLogitsLoss(pos_weight=...)` to a combo loss (BCE + Dice) to match the target paper
+- Move from patch-level to image-level train/val/test splits (70/15/15, stratified by trail-pixel count)
+- Pre-compute 512×512 patches to disk with a configurable positive:negative ratio (default 1:3) instead of indexing on the fly
+- Add training-set augmentation (flips, 90° rotations, optional selective shifts on positives)
+- Add a determinism harness and an Optuna-driven hyperparameter sweep
 - Tune the Hough baseline parameters against the target paper
-- Add paper-specific metric selection once the target paper comparison table is finalised
-- Extend U-Net training from local baseline runs to longer CSD3 experiments
-- Add richer experiment configuration files and final dissertation reporting
+- Select the U-Net probability threshold by a precision-recall sweep on the validation set
+- Run a data-efficiency study at 30/50/70/100% of training images
+- Add richer experiment configuration files under `configs/` and a paper-vs-ours replication comparison table
 
 ## Repository Layout
 
@@ -185,10 +191,13 @@ These metrics are computed from shared confusion-count totals so the U-Net and H
 
 ## Near-Term Development Priorities
 
-1. Tune the Hough baseline and document its assumptions against the paper.
-2. Run longer U-Net training on CSD3 once the local baseline settings are stable.
-3. Add prediction visualisations from the trained U-Net.
-4. Extend the analysis to the dissertation-specific temporal and geometric questions.
+1. Verify EDA mask-quality and quantify undermasking before any training metrics are trusted.
+2. Switch the training loss to the combo loss (BCE + Dice) and the splits to image-level 70/15/15.
+3. Pre-compute patches to disk with a configurable positive:negative ratio and add training-set augmentation.
+4. Add the config scaffold under `configs/`, a determinism harness, and an Optuna sweep driver.
+5. Run the first real U-Net training on CSD3 and produce the paper-vs-ours replication table.
+6. Tune the Hough baseline, select the U-Net threshold by PR sweep, and run the data-efficiency study.
+7. Build the CNN-classifier two-stage detector as the primary dissertation extension.
 
 ## Author
 

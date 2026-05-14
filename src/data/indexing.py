@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Iterable
 
@@ -10,6 +12,23 @@ from PIL import Image
 
 
 Image.MAX_IMAGE_PIXELS = None
+
+
+_OBSERVATION_FILENAME_PATTERN = re.compile(r"ML1_(\d{8})_(\d{6})")
+
+
+def parse_observation_datetime(image_path: str | Path) -> datetime | None:
+    """Parse the YYYYMMDD HHMMSS observation timestamp from a MeerLICHT filename.
+
+    The MeerLICHT filename convention is `ML1_YYYYMMDD_HHMMSS_red.fits_full.png`.
+    Returns ``None`` when the filename does not match the expected pattern, so
+    callers can decide whether unknown timestamps are an error.
+    """
+    match = _OBSERVATION_FILENAME_PATTERN.search(Path(image_path).name)
+    if match is None:
+        return None
+    date_str, time_str = match.groups()
+    return datetime.strptime(date_str + time_str, "%Y%m%d%H%M%S")
 
 
 @dataclass(frozen=True)

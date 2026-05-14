@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import random
 from dataclasses import asdict, dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Iterable
 
@@ -13,7 +14,12 @@ import pandas as pd
 from PIL import Image
 
 from src.data.catalog import SatelliteCatalog
-from src.data.indexing import PatchDatasetConfig, ProcessedImagePair, discover_image_mask_pairs
+from src.data.indexing import (
+    PatchDatasetConfig,
+    ProcessedImagePair,
+    discover_image_mask_pairs,
+    parse_observation_datetime,
+)
 
 
 Image.MAX_IMAGE_PIXELS = None
@@ -751,6 +757,266 @@ def plot_ra_dec_distributions(
     output_path = _prepare_figure("eda_ra_dec_distributions.png", output_dir)
     fig.savefig(output_path, dpi=200, bbox_inches="tight")
     _log(logger, "Saved RA and DEC distribution plot to %s", output_path)
+
+    if show:
+        plt.show()
+    plt.close(fig)
+    return output_path
+
+
+def compute_observation_date_dataframe(
+    root_dir: str | Path | PatchDatasetConfig,
+) -> pd.DataFrame:
+    """Build a per-image DataFrame of observation timestamps parsed from filenames.
+
+    The returned table is intended for contextual figures only — it shows when
+    the labelled subset was observed but the labelled set is not a uniform
+    temporal sample, so it does not support trend claims.
+    """
+    pairs = get_image_mask_pairs(root_dir)
+    rows: list[dict[str, str | datetime | None]] = []
+    for pair in pairs:
+        observation_datetime = parse_observation_datetime(pair.image_path)
+        rows.append(
+            {
+                "image_name": pair.image_path.name,
+                "observation_datetime": observation_datetime,
+                "observation_date": (
+                    observation_datetime.date() if observation_datetime else None
+                ),
+                "observation_year": (
+                    observation_datetime.year if observation_datetime else None
+                ),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def plot_observation_date_distribution(
+    date_df: pd.DataFrame,
+    output_dir: str | Path | None = None,
+    show: bool = True,
+    logger: logging.Logger | None = None,
+) -> Path:
+    """Plot the year-level distribution of observation dates in the labelled subset.
+
+    This figure is contextual, not analytical: it shows the temporal span of the
+    annotated images, not a trend in trail incidence.
+    """
+    import matplotlib.pyplot as plt
+
+    valid = date_df.dropna(subset=["observation_year"])
+    if valid.empty:
+        raise ValueError("No parseable observation dates were found")
+
+    counts = (
+        valid["observation_year"]
+        .astype(int)
+        .value_counts()
+        .sort_index()
+    )
+
+    fig, ax = plt.subplots(figsize=(8, 4))
+    ax.bar(counts.index.astype(str), counts.values, color="#1f77b4")
+    ax.set_xlabel("Observation year")
+    ax.set_ylabel("Labelled image count")
+    ax.set_title(
+        "Observation date coverage of the labelled subset\n"
+        "(contextual only — not exposure-time normalised)"
+    )
+    fig.tight_layout()
+
+    output_path = _prepare_figure("eda_observation_date_distribution.png", output_dir)
+    fig.savefig(output_path, dpi=200, bbox_inches="tight")
+    _log(logger, "Saved observation date distribution to %s", output_path)
+
+    if show:
+        plt.show()
+    plt.close(fig)
+    return output_path
+
+
+@dataclass(frozen=True)
+class MaskComponentStats:
+    """Per-component shape statistics for a single binary mask."""
+
+    image_name: str
+    component_id: int
+    area: int
+    major_axis: float
+    minor_axis: float
+    aspect_ratio: float
+
+
+def _component_principal_axes(
+    coordinates: np.ndarray,
+) -> tuple[float, float]:
+    """Return (major_axis, minor_axis) lengths from coordinate scatter.
+
+    Lengths are derived from the eigenvalues of the coordinate covariance
+    matrix, scaled by 4 so that the values approximate the bounding extent of
+    a uniformly-filled ellipse aligned with the principal axes.
+    """
+    if coordinates.shape[0] < 2:
+        return 0.0, 0.0
+    centred = coordinates - coordinates.mean(axis=0, keepdims=True)
+    covariance = np.cov(centred, rowvar=False)
+    eigenvalues = np.linalg.eigvalsh(covariance)
+    eigenvalues = np.clip(eigenvalues, 0.0, None)
+    major = 4.0 * float(np.sqrt(eigenvalues[-1]))
+    minor = 4.0 * float(np.sqrt(eigenvalues[0]))
+    return major, minor
+
+
+def compute_mask_component_stats(
+    root_dir: str | Path | PatchDatasetConfig,
+    min_area: int = 10,
+    logger: logging.Logger | None = None,
+) -> pd.DataFrame:
+    """Compute per-connected-component shape statistics across all masks.
+
+    For every connected component of every binary mask, the function returns
+    its area, principal-axis lengths (major / minor), and aspect ratio. The
+    minor axis is a usable proxy for trail thickness; combined with the
+    examples produced by :func:`plot_mask_inspection_grid`, low thicknesses
+    on visibly broader trails surface mask undermasking.
+    """
+    from scipy.ndimage import label
+
+    pairs = get_image_mask_pairs(root_dir)
+    rows: list[dict[str, str | int | float]] = []
+
+    for pair in pairs:
+        _log(logger, "Computing mask component stats for %s", pair.image_path.name)
+        mask_array = _load_grayscale_array(pair.mask_path) > 0
+        labelled, num_components = label(mask_array)
+
+        for component_id in range(1, num_components + 1):
+            component_mask = labelled == component_id
+            area = int(component_mask.sum())
+            if area < min_area:
+                continue
+            coordinates = np.argwhere(component_mask).astype(np.float32)
+            major, minor = _component_principal_axes(coordinates)
+            aspect_ratio = float(major / minor) if minor > 0 else float("inf")
+            rows.append(
+                {
+                    "image_name": pair.image_path.name,
+                    "component_id": component_id,
+                    "area": area,
+                    "major_axis": major,
+                    "minor_axis": minor,
+                    "aspect_ratio": aspect_ratio,
+                }
+            )
+
+    return pd.DataFrame(rows)
+
+
+def plot_mask_thickness_distribution(
+    component_df: pd.DataFrame,
+    output_dir: str | Path | None = None,
+    show: bool = True,
+    logger: logging.Logger | None = None,
+) -> Path:
+    """Plot trail thickness (minor-axis) and aspect-ratio distributions.
+
+    Very low minor-axis values combined with very high aspect ratios indicate
+    long thin masks — consistent with undermasking of trails that should be
+    broader. The figure surfaces the population shape so a threshold for
+    follow-up visual inspection can be picked.
+    """
+    import matplotlib.pyplot as plt
+
+    if component_df.empty:
+        raise ValueError("Mask component DataFrame is empty")
+
+    finite_aspect = component_df["aspect_ratio"].replace(
+        [float("inf"), float("-inf")], np.nan
+    ).dropna()
+
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+    axes[0].hist(component_df["minor_axis"], bins=40, color="#1f77b4")
+    axes[0].set_xlabel("Minor axis (px) ≈ trail thickness")
+    axes[0].set_ylabel("Component count")
+    axes[0].set_title("Trail thickness distribution")
+
+    axes[1].hist(finite_aspect, bins=40, color="#d62728")
+    axes[1].set_xlabel("Aspect ratio (major / minor)")
+    axes[1].set_ylabel("Component count")
+    axes[1].set_title("Aspect ratio distribution")
+
+    fig.suptitle("Mask Component Shape Statistics", fontsize=14)
+    fig.tight_layout()
+
+    output_path = _prepare_figure("eda_mask_thickness_distribution.png", output_dir)
+    fig.savefig(output_path, dpi=200, bbox_inches="tight")
+    _log(logger, "Saved mask thickness distribution to %s", output_path)
+
+    if show:
+        plt.show()
+    plt.close(fig)
+    return output_path
+
+
+def plot_mask_inspection_grid(
+    patch_df: pd.DataFrame,
+    n_examples: int = 6,
+    output_dir: str | Path | None = None,
+    show: bool = True,
+    logger: logging.Logger | None = None,
+) -> Path:
+    """Render the densest non-empty patches at full resolution for mask inspection.
+
+    Each row shows the image patch, the mask patch, and an overlay at the
+    native 512×512 resolution. This is the qualitative tool the supervisor
+    flagged at the 2026-05-14 meeting: visible trail pixels extending beyond
+    the mask boundary should be visible at this resolution.
+    """
+    import matplotlib.pyplot as plt
+
+    non_empty = patch_df.loc[~patch_df["is_empty"]]
+    if non_empty.empty:
+        raise ValueError("No non-empty patches available for inspection")
+    selected = non_empty.nlargest(n_examples, "positive_pixel_fraction")
+
+    fig, axes = plt.subplots(n_examples, 3, figsize=(15, 5 * n_examples))
+    axes_array = np.atleast_2d(axes)
+
+    for row, patch in enumerate(selected.itertuples(index=False)):
+        image_patch, mask_patch = _load_patch_arrays(
+            image_path=Path(patch.image_path),
+            mask_path=Path(patch.mask_path),
+            x=int(patch.x),
+            y=int(patch.y),
+            patch_size=int(patch.patch_size),
+        )
+        display_image = _normalise_image_for_display(image_patch)
+
+        axes_array[row, 0].imshow(display_image, cmap="gray", interpolation="nearest")
+        axes_array[row, 0].set_title(f"Image | density={patch.positive_pixel_fraction:.4f}")
+        axes_array[row, 0].axis("off")
+
+        axes_array[row, 1].imshow(mask_patch, cmap="magma", interpolation="nearest")
+        axes_array[row, 1].set_title("Mask")
+        axes_array[row, 1].axis("off")
+
+        axes_array[row, 2].imshow(display_image, cmap="gray", interpolation="nearest")
+        axes_array[row, 2].imshow(
+            np.ma.masked_where(mask_patch == 0, mask_patch),
+            cmap="autumn",
+            alpha=0.45,
+            interpolation="nearest",
+        )
+        axes_array[row, 2].set_title("Overlay — visual completeness check")
+        axes_array[row, 2].axis("off")
+
+    fig.suptitle("Mask Completeness Inspection (full patch resolution)", fontsize=14)
+    fig.tight_layout()
+
+    output_path = _prepare_figure("eda_mask_inspection_grid.png", output_dir)
+    fig.savefig(output_path, dpi=200, bbox_inches="tight")
+    _log(logger, "Saved mask inspection grid to %s", output_path)
 
     if show:
         plt.show()

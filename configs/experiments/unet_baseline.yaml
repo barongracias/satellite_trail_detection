@@ -2,7 +2,7 @@
 # Run on CSD3 with: python -m src.training.train_unet --config configs/experiments/unet_baseline.yaml
 
 experiment_name: unet_baseline
-data_root: data/subset/processed
+data_root: data/Processed
 patch_dir: null          # set to data/patches after running scripts/build_patch_dataset.py
 patch_size: 512
 stride: 512

@@ -33,7 +33,7 @@ Processed segmentation subset uses paired PNG files:
 
 - Image: `*_red.fits_full.png`
 - Mask: `*_red_mask.png`
-- Metadata CSV: `data/subset/metadata/Satellites_Catalog_Application.csv`
+- Metadata CSV: `data/subset/metadata/Satellites_Catalog_Application.csv` (local EDA only)
 
 ## Environment Setup
 

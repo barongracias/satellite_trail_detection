@@ -2,7 +2,7 @@
 # Run with: python -m src.classical.run_hough --config configs/experiments/hough_baseline.yaml
 # Tune canny/hough params against val-set metrics before reporting test-set results.
 
-data_root: data/subset/processed
+data_root: data/Processed
 metrics_path: results/classical/hough_metrics.csv
 summary_path: results/classical/hough_summary.json
 log_dir: results/logs

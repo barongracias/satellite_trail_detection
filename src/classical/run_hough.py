@@ -31,7 +31,7 @@ def main() -> None:
     """Load config, run the Hough baseline, and save per-image and summary metrics."""
     cfg = parse_args()
 
-    data_root = Path(cfg.get("data_root", "data/subset/processed"))
+    data_root = Path(cfg.get("data_root", "data/Processed"))
     metrics_path = Path(cfg.get("metrics_path", "results/classical/hough_metrics.csv"))
     summary_path = Path(cfg["summary_path"]) if "summary_path" in cfg else None
     log_dir = Path(cfg.get("log_dir", "results/logs"))

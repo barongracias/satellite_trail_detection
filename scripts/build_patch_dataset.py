@@ -1,6 +1,6 @@
 """Build a pre-split, pre-sampled patch dataset on disk.
 
-Reads all image/mask pairs from data/subset/processed/, performs an image-level
+Reads all image/mask pairs from data/Processed/, performs an image-level
 stratified split, extracts 512×512 patches at stride 512, applies 1:3 pos:neg
 sampling (all positive patches + 3× random negatives), applies the appropriate
 augmentation transform at write time, and saves the resulting PNG pairs under
@@ -8,7 +8,7 @@ data/patches/{train,val,test}/.  A manifest CSV is written to data/patches/.
 
 Usage (CSD3 — do NOT run locally):
     python scripts/build_patch_dataset.py \
-        --data-root data/subset/processed \
+        --data-root data/Processed \
         --out-dir   data/patches \
         --patch-size 512 \
         --stride    512 \
@@ -180,7 +180,7 @@ def build(
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--data-root", type=Path, default=Path("data/subset/processed"))
+    parser.add_argument("--data-root", type=Path, default=Path("data/Processed"))
     parser.add_argument("--out-dir", type=Path, default=Path("data/patches"))
     parser.add_argument("--patch-size", type=int, default=512)
     parser.add_argument("--stride", type=int, default=512)

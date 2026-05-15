@@ -1,7 +1,8 @@
-# Local smoke test — 5 optimiser steps, no GPU required.
-# Run with: python -m src.training.train_unet --config configs/experiments/unet_smoke.yaml
+# CSD3 GPU smoke test — 5 optimiser steps on the A100.
+# Run with: CONFIG=configs/experiments/unet_smoke_csd3.yaml sbatch slurm/train_unet_ampere_intr.sbatch
+# Mirrors unet_smoke.yaml but uses the CSD3 data root and GPU device.
 
-experiment_name: unet_smoke
+experiment_name: unet_smoke_csd3
 data_root: data/Processed
 patch_dir: null          # smoke run uses on-the-fly patch extraction
 patch_size: 512
@@ -20,7 +21,7 @@ threshold: 0.5
 auto_pos_weight: false
 bce_weight: 0.5
 dice_weight: 0.5
-num_workers: 0
-device: cpu
+num_workers: 4
+device: auto
 checkpoint_dir: results/checkpoints
 log_dir: results/logs

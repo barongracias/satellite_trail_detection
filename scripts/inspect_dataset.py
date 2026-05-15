@@ -16,7 +16,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--data-root",
         type=Path,
-        default=Path("data/subset/processed"),
+        default=Path("data/Processed"),
         help="Directory containing processed image and mask PNG pairs.",
     )
     parser.add_argument(

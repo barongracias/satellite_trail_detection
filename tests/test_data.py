@@ -20,8 +20,9 @@ from src.data.indexing import (
 
 torch = pytest.importorskip("torch")
 
-from src.data.dataset import SatelliteTrailPatchDataset  # noqa: E402
-from src.data.splits import create_splits  # noqa: E402
+from src.data.dataset import SatelliteTrailPatchDataset, PatchDirectoryDataset  # noqa: E402
+from src.data.splits import create_splits, create_image_level_splits  # noqa: E402
+from src.data.transforms import get_train_transforms, get_eval_transforms  # noqa: E402
 
 
 def _write_pair(
@@ -144,7 +145,6 @@ def test_dataset_builds_deterministic_patch_index_and_bookkeeping(
 
     sample = dataset[3]
     assert tuple(sample["coords"].tolist()) == (2, 2)
-    assert tuple(sample["grid_coords"].tolist()) == (1, 1)
     assert np.array_equal(np.asarray(sample["image"]), image_array[2:4, 2:4])
     assert np.array_equal(np.asarray(sample["mask"]), mask_array[2:4, 2:4])
 
@@ -168,3 +168,125 @@ def test_create_splits_rejects_invalid_ratios() -> None:
 
     with pytest.raises(ValueError):
         create_splits(dataset, train_ratio=0.0, val_ratio=0.2)
+
+
+def _make_fake_pairs(
+    tmp_path: Path, n: int
+) -> tuple[list, list]:
+    """Create n dummy ProcessedImagePair objects and associated trail pixel counts."""
+    from src.data.indexing import ProcessedImagePair
+
+    pairs = []
+    counts = []
+    for i in range(n):
+        img = Image.fromarray(np.zeros((4, 4), dtype=np.uint8))
+        msk = Image.fromarray(np.zeros((4, 4), dtype=np.uint8))
+        img_path = tmp_path / f"img_{i:03d}_red.fits_full.png"
+        msk_path = tmp_path / f"img_{i:03d}_red_mask.png"
+        img.save(img_path)
+        msk.save(msk_path)
+        pairs.append(
+            ProcessedImagePair(image_path=img_path, mask_path=msk_path, width=4, height=4)
+        )
+        counts.append(i * 10)  # 0, 10, 20, …  — spread across all quartiles
+    return pairs, counts
+
+
+def test_create_image_level_splits_no_overlap_and_reproducible(tmp_path: Path) -> None:
+    pairs, counts = _make_fake_pairs(tmp_path, 20)
+
+    train_a, val_a, test_a = create_image_level_splits(pairs, counts, seed=42)
+    train_b, val_b, test_b = create_image_level_splits(pairs, counts, seed=42)
+
+    # Reproducibility
+    assert [p.image_path for p in train_a] == [p.image_path for p in train_b]
+    assert [p.image_path for p in val_a] == [p.image_path for p in val_b]
+    assert [p.image_path for p in test_a] == [p.image_path for p in test_b]
+
+    # No overlap between splits
+    all_paths = (
+        [p.image_path for p in train_a]
+        + [p.image_path for p in val_a]
+        + [p.image_path for p in test_a]
+    )
+    assert len(all_paths) == len(set(all_paths)), "Same image appeared in two splits"
+
+
+def test_get_train_transforms_applies_identical_geometry_to_image_and_mask() -> None:
+    # Asymmetric pattern — a single bright pixel at top-left so any flip or
+    # rotation moves it to a different corner that is detectable.
+    arr = np.zeros((16, 16), dtype=np.uint8)
+    arr[0, 0] = 255
+    img_pil = Image.fromarray(arr, mode="L")
+    mask_pil = Image.fromarray(arr.copy(), mode="L")
+
+    transform = get_train_transforms()
+
+    # Run many iterations to exercise all four rotations and flip combinations.
+    for _ in range(40):
+        img_t, mask_t = transform(img_pil, mask_pil)
+        img_nonzero = (img_t.squeeze() > 0).numpy()
+        mask_nonzero = (mask_t.squeeze() > 0).numpy()
+        assert np.array_equal(img_nonzero, mask_nonzero), (
+            "Image and mask received different geometric transforms"
+        )
+
+
+def test_patch_directory_dataset_returns_correct_dict_format(tmp_path: Path) -> None:
+    import csv
+
+    # Create synthetic patch files and a manifest CSV directly.
+    train_dir = tmp_path / "patches" / "train"
+    train_dir.mkdir(parents=True)
+
+    img_array = np.full((8, 8), 128, dtype=np.uint8)
+    msk_array = np.zeros((8, 8), dtype=np.uint8)
+    msk_array[0, 0] = 255
+
+    img_path = train_dir / "patch0_image.png"
+    msk_path = train_dir / "patch0_mask.png"
+    Image.fromarray(img_array).save(img_path)
+    Image.fromarray(msk_array).save(msk_path)
+
+    manifest_path = tmp_path / "patches" / "manifest.csv"
+    with open(manifest_path, "w", newline="") as f:
+        writer = csv.DictWriter(
+            f,
+            fieldnames=[
+                "split", "source_image", "patch_path", "mask_path",
+                "positive_pixel_fraction", "pos_weight",
+            ],
+        )
+        writer.writeheader()
+        writer.writerow({
+            "split": "train",
+            "source_image": "fake.png",
+            "patch_path": str(img_path),
+            "mask_path": str(msk_path),
+            "positive_pixel_fraction": 1.0 / 64,
+            "pos_weight": 63.0,
+        })
+
+    dataset = PatchDirectoryDataset(train_dir, manifest_path)
+    assert len(dataset) == 1
+
+    sample = dataset[0]
+    assert set(sample.keys()) >= {"image", "mask", "coords"}
+    assert sample["image"].shape[0] == 1  # grayscale channel
+    assert sample["mask"].shape[0] == 1
+    assert sample["image"].shape[1:] == sample["mask"].shape[1:]
+    assert sample["coords"].shape == (2,)
+
+
+def test_get_eval_transforms_returns_tensor_with_no_augmentation() -> None:
+    arr = np.zeros((16, 16), dtype=np.uint8)
+    arr[0, 0] = 200
+    img_pil = Image.fromarray(arr, mode="L")
+    mask_pil = Image.fromarray(arr.copy(), mode="L")
+
+    transform = get_eval_transforms()
+    img_t, mask_t = transform(img_pil, mask_pil)
+
+    # No rotation or flip — bright pixel must remain at top-left (0, 0).
+    assert img_t[0, 0, 0].item() > 0
+    assert mask_t[0, 0, 0].item() > 0

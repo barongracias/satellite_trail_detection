@@ -1,0 +1,26 @@
+# Local smoke test — 5 optimiser steps, no GPU required.
+# Run with: python -m src.training.train_unet --config configs/experiments/unet_smoke.yaml
+
+experiment_name: unet_smoke
+data_root: data/subset/processed
+patch_dir: null          # smoke run uses on-the-fly patch extraction
+patch_size: 512
+stride: 512
+batch_size: 2
+learning_rate: 1.0e-3
+epochs: 1
+max_steps: 5
+eval_max_batches: 5
+base_channels: 8
+dropout_rate: 0.5
+train_ratio: 0.70
+val_ratio: 0.15
+seed: 2804
+threshold: 0.5
+auto_pos_weight: false
+bce_weight: 0.5
+dice_weight: 0.5
+num_workers: 0
+device: cpu
+checkpoint_dir: results/checkpoints
+log_dir: results/logs

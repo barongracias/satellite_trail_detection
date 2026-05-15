@@ -5,7 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Callable
 
+import pandas as pd
 import torch
+import torchvision.transforms as T
 from PIL import Image
 from torch.utils.data import Dataset
 
@@ -33,25 +35,6 @@ class SatelliteTrailPatchDataset(Dataset[dict[str, Any]]):
         image_transform: Callable[[Image.Image], Any] | None = None,
         mask_transform: Callable[[Image.Image], Any] | None = None,
     ) -> None:
-        """
-        Initialise the dataset from a directory of processed PNG pairs.
-
-        Parameters
-        ----------
-        root_dir:
-            Directory containing `*_red.fits_full.png` images and matching
-            `*_red_mask.png` masks, or a pre-built dataset configuration.
-        patch_size:
-            Square patch size in pixels.
-        stride:
-            Patch stride in pixels. Defaults to `patch_size`.
-        strict_pairing:
-            When true, raise an error if any processed image is missing its mask.
-        image_transform:
-            Optional transform applied to image patches.
-        mask_transform:
-            Optional transform applied to mask patches.
-        """
         if isinstance(root_dir, PatchDatasetConfig):
             self.config = root_dir
         else:
@@ -80,20 +63,7 @@ class SatelliteTrailPatchDataset(Dataset[dict[str, Any]]):
         return len(self.samples)
 
     def __getitem__(self, idx: int) -> dict[str, Any]:
-        """
-        Retrieve a single image and mask patch pair.
-
-        Parameters
-        ----------
-        idx:
-            Patch index in the deterministic patch list.
-
-        Returns
-        -------
-        dict[str, Any]
-            Dictionary containing the image patch, mask patch, patch
-            coordinates, and source image path.
-        """
+        """Return image patch, mask patch, and pixel coordinates at index idx."""
         sample = self.samples[idx]
 
         with Image.open(sample.image_path) as img:
@@ -126,11 +96,6 @@ class SatelliteTrailPatchDataset(Dataset[dict[str, Any]]):
             "image": image_patch,
             "mask": mask_patch,
             "coords": torch.tensor([sample.y, sample.x], dtype=torch.int32),
-            "grid_coords": torch.tensor(
-                [sample.grid_y, sample.grid_x], dtype=torch.int32
-            ),
-            "image_path": str(sample.image_path),
-            "mask_path": str(sample.mask_path),
         }
 
     def get_patch_records(self) -> list[PatchIndexEntry]:
@@ -140,3 +105,58 @@ class SatelliteTrailPatchDataset(Dataset[dict[str, Any]]):
     def get_image_pairs(self) -> list[ProcessedImagePair]:
         """Return the validated image and mask pairs."""
         return list(self.pairs)
+
+
+class PatchDirectoryDataset(Dataset[dict[str, Any]]):
+    """Load pre-built patches from a single split directory and a manifest CSV.
+
+    Patches are expected to have been written by ``scripts/build_patch_dataset.py``.
+    Image patches are normalised (mean=0.5, std=0.5) at load time; mask patches
+    are converted to float tensors.  The returned dict matches the format of
+    :class:`SatelliteTrailPatchDataset`.
+    """
+
+    _img_transform = T.Compose(
+        [
+            T.ToTensor(),
+            T.Normalize(mean=[0.5], std=[0.5]),
+        ]
+    )
+    _mask_transform = T.ToTensor()
+
+    def __init__(
+        self,
+        patch_dir: str | Path,
+        manifest_path: str | Path | None = None,
+    ) -> None:
+        """Initialise from a split directory.
+
+        Parameters
+        ----------
+        patch_dir:
+            Path to a split subdirectory, e.g. ``data/patches/train``.  The split
+            name is inferred from the final path component.
+        manifest_path:
+            Path to ``manifest.csv``.  Defaults to ``<patch_dir>/../manifest.csv``.
+        """
+        self.patch_dir = Path(patch_dir)
+        split = self.patch_dir.name
+        if manifest_path is None:
+            manifest_path = self.patch_dir.parent / "manifest.csv"
+        manifest = pd.read_csv(manifest_path)
+        self.records = manifest[manifest["split"] == split].reset_index(drop=True)
+
+    def __len__(self) -> int:
+        return len(self.records)
+
+    def __getitem__(self, idx: int) -> dict[str, Any]:
+        row = self.records.iloc[idx]
+        with Image.open(row["patch_path"]) as img:
+            image = self._img_transform(img.convert("L"))
+        with Image.open(row["mask_path"]) as msk:
+            mask = self._mask_transform(msk.convert("L"))
+        return {
+            "image": image,
+            "mask": mask,
+            "coords": torch.tensor([0, 0], dtype=torch.int32),
+        }

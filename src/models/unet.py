@@ -1,4 +1,8 @@
-"""Minimal U-Net implementation for binary satellite trail segmentation."""
+"""Minimal U-Net implementation for binary satellite trail segmentation.
+
+Architecture follows Stoppa et al. 2024: filters 8→128, LeakyReLU, spatial dropout.
+Dropout is applied in the bottleneck and the three deepest decoder blocks.
+"""
 
 from __future__ import annotations
 
@@ -8,105 +12,93 @@ from torch import nn
 
 
 class DoubleConv(nn.Module):
-    """Apply two convolution, batch normalisation, and ReLU stages."""
+    """Two conv + LeakyReLU stages with optional spatial dropout."""
 
-    def __init__(self, in_channels: int, out_channels: int) -> None:
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        dropout_rate: float = 0.0,
+    ) -> None:
         super().__init__()
-        self.layers = nn.Sequential(
-            nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1, bias=False),
-            nn.BatchNorm2d(out_channels),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1, bias=False),
-            nn.BatchNorm2d(out_channels),
-            nn.ReLU(inplace=True),
-        )
+        layers: list[nn.Module] = [
+            nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
+            nn.LeakyReLU(0.01, inplace=True),
+            nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
+            nn.LeakyReLU(0.01, inplace=True),
+        ]
+        if dropout_rate > 0.0:
+            layers.append(nn.Dropout2d(dropout_rate))
+        self.layers = nn.Sequential(*layers)
 
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
-        """Apply the paired convolution block."""
         return self.layers(inputs)
 
 
 class DownBlock(nn.Module):
-    """Downsample the feature map and apply a double convolution block."""
+    """Max-pool downsample followed by a double-conv block."""
 
-    def __init__(self, in_channels: int, out_channels: int) -> None:
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        dropout_rate: float = 0.0,
+    ) -> None:
         super().__init__()
-        self.layers = nn.Sequential(
-            nn.MaxPool2d(kernel_size=2, stride=2),
-            DoubleConv(in_channels, out_channels),
-        )
+        self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
+        self.conv = DoubleConv(in_channels, out_channels, dropout_rate=dropout_rate)
 
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
-        """Apply max pooling followed by feature extraction."""
-        return self.layers(inputs)
+        return self.conv(self.pool(inputs))
 
 
 class UpBlock(nn.Module):
-    """Upsample decoder features and fuse them with the matching skip map."""
+    """Transposed-conv upsample, skip-connection fusion, and double-conv."""
 
     def __init__(
         self,
         in_channels: int,
         skip_channels: int,
         out_channels: int,
+        dropout_rate: float = 0.0,
     ) -> None:
         super().__init__()
-        self.up = nn.ConvTranspose2d(
-            in_channels,
-            out_channels,
-            kernel_size=2,
-            stride=2,
-        )
-        self.conv = DoubleConv(out_channels + skip_channels, out_channels)
+        self.up = nn.ConvTranspose2d(in_channels, out_channels, kernel_size=2, stride=2)
+        self.conv = DoubleConv(out_channels + skip_channels, out_channels, dropout_rate=dropout_rate)
 
     def forward(self, inputs: torch.Tensor, skip: torch.Tensor) -> torch.Tensor:
-        """Upsample the decoder state and concatenate the skip features."""
         upsampled = self.up(inputs)
         if upsampled.shape[-2:] != skip.shape[-2:]:
             upsampled = F.interpolate(
-                upsampled,
-                size=skip.shape[-2:],
-                mode="bilinear",
-                align_corners=False,
+                upsampled, size=skip.shape[-2:], mode="bilinear", align_corners=False
             )
-        merged = torch.cat([skip, upsampled], dim=1)
-        return self.conv(merged)
+        return self.conv(torch.cat([skip, upsampled], dim=1))
 
 
 class UNet(nn.Module):
-    """A lightweight U-Net suitable for `512 x 512` binary segmentation patches."""
+    """U-Net for 512×512 binary segmentation (paper-faithful: 8→128 filters, LeakyReLU, Dropout)."""
 
     def __init__(
         self,
         in_channels: int = 1,
         out_channels: int = 1,
-        base_channels: int = 32,
+        base_channels: int = 8,
+        dropout_rate: float = 0.5,
     ) -> None:
-        """
-        Initialise the encoder-decoder network.
-
-        Parameters
-        ----------
-        in_channels:
-            Number of image channels.
-        out_channels:
-            Number of output channels. Use `1` for binary segmentation logits.
-        base_channels:
-            Channel width of the first encoder stage.
-        """
         super().__init__()
-
-        self.stem = DoubleConv(in_channels, base_channels)
-        self.down1 = DownBlock(base_channels, base_channels * 2)
-        self.down2 = DownBlock(base_channels * 2, base_channels * 4)
-        self.down3 = DownBlock(base_channels * 4, base_channels * 8)
-        self.bottleneck = DownBlock(base_channels * 8, base_channels * 16)
-
-        self.up1 = UpBlock(base_channels * 16, base_channels * 8, base_channels * 8)
-        self.up2 = UpBlock(base_channels * 8, base_channels * 4, base_channels * 4)
-        self.up3 = UpBlock(base_channels * 4, base_channels * 2, base_channels * 2)
-        self.up4 = UpBlock(base_channels * 2, base_channels, base_channels)
-        self.head = nn.Conv2d(base_channels, out_channels, kernel_size=1)
+        B = base_channels
+        # Encoder — no dropout (preserve gradient flow through skip connections)
+        self.stem = DoubleConv(in_channels, B)
+        self.down1 = DownBlock(B, B * 2)
+        self.down2 = DownBlock(B * 2, B * 4)
+        self.down3 = DownBlock(B * 4, B * 8)
+        # Bottleneck + decoder — dropout applied here
+        self.bottleneck = DownBlock(B * 8, B * 16, dropout_rate=dropout_rate)
+        self.up1 = UpBlock(B * 16, B * 8, B * 8, dropout_rate=dropout_rate)
+        self.up2 = UpBlock(B * 8, B * 4, B * 4, dropout_rate=dropout_rate)
+        self.up3 = UpBlock(B * 4, B * 2, B * 2, dropout_rate=dropout_rate)
+        self.up4 = UpBlock(B * 2, B, B)
+        self.head = nn.Conv2d(B, out_channels, kernel_size=1)
 
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
         """Return per-pixel segmentation logits."""
@@ -115,7 +107,6 @@ class UNet(nn.Module):
         enc3 = self.down2(enc2)
         enc4 = self.down3(enc3)
         bottleneck = self.bottleneck(enc4)
-
         dec1 = self.up1(bottleneck, enc4)
         dec2 = self.up2(dec1, enc3)
         dec3 = self.up3(dec2, enc2)

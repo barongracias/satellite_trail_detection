@@ -1,0 +1,204 @@
+"""Build a pre-split, pre-sampled patch dataset on disk.
+
+Reads all image/mask pairs from data/subset/processed/, performs an image-level
+stratified split, extracts 512×512 patches at stride 512, applies 1:3 pos:neg
+sampling (all positive patches + 3× random negatives), applies the appropriate
+augmentation transform at write time, and saves the resulting PNG pairs under
+data/patches/{train,val,test}/.  A manifest CSV is written to data/patches/.
+
+Usage (CSD3 — do NOT run locally):
+    python scripts/build_patch_dataset.py \
+        --data-root data/subset/processed \
+        --out-dir   data/patches \
+        --patch-size 512 \
+        --stride    512 \
+        --seed      2804
+"""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import random
+from pathlib import Path
+
+import numpy as np
+from PIL import Image
+
+from src.config.constants import GLOBAL_SEED
+from src.data.indexing import PatchDatasetConfig, discover_image_mask_pairs
+from src.data.splits import create_image_level_splits
+from src.data.transforms import get_train_transforms, get_eval_transforms
+
+
+Image.MAX_IMAGE_PIXELS = None
+
+_MANIFEST_COLUMNS = [
+    "split",
+    "source_image",
+    "patch_path",
+    "mask_path",
+    "positive_pixel_fraction",
+    "pos_weight",
+]
+
+
+def _count_trail_pixels(mask_path: Path) -> int:
+    with Image.open(mask_path) as m:
+        arr = np.asarray(m.convert("L"), dtype=np.uint8)
+    return int((arr > 0).sum())
+
+
+def _extract_split_patches(
+    pairs: list,
+    patch_size: int,
+    stride: int,
+) -> tuple[list, list]:
+    """Return (pos_patches, neg_patches) across all pairs in one split."""
+    pos_patches: list = []
+    neg_patches: list = []
+
+    for pair in pairs:
+        with Image.open(pair.image_path) as img_pil:
+            img_full = img_pil.convert("L")
+        with Image.open(pair.mask_path) as msk_pil:
+            msk_full = msk_pil.convert("L")
+
+        for y in range(0, pair.height - patch_size + 1, stride):
+            for x in range(0, pair.width - patch_size + 1, stride):
+                img_patch = img_full.crop((x, y, x + patch_size, y + patch_size))
+                msk_patch = msk_full.crop((x, y, x + patch_size, y + patch_size))
+                pos_pixels = int((np.asarray(msk_patch, dtype=np.uint8) > 0).sum())
+                entry = (img_patch, msk_patch, pair.image_path, y, x, pos_pixels)
+                if pos_pixels > 0:
+                    pos_patches.append(entry)
+                else:
+                    neg_patches.append(entry)
+
+    return pos_patches, neg_patches
+
+
+def _write_patches(
+    pos_patches: list,
+    neg_patches: list,
+    out_dir: Path,
+    split: str,
+    transform,
+    patch_size: int,
+    rng: random.Random,
+    manifest_rows: list,
+) -> None:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    total_pixels = patch_size * patch_size
+
+    # 1:3 sampling — all positives, random sample of negatives
+    n_neg = min(len(neg_patches), len(pos_patches) * 3)
+    sampled_neg = rng.sample(neg_patches, n_neg) if n_neg > 0 else []
+    all_patches = pos_patches + sampled_neg
+
+    for img_patch, msk_patch, src_img, y, x, pos_pixels in all_patches:
+        stem = f"{src_img.stem}_{y}_{x}"
+        img_out = out_dir / f"{stem}_image.png"
+        msk_out = out_dir / f"{stem}_mask.png"
+
+        img_t, msk_t = transform(img_patch, msk_patch)
+
+        # img_t: [1, H, W] float32 in [0, 1]; convert back to uint8 for PNG
+        img_arr = (img_t.squeeze().numpy() * 255).clip(0, 255).astype(np.uint8)
+        msk_arr = (msk_t.squeeze().numpy() * 255).clip(0, 255).astype(np.uint8)
+        Image.fromarray(img_arr, mode="L").save(img_out)
+        Image.fromarray(msk_arr, mode="L").save(msk_out)
+
+        pos_frac = pos_pixels / total_pixels
+        pw = (1.0 - pos_frac) / pos_frac if pos_frac > 0.0 else float("inf")
+
+        manifest_rows.append(
+            {
+                "split": split,
+                "source_image": str(src_img),
+                "patch_path": str(img_out),
+                "mask_path": str(msk_out),
+                "positive_pixel_fraction": round(pos_frac, 8),
+                "pos_weight": round(pw, 4) if pw != float("inf") else "inf",
+            }
+        )
+
+
+def build(
+    data_root: Path,
+    out_dir: Path,
+    patch_size: int = 512,
+    stride: int = 512,
+    train_ratio: float = 0.70,
+    val_ratio: float = 0.15,
+    seed: int = GLOBAL_SEED,
+) -> Path:
+    """Run the full patch-building pipeline and return the manifest path."""
+    config = PatchDatasetConfig(root_dir=data_root, patch_size=patch_size, stride=stride)
+    pairs = discover_image_mask_pairs(config)
+
+    trail_counts = [_count_trail_pixels(p.mask_path) for p in pairs]
+    train_pairs, val_pairs, test_pairs = create_image_level_splits(
+        pairs, trail_counts, train_ratio=train_ratio, val_ratio=val_ratio, seed=seed
+    )
+
+    train_transform = get_train_transforms()
+    eval_transform = get_eval_transforms()
+    rng = random.Random(seed)
+    manifest_rows: list = []
+
+    for split_name, split_pairs, transform in [
+        ("train", train_pairs, train_transform),
+        ("val", val_pairs, eval_transform),
+        ("test", test_pairs, eval_transform),
+    ]:
+        if not split_pairs:
+            continue
+        pos_patches, neg_patches = _extract_split_patches(
+            split_pairs, patch_size, stride
+        )
+        _write_patches(
+            pos_patches,
+            neg_patches,
+            out_dir=out_dir / split_name,
+            split=split_name,
+            transform=transform,
+            patch_size=patch_size,
+            rng=rng,
+            manifest_rows=manifest_rows,
+        )
+
+    manifest_path = out_dir / "manifest.csv"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    with open(manifest_path, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=_MANIFEST_COLUMNS)
+        writer.writeheader()
+        writer.writerows(manifest_rows)
+
+    return manifest_path
+
+
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--data-root", type=Path, default=Path("data/subset/processed"))
+    parser.add_argument("--out-dir", type=Path, default=Path("data/patches"))
+    parser.add_argument("--patch-size", type=int, default=512)
+    parser.add_argument("--stride", type=int, default=512)
+    parser.add_argument("--train-ratio", type=float, default=0.70)
+    parser.add_argument("--val-ratio", type=float, default=0.15)
+    parser.add_argument("--seed", type=int, default=GLOBAL_SEED)
+    return parser.parse_args()
+
+
+if __name__ == "__main__":
+    args = _parse_args()
+    manifest = build(
+        data_root=args.data_root,
+        out_dir=args.out_dir,
+        patch_size=args.patch_size,
+        stride=args.stride,
+        train_ratio=args.train_ratio,
+        val_ratio=args.val_ratio,
+        seed=args.seed,
+    )
+    print(f"Manifest written to {manifest}")

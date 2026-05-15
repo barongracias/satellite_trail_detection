@@ -9,6 +9,9 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+import pandas as pd
+import yaml
+
 import numpy as np
 import torch
 from PIL import Image
@@ -16,7 +19,8 @@ from torch import nn
 from torch.optim import Adam
 from torch.utils.data import DataLoader
 
-from src.data.dataset import PatchDatasetConfig, SatelliteTrailPatchDataset
+from src.config.constants import GLOBAL_SEED
+from src.data.dataset import PatchDatasetConfig, PatchDirectoryDataset, SatelliteTrailPatchDataset
 from src.data.indexing import discover_image_mask_pairs
 from src.data.splits import create_splits
 from src.data.transforms import get_patch_transforms
@@ -26,6 +30,7 @@ from src.evaluation.segmentation import (
 )
 from src.models.unet import UNet
 from src.utils.logger import get_logger
+from src.utils.seed import seed_everything
 
 
 Image.MAX_IMAGE_PIXELS = None
@@ -43,16 +48,20 @@ class TrainingConfig:
     epochs: int = 3
     max_steps: int | None = None
     num_workers: int = 0
+    patch_dir: str | Path | None = None
     pos_weight: float | None = None
     auto_pos_weight: bool = False
-    base_channels: int = 32
+    bce_weight: float = 0.5
+    dice_weight: float = 0.5
+    base_channels: int = 8
+    dropout_rate: float = 0.5
     device: str = "auto"
     checkpoint_dir: str | Path = Path("results/checkpoints")
     log_dir: str | Path = Path("results/logs")
     experiment_name: str = "unet_baseline"
     train_ratio: float = 0.7
     val_ratio: float = 0.15
-    seed: int = 42
+    seed: int = GLOBAL_SEED
     threshold: float = 0.5
     eval_max_batches: int | None = None
 
@@ -61,6 +70,8 @@ class TrainingConfig:
         object.__setattr__(self, "data_root", Path(self.data_root))
         object.__setattr__(self, "checkpoint_dir", Path(self.checkpoint_dir))
         object.__setattr__(self, "log_dir", Path(self.log_dir))
+        if self.patch_dir is not None:
+            object.__setattr__(self, "patch_dir", Path(self.patch_dir))
 
         if self.patch_size <= 0 or self.batch_size <= 0 or self.epochs <= 0:
             raise ValueError("patch_size, batch_size, and epochs must be positive")
@@ -80,89 +91,19 @@ class TrainingConfig:
             raise ValueError("threshold must lie between 0 and 1")
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Create the CLI parser for the U-Net training entry point."""
+def parse_args() -> TrainingConfig:
+    """Load a TrainingConfig from a YAML file given by --config."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--data-root",
+        "--config",
         type=Path,
-        default=Path("data/subset/processed"),
-        help="Directory containing processed image and mask PNG pairs.",
+        required=True,
+        help="Path to a YAML experiment config file (e.g. configs/experiments/unet_baseline.yaml).",
     )
-    parser.add_argument(
-        "--patch-size",
-        type=int,
-        default=512,
-        help="Square patch size used by the dataset.",
-    )
-    parser.add_argument(
-        "--stride",
-        type=int,
-        default=None,
-        help="Patch stride used by the dataset. Defaults to patch size.",
-    )
-    parser.add_argument("--batch-size", type=int, default=2)
-    parser.add_argument("--learning-rate", type=float, default=1e-3)
-    parser.add_argument("--epochs", type=int, default=3)
-    parser.add_argument(
-        "--max-steps",
-        type=int,
-        default=None,
-        help="Optional global optimiser-step limit for a short smoke run.",
-    )
-    parser.add_argument("--num-workers", type=int, default=0)
-    parser.add_argument(
-        "--pos-weight",
-        type=float,
-        default=None,
-        help="Optional positive class weight for BCEWithLogitsLoss.",
-    )
-    parser.add_argument(
-        "--auto-pos-weight",
-        action="store_true",
-        help="Estimate pos_weight from the processed dataset masks.",
-    )
-    parser.add_argument("--base-channels", type=int, default=32)
-    parser.add_argument(
-        "--device",
-        type=str,
-        default="auto",
-        help="Device to use: auto, cpu, or cuda.",
-    )
-    parser.add_argument(
-        "--checkpoint-dir",
-        type=Path,
-        default=Path("results/checkpoints"),
-        help="Directory where checkpoints and summaries will be saved.",
-    )
-    parser.add_argument(
-        "--log-dir",
-        type=Path,
-        default=Path("results/logs"),
-        help="Directory where training logs will be saved.",
-    )
-    parser.add_argument(
-        "--experiment-name",
-        type=str,
-        default="unet_experiment",
-        help="Name used for logs, checkpoints, and summary files.",
-    )
-    parser.add_argument("--train-ratio", type=float, default=0.7)
-    parser.add_argument("--val-ratio", type=float, default=0.15)
-    parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--threshold", type=float, default=0.5)
-    parser.add_argument(
-        "--eval-max-batches",
-        type=int,
-        default=None,
-        help="Optional limit on validation and test batches for quick smoke runs.",
-    )
-    return parser
-
-
-def parse_args() -> TrainingConfig:
-    """Parse CLI arguments into a validated configuration object."""
-    return TrainingConfig(**vars(build_parser().parse_args()))
+    args = parser.parse_args()
+    with open(args.config) as f:
+        data = yaml.safe_load(f)
+    return TrainingConfig(**data)
 
 
 def _serialise_config(config: TrainingConfig) -> dict[str, Any]:
@@ -171,6 +112,7 @@ def _serialise_config(config: TrainingConfig) -> dict[str, Any]:
     data["data_root"] = str(config.data_root)
     data["checkpoint_dir"] = str(config.checkpoint_dir)
     data["log_dir"] = str(config.log_dir)
+    data["patch_dir"] = str(config.patch_dir) if config.patch_dir is not None else None
     return data
 
 
@@ -184,7 +126,45 @@ def resolve_device(device_name: str) -> torch.device:
 def build_dataloaders(
     config: TrainingConfig,
 ) -> tuple[DataLoader, DataLoader, DataLoader]:
-    """Create deterministic train, validation, and test dataloaders."""
+    """Create deterministic train, validation, and test dataloaders.
+
+    When ``config.patch_dir`` is set, loads pre-built patches from that directory
+    tree using :class:`PatchDirectoryDataset`.  Otherwise falls back to on-the-fly
+    patch extraction from ``config.data_root`` via :class:`SatelliteTrailPatchDataset`.
+    """
+    if config.patch_dir is not None:
+        manifest = config.patch_dir / "manifest.csv"
+        train_ds = PatchDirectoryDataset(config.patch_dir / "train", manifest)
+        val_ds = PatchDirectoryDataset(config.patch_dir / "val", manifest)
+        test_ds = PatchDirectoryDataset(config.patch_dir / "test", manifest)
+
+        if min(len(train_ds), len(val_ds), len(test_ds)) == 0:
+            raise ValueError(
+                "PatchDirectoryDataset produced an empty train, validation, or test split"
+            )
+
+        return (
+            DataLoader(
+                train_ds,
+                batch_size=config.batch_size,
+                shuffle=True,
+                num_workers=config.num_workers,
+            ),
+            DataLoader(
+                val_ds,
+                batch_size=config.batch_size,
+                shuffle=False,
+                num_workers=config.num_workers,
+            ),
+            DataLoader(
+                test_ds,
+                batch_size=config.batch_size,
+                shuffle=False,
+                num_workers=config.num_workers,
+            ),
+        )
+
+    # Legacy path: on-the-fly patch extraction.
     image_transform, mask_transform = get_patch_transforms()
     dataset = SatelliteTrailPatchDataset(
         root_dir=PatchDatasetConfig(
@@ -267,21 +247,67 @@ def estimate_positive_pixel_fraction(config: TrainingConfig) -> float:
 
 
 def infer_pos_weight(config: TrainingConfig) -> float:
-    """Estimate a positive class weight from the processed mask coverage."""
+    """Estimate a positive class weight for the training split.
+
+    When ``patch_dir`` is set the manifest is read directly — this is both
+    faster and more accurate because it reflects the 1:3 pos/neg sampling
+    applied at patch-build time rather than the raw (unsampled) image set.
+    """
+    if config.patch_dir is not None:
+        manifest = pd.read_csv(Path(config.patch_dir) / "manifest.csv")
+        train_rows = manifest[manifest["split"] == "train"]
+        avg_pos_frac = float(train_rows["positive_pixel_fraction"].mean())
+        if avg_pos_frac <= 0.0:
+            raise ValueError("No positive pixels found in the train split manifest")
+        return (1.0 - avg_pos_frac) / avg_pos_frac
     positive_fraction = estimate_positive_pixel_fraction(config)
     return (1.0 - positive_fraction) / positive_fraction
 
 
+class ComboBCEDiceLoss(nn.Module):
+    """Combined BCE + Dice loss for binary segmentation."""
+
+    def __init__(
+        self,
+        bce_weight: float = 0.5,
+        dice_weight: float = 0.5,
+        pos_weight: float | None = None,
+        device: torch.device | None = None,
+    ) -> None:
+        super().__init__()
+        self.bce_weight = bce_weight
+        self.dice_weight = dice_weight
+        if pos_weight is not None:
+            pw = torch.tensor([pos_weight], dtype=torch.float32, device=device)
+            self.bce = nn.BCEWithLogitsLoss(pos_weight=pw)
+        else:
+            self.bce = nn.BCEWithLogitsLoss()
+
+    def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        bce_loss = self.bce(logits, targets)
+        probs = torch.sigmoid(logits)
+        eps = 1e-6
+        # Sum over spatial dims, average over the batch and channel dims.
+        spatial = tuple(range(2, logits.ndim))
+        intersection = (probs * targets).sum(dim=spatial)
+        denominator = probs.sum(dim=spatial) + targets.sum(dim=spatial)
+        dice_loss = (1.0 - (2.0 * intersection + eps) / (denominator + eps)).mean()
+        return self.bce_weight * bce_loss + self.dice_weight * dice_loss
+
+
 def build_loss_function(
     device: torch.device,
-    pos_weight: float | None,
+    pos_weight: float | None = None,
+    bce_weight: float = 0.5,
+    dice_weight: float = 0.5,
 ) -> nn.Module:
-    """Construct the binary segmentation loss function."""
-    if pos_weight is None:
-        return nn.BCEWithLogitsLoss()
-
-    weight_tensor = torch.tensor([pos_weight], dtype=torch.float32, device=device)
-    return nn.BCEWithLogitsLoss(pos_weight=weight_tensor)
+    """Construct the combined BCE + Dice segmentation loss."""
+    return ComboBCEDiceLoss(
+        bce_weight=bce_weight,
+        dice_weight=dice_weight,
+        pos_weight=pos_weight,
+        device=device,
+    )
 
 
 def save_checkpoint(
@@ -398,6 +424,7 @@ def train_one_epoch(
 
 def run_training(config: TrainingConfig) -> dict[str, Path]:
     """Run a train, validation, and test experiment and save the outputs."""
+    seed_everything(config.seed)
     logger = get_logger(name=config.experiment_name, run_dir=config.log_dir)
     device = resolve_device(config.device)
     train_loader, val_loader, test_loader = build_dataloaders(config)
@@ -409,6 +436,7 @@ def run_training(config: TrainingConfig) -> dict[str, Path]:
         in_channels=1,
         out_channels=1,
         base_channels=config.base_channels,
+        dropout_rate=config.dropout_rate,
     ).to(device)
     optimiser = Adam(model.parameters(), lr=config.learning_rate)
 
@@ -416,7 +444,12 @@ def run_training(config: TrainingConfig) -> dict[str, Path]:
     if config.auto_pos_weight:
         pos_weight = infer_pos_weight(config)
 
-    criterion = build_loss_function(device=device, pos_weight=pos_weight)
+    criterion = build_loss_function(
+        device=device,
+        pos_weight=pos_weight,
+        bce_weight=config.bce_weight,
+        dice_weight=config.dice_weight,
+    )
     logger.info("Starting U-Net experiment")
     logger.info("Training configuration: %s", _serialise_config(config))
     logger.info("Resolved device: %s", device)

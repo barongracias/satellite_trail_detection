@@ -1,0 +1,22 @@
+# Classical Hough-transform baseline — default parameters.
+# Run with: python -m src.classical.run_hough --config configs/experiments/hough_baseline.yaml
+# Tune canny/hough params against val-set metrics before reporting test-set results.
+
+data_root: data/subset/processed
+metrics_path: results/classical/hough_metrics.csv
+summary_path: results/classical/hough_summary.json
+log_dir: results/logs
+
+# Canny edge detection
+canny_low_threshold: 50
+canny_high_threshold: 150
+
+# Probabilistic Hough line detection
+hough_threshold: 50
+min_line_length: 40
+max_line_gap: 10
+line_thickness: 3
+
+# Intensity normalisation (percentile clipping before Canny)
+clip_low_percentile: 1.0
+clip_high_percentile: 99.5

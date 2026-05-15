@@ -27,23 +27,7 @@ def get_logger(
     level: int = logging.INFO,
     run_dir: Path | None = None,
 ) -> logging.Logger:
-    """
-    Create a file logger for a single run.
-
-    Parameters
-    ----------
-    name : str
-        Logger name.
-    level : int
-        Logging level.
-    run_dir : Path | None
-        Directory where log file will be written.
-        Defaults to results/logs/.
-
-    Returns
-    -------
-    logging.Logger
-    """
+    """Create a timestamped file logger for a single run."""
     logger: logging.Logger = logging.getLogger(name)
 
     logger.setLevel(level)

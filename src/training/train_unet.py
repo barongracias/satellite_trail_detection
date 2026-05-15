@@ -256,10 +256,12 @@ def infer_pos_weight(config: TrainingConfig) -> float:
     if config.patch_dir is not None:
         manifest = pd.read_csv(Path(config.patch_dir) / "manifest.csv")
         train_rows = manifest[manifest["split"] == "train"]
-        avg_pos_frac = float(train_rows["positive_pixel_fraction"].mean())
-        if avg_pos_frac <= 0.0:
-            raise ValueError("No positive pixels found in the train split manifest")
-        return (1.0 - avg_pos_frac) / avg_pos_frac
+        # Fraction of patches that contain any trail pixels (reflects 1:3 sampling).
+        # Using mean pixel density would give ~0.006, not ~0.25, producing pos_weight ~170.
+        pos_patch_frac = float((train_rows["positive_pixel_fraction"] > 0).mean())
+        if pos_patch_frac <= 0.0:
+            raise ValueError("No positive patches found in the train split manifest")
+        return (1.0 - pos_patch_frac) / pos_patch_frac
     positive_fraction = estimate_positive_pixel_fraction(config)
     return (1.0 - positive_fraction) / positive_fraction
 

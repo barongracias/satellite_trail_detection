@@ -20,7 +20,6 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-import yaml
 from torch.utils.data import DataLoader
 
 from src.data.dataset import PatchDirectoryDataset
@@ -31,7 +30,6 @@ from src.utils.seed import seed_everything
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--config", default="configs/experiments/unet_baseline.yaml")
     p.add_argument("--checkpoint", default="results/checkpoints/unet_baseline_best.pth")
     p.add_argument("--patch_dir", default="data/patches")
     p.add_argument("--batch_size", type=int, default=16)
@@ -98,23 +96,22 @@ def main() -> None:
     logger = get_logger("threshold_sweep")
     seed_everything()
 
-    with open(args.config) as f:
-        cfg = yaml.safe_load(f)
-
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logger.info("Device: %s", device)
 
-    model = UNet(
-        base_channels=cfg["base_channels"],
-        dropout_rate=cfg["dropout_rate"],
-    ).to(device)
-
     ckpt = torch.load(args.checkpoint, map_location=device)
+    ckpt_cfg = ckpt.get("config", {})
+
+    model = UNet(
+        base_channels=ckpt_cfg.get("base_channels", 8),
+        dropout_rate=ckpt_cfg.get("dropout_rate", 0.5),
+    ).to(device)
     model.load_state_dict(ckpt["model_state_dict"])
-    logger.info("Loaded checkpoint: %s", args.checkpoint)
+    normalisation = ckpt_cfg.get("normalisation", "fixed")
+    logger.info("Loaded checkpoint: %s (normalisation=%s)", args.checkpoint, normalisation)
 
     def make_loader(split: str) -> DataLoader:
-        ds = PatchDirectoryDataset(Path(args.patch_dir) / split)
+        ds = PatchDirectoryDataset(Path(args.patch_dir) / split, normalisation=normalisation)
         return DataLoader(
             ds,
             batch_size=args.batch_size,

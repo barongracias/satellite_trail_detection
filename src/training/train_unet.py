@@ -7,8 +7,11 @@ import json
 import logging
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 import pandas as pd
 import yaml
 
@@ -55,6 +58,7 @@ class TrainingConfig:
     dice_weight: float = 0.5
     base_channels: int = 8
     dropout_rate: float = 0.5
+    normalisation: str = "fixed"
     device: str = "auto"
     checkpoint_dir: str | Path = Path("results/checkpoints")
     log_dir: str | Path = Path("results/logs")
@@ -89,6 +93,8 @@ class TrainingConfig:
             raise ValueError("train_ratio and val_ratio must leave room for a test split")
         if self.threshold <= 0 or self.threshold >= 1:
             raise ValueError("threshold must lie between 0 and 1")
+        if self.normalisation not in ("fixed", "per_image"):
+            raise ValueError("normalisation must be 'fixed' or 'per_image'")
 
 
 def parse_args() -> TrainingConfig:
@@ -134,9 +140,9 @@ def build_dataloaders(
     """
     if config.patch_dir is not None:
         manifest = config.patch_dir / "manifest.csv"
-        train_ds = PatchDirectoryDataset(config.patch_dir / "train", manifest)
-        val_ds = PatchDirectoryDataset(config.patch_dir / "val", manifest)
-        test_ds = PatchDirectoryDataset(config.patch_dir / "test", manifest)
+        train_ds = PatchDirectoryDataset(config.patch_dir / "train", manifest, config.normalisation)
+        val_ds = PatchDirectoryDataset(config.patch_dir / "val", manifest, config.normalisation)
+        test_ds = PatchDirectoryDataset(config.patch_dir / "test", manifest, config.normalisation)
 
         if min(len(train_ds), len(val_ds), len(test_ds)) == 0:
             raise ValueError(
@@ -424,7 +430,42 @@ def train_one_epoch(
     return sum(batch_losses) / len(batch_losses), steps_completed
 
 
-def run_training(config: TrainingConfig) -> dict[str, Path]:
+def save_training_curves(
+    history: list[dict[str, float | int]],
+    experiment_name: str,
+    figures_dir: Path,
+) -> Path:
+    """Save a two-panel training curve figure (loss + val dice) to figures_dir."""
+    epochs = [e["epoch"] for e in history]
+    fig, axes = plt.subplots(1, 2, figsize=(10, 4))
+
+    axes[0].plot(epochs, [e["train_loss"] for e in history], label="train")
+    axes[0].plot(epochs, [e["val_loss"] for e in history], label="val")
+    axes[0].set_xlabel("Epoch")
+    axes[0].set_ylabel("Loss")
+    axes[0].set_title("Loss")
+    axes[0].legend()
+    axes[0].grid(True, alpha=0.3)
+
+    axes[1].plot(epochs, [e["val_dice"] for e in history])
+    axes[1].set_xlabel("Epoch")
+    axes[1].set_ylabel("Val Dice")
+    axes[1].set_title("Validation Dice")
+    axes[1].grid(True, alpha=0.3)
+
+    fig.tight_layout()
+    figures_dir.mkdir(parents=True, exist_ok=True)
+    path = figures_dir / f"{experiment_name}_curves.png"
+    fig.savefig(path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    return path
+
+
+def run_training(
+    config: TrainingConfig,
+    pruner_callback: Callable[[int, float], bool] | None = None,
+    save_curves: bool = True,
+) -> dict[str, Path]:
     """Run a train, validation, and test experiment and save the outputs."""
     seed_everything(config.seed)
     logger = get_logger(name=config.experiment_name, run_dir=config.log_dir)
@@ -552,6 +593,10 @@ def run_training(config: TrainingConfig) -> dict[str, Path]:
             logger.info("Reached max_steps=%d, stopping early", config.max_steps)
             break
 
+        if pruner_callback is not None and pruner_callback(epoch, val_result.metrics.dice):
+            logger.info("Trial pruned at epoch %d", epoch)
+            break
+
     if latest_val_result is None:
         raise RuntimeError("Training completed without a validation pass")
 
@@ -595,6 +640,11 @@ def run_training(config: TrainingConfig) -> dict[str, Path]:
     logger.info("Saved latest checkpoint to %s", latest_checkpoint)
     logger.info("Saved best checkpoint to %s", best_checkpoint)
     logger.info("Saved experiment summary to %s", summary_path)
+
+    if save_curves and config.max_steps is None:
+        figures_dir = config.checkpoint_dir.parent / "figures"
+        curves_path = save_training_curves(history, config.experiment_name, figures_dir)
+        logger.info("Saved training curves to %s", curves_path)
 
     return {
         "latest_checkpoint": latest_checkpoint,

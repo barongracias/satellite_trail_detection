@@ -11,6 +11,7 @@ learning_rate: 1.0e-3
 epochs: 50
 base_channels: 8          # paper: filters 8 -> 128
 dropout_rate: 0.5         # paper: dropout in bottleneck and decoder
+normalisation: fixed      # fixed=(mean=0.5,std=0.5) | per_image=(x-μ)/σ per patch
 train_ratio: 0.70
 val_ratio: 0.15
 seed: 2804

@@ -111,35 +111,23 @@ class PatchDirectoryDataset(Dataset[dict[str, Any]]):
     """Load pre-built patches from a single split directory and a manifest CSV.
 
     Patches are expected to have been written by ``scripts/build_patch_dataset.py``.
-    Image patches are normalised (mean=0.5, std=0.5) at load time; mask patches
-    are converted to float tensors.  The returned dict matches the format of
+    Image patches are normalised at load time; mask patches are converted to float
+    tensors.  The returned dict matches the format of
     :class:`SatelliteTrailPatchDataset`.
     """
 
-    _img_transform = T.Compose(
-        [
-            T.ToTensor(),
-            T.Normalize(mean=[0.5], std=[0.5]),
-        ]
-    )
+    _to_tensor = T.ToTensor()
+    _fixed_normalize = T.Normalize(mean=[0.5], std=[0.5])
     _mask_transform = T.ToTensor()
 
     def __init__(
         self,
         patch_dir: str | Path,
         manifest_path: str | Path | None = None,
+        normalisation: str = "fixed",
     ) -> None:
-        """Initialise from a split directory.
-
-        Parameters
-        ----------
-        patch_dir:
-            Path to a split subdirectory, e.g. ``data/patches/train``.  The split
-            name is inferred from the final path component.
-        manifest_path:
-            Path to ``manifest.csv``.  Defaults to ``<patch_dir>/../manifest.csv``.
-        """
         self.patch_dir = Path(patch_dir)
+        self.normalisation = normalisation
         split = self.patch_dir.name
         if manifest_path is None:
             manifest_path = self.patch_dir.parent / "manifest.csv"
@@ -152,7 +140,11 @@ class PatchDirectoryDataset(Dataset[dict[str, Any]]):
     def __getitem__(self, idx: int) -> dict[str, Any]:
         row = self.records.iloc[idx]
         with Image.open(row["patch_path"]) as img:
-            image = self._img_transform(img.convert("L"))
+            image = self._to_tensor(img.convert("L"))
+        if self.normalisation == "per_image":
+            image = (image - image.mean()) / (image.std() + 1e-6)
+        else:
+            image = self._fixed_normalize(image)
         with Image.open(row["mask_path"]) as msk:
             mask = self._mask_transform(msk.convert("L"))
         return {

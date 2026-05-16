@@ -278,6 +278,45 @@ def test_patch_directory_dataset_returns_correct_dict_format(tmp_path: Path) -> 
     assert sample["coords"].shape == (2,)
 
 
+def test_patch_directory_dataset_per_image_normalisation_differs_from_fixed(
+    tmp_path: Path,
+) -> None:
+    import csv
+
+    train_dir = tmp_path / "patches" / "train"
+    train_dir.mkdir(parents=True)
+
+    img_array = np.arange(64, dtype=np.uint8).reshape(8, 8)
+    msk_array = np.zeros((8, 8), dtype=np.uint8)
+    img_path = train_dir / "patch0_image.png"
+    msk_path = train_dir / "patch0_mask.png"
+    Image.fromarray(img_array).save(img_path)
+    Image.fromarray(msk_array).save(msk_path)
+
+    manifest_path = tmp_path / "patches" / "manifest.csv"
+    with open(manifest_path, "w", newline="") as f:
+        writer = csv.DictWriter(
+            f,
+            fieldnames=["split", "source_image", "patch_path", "mask_path",
+                        "positive_pixel_fraction", "pos_weight"],
+        )
+        writer.writeheader()
+        writer.writerow({
+            "split": "train", "source_image": "fake.png",
+            "patch_path": str(img_path), "mask_path": str(msk_path),
+            "positive_pixel_fraction": 0.0, "pos_weight": 1.0,
+        })
+
+    ds_fixed = PatchDirectoryDataset(train_dir, manifest_path, normalisation="fixed")
+    ds_per = PatchDirectoryDataset(train_dir, manifest_path, normalisation="per_image")
+
+    img_fixed = ds_fixed[0]["image"]
+    img_per = ds_per[0]["image"]
+
+    assert not torch.allclose(img_fixed, img_per)
+    assert abs(img_per.mean().item()) < 1e-4
+
+
 def test_get_eval_transforms_returns_tensor_with_no_augmentation() -> None:
     arr = np.zeros((16, 16), dtype=np.uint8)
     arr[0, 0] = 200

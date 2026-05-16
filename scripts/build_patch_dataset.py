@@ -29,6 +29,7 @@ from src.config.constants import GLOBAL_SEED
 from src.data.indexing import PatchDatasetConfig, discover_image_mask_pairs
 from src.data.splits import create_image_level_splits
 from src.data.transforms import get_train_transforms, get_eval_transforms
+from src.utils.seed import seed_everything
 
 
 Image.MAX_IMAGE_PIXELS = None
@@ -134,6 +135,7 @@ def build(
     seed: int = GLOBAL_SEED,
 ) -> Path:
     """Run the full patch-building pipeline and return the manifest path."""
+    seed_everything(seed)
     config = PatchDatasetConfig(root_dir=data_root, patch_size=patch_size, stride=stride)
     pairs = discover_image_mask_pairs(config)
 

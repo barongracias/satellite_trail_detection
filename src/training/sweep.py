@@ -40,6 +40,7 @@ def _make_trial_config(trial: optuna.Trial, base: dict, patch_dir: str) -> Train
             "patch_dir": patch_dir,
             "experiment_name": f"sweep_trial_{trial.number:03d}",
             "epochs": _SWEEP_EPOCHS,
+            "num_workers": 4,
             "learning_rate": trial.suggest_float("learning_rate", 1e-4, 5e-3, log=True),
             "dropout_rate": trial.suggest_float("dropout_rate", 0.1, 0.7),
             "bce_weight": bce_w,
@@ -89,6 +90,7 @@ def main() -> None:
     study.optimize(
         lambda trial: _objective(trial, base, args.patch_dir),
         n_trials=args.n_trials,
+        timeout=9 * 3600,
     )
 
     best = study.best_trial
@@ -111,6 +113,7 @@ def main() -> None:
             "patch_dir": args.patch_dir,
             "experiment_name": "unet_sweep_best",
             "epochs": _RETRAIN_EPOCHS,
+            "num_workers": 4,
             "learning_rate": best.params["learning_rate"],
             "dropout_rate": best.params["dropout_rate"],
             "bce_weight": bce_w,

@@ -2,12 +2,12 @@
 #! ==============================================================
 #!  CSD3 Ampere GPU job — interactive queue (< 59 min)
 #!  Usage:
-#!    sbatch slurm/threshold_sweep.sbatch
-#!    CHECKPOINT=results/checkpoints/unet_baseline_best.pth \
-#!      sbatch slurm/threshold_sweep.sbatch
+#!    CHECKPOINT=results/checkpoints/unet_sweep_best_best.pth \
+#!    THRESHOLD=0.63 \
+#!      sbatch slurm/hough_postprocess.sbatch
 #! ==============================================================
 
-#SBATCH -J threshold_sweep
+#SBATCH -J hough_postprocess
 #SBATCH -A MPHIL-DIS-SL2-GPU
 #SBATCH -p ampere
 #SBATCH --nodes=1
@@ -16,14 +16,14 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
 #SBATCH --time=00:59:00
-#SBATCH --output=results/logs/threshold_sweep_%j.out
-#SBATCH --error=results/logs/threshold_sweep_%j.err
+#SBATCH --output=results/logs/hough_postprocess_%j.out
+#SBATCH --error=results/logs/hough_postprocess_%j.err
 #SBATCH --qos=intr
 
 set -euo pipefail
 
 cd "$SLURM_SUBMIT_DIR"
-mkdir -p results/logs results/figures results/classical
+mkdir -p results/logs results/classical
 
 . /etc/profile.d/modules.sh
 module purge
@@ -39,15 +39,17 @@ echo "Python: $(which python)"
 python -c "import torch; print('PyTorch:', torch.__version__, '| CUDA:', torch.cuda.is_available())"
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 
-CHECKPOINT="${CHECKPOINT:-results/checkpoints/unet_baseline_best.pth}"
+CHECKPOINT="${CHECKPOINT:-results/checkpoints/unet_sweep_best_best.pth}"
 PATCH_DIR="${PATCH_DIR:-data/patches}"
+THRESHOLD="${THRESHOLD:-0.5}"
 
 echo "Checkpoint: $CHECKPOINT"
 echo "Patch dir:  $PATCH_DIR"
+echo "Threshold:  $THRESHOLD"
 
-python scripts/threshold_sweep.py \
+python scripts/hough_postprocess.py \
     --checkpoint "$CHECKPOINT" \
     --patch_dir "$PATCH_DIR" \
-    --num_workers 0
+    --threshold "$THRESHOLD"
 
 echo "Job finished."

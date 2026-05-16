@@ -40,8 +40,11 @@ python -c "import torch; print('PyTorch:', torch.__version__, '| CUDA:', torch.c
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 
 CONFIG="${CONFIG:-configs/experiments/unet_baseline.yaml}"
-echo "Config: $CONFIG"
+PATCH_DIR="${PATCH_DIR:-data/patches}"
 
-python -m src.training.train_unet --config "$CONFIG"
+echo "Config:    $CONFIG"
+echo "Patch dir: $PATCH_DIR"
+
+python -m src.training.train_unet --config "$CONFIG" --patch_dir "$PATCH_DIR"
 
 echo "Job finished."

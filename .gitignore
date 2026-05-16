@@ -56,6 +56,7 @@ dissertation_context_satellite.md
 report/notes.md
 CLAUDE_CONTEXT.md
 CSD3_PROMPT*.md
+claude_prompt.md
 
 # Misc
 proj_brief.png
@@ -71,3 +72,4 @@ report/thesis.log
 report/thesis.out
 report/thesis.toc
 report/thesis.idx
+report/notes.md

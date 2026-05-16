@@ -106,9 +106,17 @@ def parse_args() -> TrainingConfig:
         required=True,
         help="Path to a YAML experiment config file (e.g. configs/experiments/unet_baseline.yaml).",
     )
+    parser.add_argument(
+        "--patch_dir",
+        type=Path,
+        default=None,
+        help="Override patch_dir from the YAML config (e.g. data/patches on CSD3).",
+    )
     args = parser.parse_args()
     with open(args.config) as f:
         data = yaml.safe_load(f)
+    if args.patch_dir is not None:
+        data["patch_dir"] = str(args.patch_dir)
     return TrainingConfig(**data)
 
 
@@ -599,6 +607,10 @@ def run_training(
 
     if latest_val_result is None:
         raise RuntimeError("Training completed without a validation pass")
+
+    best_state = torch.load(best_checkpoint, map_location=device, weights_only=False)
+    model.load_state_dict(best_state["model_state_dict"])
+    logger.info("Reloaded best checkpoint (epoch %d) for test evaluation", best_state["epoch"])
 
     test_result = evaluate_model_on_dataloader(
         model=model,

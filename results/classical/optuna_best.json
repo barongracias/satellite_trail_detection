@@ -1,0 +1,10 @@
+{
+  "trial_number": 21,
+  "val_dice": 0.8669829332947214,
+  "params": {
+    "bce_weight": 0.7037743458900036,
+    "learning_rate": 0.00015904557423584517,
+    "dropout_rate": 0.1745878723290524,
+    "normalisation": "per_image"
+  }
+}

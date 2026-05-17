@@ -13,6 +13,7 @@ from pathlib import Path
 import optuna
 import yaml
 
+from src.config.constants import GLOBAL_SEED
 from src.training.train_unet import TrainingConfig, run_training
 from src.utils.logger import get_logger
 from src.utils.seed import seed_everything
@@ -84,6 +85,7 @@ def main() -> None:
         study_name=args.study_name,
         storage=args.storage,
         direction="maximize",
+        sampler=optuna.samplers.TPESampler(seed=GLOBAL_SEED),
         pruner=optuna.pruners.MedianPruner(n_startup_trials=5, n_warmup_steps=10),
         load_if_exists=True,
     )

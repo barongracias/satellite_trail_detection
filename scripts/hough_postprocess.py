@@ -1,9 +1,18 @@
 #!/usr/bin/env python
 """Hough post-processing on U-Net predicted masks.
 
-For each test image, reconstructs the full predicted binary mask from sampled
-test patches, applies probabilistic Hough transform to detect line-like structures,
-then reports FNR before and after post-processing.
+For each test image, reconstructs a probability canvas from sampled test patches,
+then applies probabilistic Hough transform to detect line-like structures that the
+U-Net partially detected but fell below the main threshold.  Reports image-level
+FNR before and after post-processing.
+
+FNR logic:
+- pre-Hough:  detected if prob_canvas has any pixel >= threshold
+- post-Hough: detected if pre-Hough OR Hough finds a line in pixels >= hough_input_threshold
+
+Hough runs on a lower-threshold canvas (default 0.1) so it can recover faint
+detections that survive below the main threshold — if Hough ran on the already-
+thresholded binary canvas it could never reduce FNR beyond what U-Net achieves alone.
 
 Deviations from Stoppa et al. 2024:
 - Hough is applied to the reconstructed patch-subset canvas rather than a
@@ -51,6 +60,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--checkpoint", required=True)
     p.add_argument("--patch_dir", default="data/patches")
     p.add_argument("--threshold", type=float, default=0.5)
+    p.add_argument("--hough_input_threshold", type=float, default=0.1,
+                   help="Lower probability threshold for Hough input canvas — allows "
+                        "Hough to recover faint detections below the main threshold.")
     p.add_argument("--hough_threshold", type=int, default=50)
     p.add_argument("--min_line_length", type=int, default=100)
     p.add_argument("--max_line_gap", type=int, default=50)
@@ -88,15 +100,14 @@ def _infer_patch(
     patch_path: str,
     model: UNet,
     normalisation: str,
-    threshold: float,
     device: torch.device,
 ) -> np.ndarray:
+    """Return raw sigmoid probability map (float32, shape HxW, values in [0,1])."""
     with Image.open(patch_path) as img:
         t = TF.pil_to_tensor(img.convert("L")).float() / 255.0
     t = _normalise(t, normalisation).unsqueeze(0).to(device)
     with torch.no_grad():
-        prob = torch.sigmoid(model(t))[0, 0].cpu().numpy()
-    return (prob >= threshold).astype(np.uint8) * 255
+        return torch.sigmoid(model(t))[0, 0].cpu().numpy()
 
 
 def _apply_hough(
@@ -132,7 +143,10 @@ def main() -> None:
     logger.info("Device: %s", device)
 
     model, normalisation = load_model(args.checkpoint, device)
-    logger.info("Loaded %s (normalisation=%s, threshold=%.3f)", args.checkpoint, normalisation, args.threshold)
+    logger.info(
+        "Loaded %s (normalisation=%s, threshold=%.3f, hough_input_threshold=%.3f)",
+        args.checkpoint, normalisation, args.threshold, args.hough_input_threshold,
+    )
 
     manifest = pd.read_csv(Path(args.patch_dir) / "manifest.csv")
     test_df = manifest[manifest["split"] == "test"].reset_index(drop=True)
@@ -152,24 +166,29 @@ def main() -> None:
         yx_list = [_parse_yx(p) for p in group["patch_path"]]
         canvas_h = max(y for y, _ in yx_list) + _PATCH_SIZE
         canvas_w = max(x for _, x in yx_list) + _PATCH_SIZE
-        canvas = np.zeros((canvas_h, canvas_w), dtype=np.uint8)
+        prob_canvas = np.zeros((canvas_h, canvas_w), dtype=np.float32)
 
         for patch_path in group["patch_path"]:
-            pred = _infer_patch(patch_path, model, normalisation, args.threshold, device)
+            prob = _infer_patch(patch_path, model, normalisation, device)
             y, x = _parse_yx(patch_path)
-            canvas[y : y + _PATCH_SIZE, x : x + _PATCH_SIZE] = np.maximum(
-                canvas[y : y + _PATCH_SIZE, x : x + _PATCH_SIZE], pred
+            prob_canvas[y : y + _PATCH_SIZE, x : x + _PATCH_SIZE] = np.maximum(
+                prob_canvas[y : y + _PATCH_SIZE, x : x + _PATCH_SIZE], prob
             )
 
-        detected_pre = bool(canvas.any())
+        binary_canvas = (prob_canvas >= args.threshold).astype(np.uint8) * 255
+        detected_pre = bool(binary_canvas.any())
+
+        # Hough runs on a lower-threshold canvas so it can recover faint detections
+        # that are below the main threshold but still form linear structures.
+        hough_input = (prob_canvas >= args.hough_input_threshold).astype(np.uint8) * 255
         hough_canvas = _apply_hough(
-            canvas,
+            hough_input,
             hough_threshold=args.hough_threshold,
             min_line_length=args.min_line_length,
             max_line_gap=args.max_line_gap,
             line_thickness=args.line_thickness,
         )
-        detected_post = bool(canvas.any() or hough_canvas.any())
+        detected_post = bool(binary_canvas.any() or hough_canvas.any())
 
         if is_positive:
             n_positive += 1
@@ -195,6 +214,7 @@ def main() -> None:
     result = {
         "checkpoint": str(args.checkpoint),
         "threshold": args.threshold,
+        "hough_input_threshold": args.hough_input_threshold,
         "hough_threshold": args.hough_threshold,
         "min_line_length": args.min_line_length,
         "max_line_gap": args.max_line_gap,

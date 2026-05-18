@@ -54,8 +54,10 @@ dissertation_context_satellite.md
 *_internal_context*.md
 *_agent_session_transcript*.md
 report/notes.md
+report/audit_final.md
 CLAUDE_CONTEXT.md
 CSD3_PROMPT*.md
+CSD3_ABLATIONS.md
 claude_prompt.md
 
 # Misc

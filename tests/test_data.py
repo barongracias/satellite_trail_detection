@@ -329,3 +329,132 @@ def test_get_eval_transforms_returns_tensor_with_no_augmentation() -> None:
     # No rotation or flip — bright pixel must remain at top-left (0, 0).
     assert img_t[0, 0, 0].item() > 0
     assert mask_t[0, 0, 0].item() > 0
+
+
+def test_patch_directory_dataset_augmentation_active_for_train_split(tmp_path: Path) -> None:
+    import csv
+
+    train_dir = tmp_path / "patches" / "train"
+    train_dir.mkdir(parents=True)
+
+    img_array = np.zeros((8, 8), dtype=np.uint8)
+    img_array[0:4, 0:4] = 200
+    mask_array = np.zeros((8, 8), dtype=np.uint8)
+    mask_array[0:4, 0:4] = 255
+
+    img_path = train_dir / "patch0_image.png"
+    msk_path = train_dir / "patch0_mask.png"
+    Image.fromarray(img_array).save(img_path)
+    Image.fromarray(mask_array).save(msk_path)
+
+    manifest_path = tmp_path / "patches" / "manifest.csv"
+    with open(manifest_path, "w", newline="") as f:
+        writer = csv.DictWriter(
+            f,
+            fieldnames=["split", "source_image", "patch_path", "mask_path",
+                        "positive_pixel_fraction", "pos_weight"],
+        )
+        writer.writeheader()
+        writer.writerow({
+            "split": "train", "source_image": "fake.png",
+            "patch_path": str(img_path), "mask_path": str(msk_path),
+            "positive_pixel_fraction": 1.0/64, "pos_weight": 63.0,
+        })
+
+    dataset = PatchDirectoryDataset(train_dir, manifest_path, normalisation="fixed")
+
+    # Seed before sampling so a flaky outcome is deterministic. The 4×4 patch
+    # admits 8 distinct dihedral orientations; with N=12 draws we expect at
+    # least two distinct configurations with overwhelming probability.
+    torch.manual_seed(0)
+    images = [dataset[0]["image"] for _ in range(12)]
+
+    distinct = {tuple(img.flatten().tolist()) for img in images}
+    assert len(distinct) >= 2, "Augmentation should produce >=2 distinct outputs in train split"
+
+
+def test_patch_directory_dataset_augment_train_false_freezes_augmentation(
+    tmp_path: Path,
+) -> None:
+    import csv
+
+    train_dir = tmp_path / "patches" / "train"
+    train_dir.mkdir(parents=True)
+
+    img_array = np.zeros((8, 8), dtype=np.uint8)
+    img_array[0:4, 0:4] = 200
+    mask_array = np.zeros((8, 8), dtype=np.uint8)
+    mask_array[0:4, 0:4] = 255
+
+    img_path = train_dir / "patch0_image.png"
+    msk_path = train_dir / "patch0_mask.png"
+    Image.fromarray(img_array).save(img_path)
+    Image.fromarray(mask_array).save(msk_path)
+
+    manifest_path = tmp_path / "patches" / "manifest.csv"
+    with open(manifest_path, "w", newline="") as f:
+        writer = csv.DictWriter(
+            f,
+            fieldnames=["split", "source_image", "patch_path", "mask_path",
+                        "positive_pixel_fraction", "pos_weight"],
+        )
+        writer.writeheader()
+        writer.writerow({
+            "split": "train", "source_image": "fake.png",
+            "patch_path": str(img_path), "mask_path": str(msk_path),
+            "positive_pixel_fraction": 1.0/64, "pos_weight": 63.0,
+        })
+
+    dataset = PatchDirectoryDataset(
+        train_dir, manifest_path, normalisation="fixed", augment_train=False,
+    )
+    torch.manual_seed(0)
+    images = [dataset[0]["image"] for _ in range(8)]
+
+    # With augment_train=False, repeated draws must be byte-identical.
+    for i, img in enumerate(images[1:], start=1):
+        assert torch.allclose(images[0], img), f"draw {i} differs with augment_train=False"
+
+
+def test_patch_directory_dataset_full_image_normalisation_uses_manifest_stats(
+    tmp_path: Path,
+) -> None:
+    import csv
+
+    test_dir = tmp_path / "patches" / "test"
+    test_dir.mkdir(parents=True)
+
+    img_array = np.full((8, 8), 200, dtype=np.uint8)
+    mask_array = np.zeros((8, 8), dtype=np.uint8)
+    img_path = test_dir / "patch0_image.png"
+    msk_path = test_dir / "patch0_mask.png"
+    Image.fromarray(img_array).save(img_path)
+    Image.fromarray(mask_array).save(msk_path)
+
+    # image_mean/std stored on the [0, 1] scale (matching JointTransform output).
+    target_mean = 0.5
+    target_std = 0.25
+
+    manifest_path = tmp_path / "patches" / "manifest.csv"
+    with open(manifest_path, "w", newline="") as f:
+        writer = csv.DictWriter(
+            f,
+            fieldnames=["split", "source_image", "patch_path", "mask_path",
+                        "positive_pixel_fraction", "pos_weight",
+                        "image_mean", "image_std"],
+        )
+        writer.writeheader()
+        writer.writerow({
+            "split": "test", "source_image": "fake.png",
+            "patch_path": str(img_path), "mask_path": str(msk_path),
+            "positive_pixel_fraction": 0.0, "pos_weight": 1.0,
+            "image_mean": target_mean, "image_std": target_std,
+        })
+
+    dataset = PatchDirectoryDataset(test_dir, manifest_path, normalisation="full_image")
+    image = dataset[0]["image"]
+
+    # PIL value 200 → 200/255 ≈ 0.784 after JointTransform.
+    # full_image normalisation then gives (0.784 - 0.5) / 0.25 ≈ 1.137.
+    expected = (200.0 / 255.0 - target_mean) / (target_std + 1e-6)
+    assert torch.allclose(image, torch.full_like(image, expected), atol=1e-4)

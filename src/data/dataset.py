@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
+import warnings
 from pathlib import Path
 from typing import Any, Callable
 
 import pandas as pd
 import torch
-import torchvision.transforms as T
 from PIL import Image
 from torch.utils.data import Dataset
 
@@ -18,6 +18,7 @@ from src.data.indexing import (
     build_patch_index,
     discover_image_mask_pairs,
 )
+from src.data.transforms import JointTransform, normalise_tensor
 
 
 Image.MAX_IMAGE_PIXELS = None
@@ -116,15 +117,12 @@ class PatchDirectoryDataset(Dataset[dict[str, Any]]):
     :class:`SatelliteTrailPatchDataset`.
     """
 
-    _to_tensor = T.ToTensor()
-    _fixed_normalize = T.Normalize(mean=[0.5], std=[0.5])
-    _mask_transform = T.ToTensor()
-
     def __init__(
         self,
         patch_dir: str | Path,
         manifest_path: str | Path | None = None,
         normalisation: str = "fixed",
+        augment_train: bool = True,
     ) -> None:
         self.patch_dir = Path(patch_dir)
         self.normalisation = normalisation
@@ -133,6 +131,21 @@ class PatchDirectoryDataset(Dataset[dict[str, Any]]):
             manifest_path = self.patch_dir.parent / "manifest.csv"
         manifest = pd.read_csv(manifest_path)
         self.records = manifest[manifest["split"] == split].reset_index(drop=True)
+        self._transform = JointTransform(augment=augment_train and split == "train")
+
+        if normalisation == "full_image":
+            has_stats = {"image_mean", "image_std"}.issubset(self.records.columns)
+            n_missing = (
+                int(self.records[["image_mean", "image_std"]].isna().any(axis=1).sum())
+                if has_stats else len(self.records)
+            )
+            if n_missing:
+                warnings.warn(
+                    f"PatchDirectoryDataset({split}): normalisation=full_image but "
+                    f"{n_missing}/{len(self.records)} rows lack image_mean/image_std; "
+                    "falling back to per-patch z-score for those rows.",
+                    stacklevel=2,
+                )
 
     def __len__(self) -> int:
         return len(self.records)
@@ -140,13 +153,18 @@ class PatchDirectoryDataset(Dataset[dict[str, Any]]):
     def __getitem__(self, idx: int) -> dict[str, Any]:
         row = self.records.iloc[idx]
         with Image.open(row["patch_path"]) as img:
-            image = self._to_tensor(img.convert("L"))
-        if self.normalisation == "per_image":
-            image = (image - image.mean()) / (image.std() + 1e-6)
-        else:
-            image = self._fixed_normalize(image)
+            img_pil = img.convert("L")
         with Image.open(row["mask_path"]) as msk:
-            mask = self._mask_transform(msk.convert("L"))
+            mask_pil = msk.convert("L")
+
+        image, mask = self._transform(img_pil, mask_pil)
+        image = normalise_tensor(
+            image,
+            self.normalisation,
+            full_image_mean=row.get("image_mean"),
+            full_image_std=row.get("image_std"),
+        )
+
         return {
             "image": image,
             "mask": mask,

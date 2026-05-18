@@ -1,0 +1,29 @@
+# Ablation B — Ablation A + per-epoch augmentation.
+# Measures the augmentation contribution on top of pos_weight removal.
+
+experiment_name: unet_ablation_b
+data_root: data/Processed
+patch_dir: data/patches  # required: ablation runs use the pre-built patch directory
+patch_size: 512
+stride: 512
+batch_size: 4
+learning_rate: 1.0e-3
+epochs: 50
+base_channels: 8
+dropout_rate: 0.5
+normalisation: fixed
+train_ratio: 0.70
+val_ratio: 0.15
+seed: 2804
+threshold: 0.5
+auto_pos_weight: false
+pos_weight: null
+augment_train: true        # per-epoch dihedral aug on train split
+bce_weight: 0.5
+dice_weight: 0.5
+dice_smooth: 1.0e-4
+dice_denominator_squared: true
+num_workers: 4
+device: auto
+checkpoint_dir: results/checkpoints
+log_dir: results/logs

@@ -56,9 +56,12 @@ class TrainingConfig:
     auto_pos_weight: bool = False
     bce_weight: float = 0.5
     dice_weight: float = 0.5
+    dice_smooth: float = 1e-4
+    dice_denominator_squared: bool = True
     base_channels: int = 8
     dropout_rate: float = 0.5
     normalisation: str = "fixed"
+    augment_train: bool = True
     device: str = "auto"
     checkpoint_dir: str | Path = Path("results/checkpoints")
     log_dir: str | Path = Path("results/logs")
@@ -93,8 +96,10 @@ class TrainingConfig:
             raise ValueError("train_ratio and val_ratio must leave room for a test split")
         if self.threshold <= 0 or self.threshold >= 1:
             raise ValueError("threshold must lie between 0 and 1")
-        if self.normalisation not in ("fixed", "per_image"):
-            raise ValueError("normalisation must be 'fixed' or 'per_image'")
+        if self.normalisation not in ("fixed", "per_image", "full_image"):
+            raise ValueError("normalisation must be 'fixed', 'per_image', or 'full_image'")
+        if self.dice_smooth <= 0:
+            raise ValueError("dice_smooth must be positive")
 
 
 def parse_args() -> TrainingConfig:
@@ -137,6 +142,11 @@ def resolve_device(device_name: str) -> torch.device:
     return torch.device(device_name)
 
 
+def _worker_init_fn(worker_id: int, seed: int = GLOBAL_SEED) -> None:
+    """Seed each DataLoader worker independently."""
+    seed_everything(seed + worker_id)
+
+
 def build_dataloaders(
     config: TrainingConfig,
 ) -> tuple[DataLoader, DataLoader, DataLoader]:
@@ -148,34 +158,39 @@ def build_dataloaders(
     """
     if config.patch_dir is not None:
         manifest = config.patch_dir / "manifest.csv"
-        train_ds = PatchDirectoryDataset(config.patch_dir / "train", manifest, config.normalisation)
-        val_ds = PatchDirectoryDataset(config.patch_dir / "val", manifest, config.normalisation)
-        test_ds = PatchDirectoryDataset(config.patch_dir / "test", manifest, config.normalisation)
+        train_ds = PatchDirectoryDataset(
+            config.patch_dir / "train", manifest, config.normalisation,
+            augment_train=config.augment_train,
+        )
+        val_ds = PatchDirectoryDataset(
+            config.patch_dir / "val", manifest, config.normalisation,
+        )
+        test_ds = PatchDirectoryDataset(
+            config.patch_dir / "test", manifest, config.normalisation,
+        )
 
         if min(len(train_ds), len(val_ds), len(test_ds)) == 0:
             raise ValueError(
                 "PatchDirectoryDataset produced an empty train, validation, or test split"
             )
 
+        def worker_init(wid: int) -> None:
+            _worker_init_fn(wid, config.seed)
+
+        def _make_loader(ds: Any, shuffle: bool) -> DataLoader:
+            return DataLoader(
+                ds,
+                batch_size=config.batch_size,
+                shuffle=shuffle,
+                num_workers=config.num_workers,
+                worker_init_fn=worker_init if config.num_workers > 0 else None,
+                generator=torch.Generator().manual_seed(config.seed),
+            )
+
         return (
-            DataLoader(
-                train_ds,
-                batch_size=config.batch_size,
-                shuffle=True,
-                num_workers=config.num_workers,
-            ),
-            DataLoader(
-                val_ds,
-                batch_size=config.batch_size,
-                shuffle=False,
-                num_workers=config.num_workers,
-            ),
-            DataLoader(
-                test_ds,
-                batch_size=config.batch_size,
-                shuffle=False,
-                num_workers=config.num_workers,
-            ),
+            _make_loader(train_ds, shuffle=True),
+            _make_loader(val_ds, shuffle=False),
+            _make_loader(test_ds, shuffle=False),
         )
 
     # Legacy path: on-the-fly patch extraction.
@@ -281,7 +296,13 @@ def infer_pos_weight(config: TrainingConfig) -> float:
 
 
 class ComboBCEDiceLoss(nn.Module):
-    """Combined BCE + Dice loss for binary segmentation."""
+    """Combined BCE + Dice loss for binary segmentation.
+
+    ``dice_denominator_squared=True`` and ``dice_smooth=1e-4`` reproduce the
+    formula in the paper's reference implementation (``asta/ASTA.py:121-139``);
+    the linear-denominator alternative with ``dice_smooth=1e-6`` is the legacy
+    formula used in pre-refactor baseline runs.
+    """
 
     def __init__(
         self,
@@ -289,10 +310,14 @@ class ComboBCEDiceLoss(nn.Module):
         dice_weight: float = 0.5,
         pos_weight: float | None = None,
         device: torch.device | None = None,
+        dice_smooth: float = 1e-4,
+        dice_denominator_squared: bool = True,
     ) -> None:
         super().__init__()
         self.bce_weight = bce_weight
         self.dice_weight = dice_weight
+        self.dice_smooth = dice_smooth
+        self.dice_denominator_squared = dice_denominator_squared
         if pos_weight is not None:
             pw = torch.tensor([pos_weight], dtype=torch.float32, device=device)
             self.bce = nn.BCEWithLogitsLoss(pos_weight=pw)
@@ -302,12 +327,15 @@ class ComboBCEDiceLoss(nn.Module):
     def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
         bce_loss = self.bce(logits, targets)
         probs = torch.sigmoid(logits)
-        eps = 1e-6
-        # Sum over spatial dims, average over the batch and channel dims.
         spatial = tuple(range(2, logits.ndim))
         intersection = (probs * targets).sum(dim=spatial)
-        denominator = probs.sum(dim=spatial) + targets.sum(dim=spatial)
-        dice_loss = (1.0 - (2.0 * intersection + eps) / (denominator + eps)).mean()
+        if self.dice_denominator_squared:
+            denominator = (probs ** 2).sum(dim=spatial) + (targets ** 2).sum(dim=spatial)
+        else:
+            denominator = probs.sum(dim=spatial) + targets.sum(dim=spatial)
+        dice_loss = (
+            1.0 - (2.0 * intersection + self.dice_smooth) / (denominator + self.dice_smooth)
+        ).mean()
         return self.bce_weight * bce_loss + self.dice_weight * dice_loss
 
 
@@ -316,6 +344,8 @@ def build_loss_function(
     pos_weight: float | None = None,
     bce_weight: float = 0.5,
     dice_weight: float = 0.5,
+    dice_smooth: float = 1e-4,
+    dice_denominator_squared: bool = True,
 ) -> nn.Module:
     """Construct the combined BCE + Dice segmentation loss."""
     return ComboBCEDiceLoss(
@@ -323,6 +353,8 @@ def build_loss_function(
         dice_weight=dice_weight,
         pos_weight=pos_weight,
         device=device,
+        dice_smooth=dice_smooth,
+        dice_denominator_squared=dice_denominator_squared,
     )
 
 
@@ -500,6 +532,8 @@ def run_training(
         pos_weight=pos_weight,
         bce_weight=config.bce_weight,
         dice_weight=config.dice_weight,
+        dice_smooth=config.dice_smooth,
+        dice_denominator_squared=config.dice_denominator_squared,
     )
     logger.info("Starting U-Net experiment")
     logger.info("Training configuration: %s", _serialise_config(config))
@@ -629,18 +663,16 @@ def run_training(
         test_result.metrics.recall,
     )
 
-    latest_checkpoint = save_checkpoint(
-        model=model,
-        optimiser=optimiser,
-        config=config,
-        epoch=int(history[-1]["epoch"]),
-        steps_completed=steps_completed,
-        train_loss=float(history[-1]["train_loss"]),
-        val_result=latest_val_result,
-        filename=f"{config.experiment_name}_latest.pth",
-        effective_eval_max_batches=eval_max_batches,
-        test_result=test_result,
-    )
+    # Augment the best checkpoint with the test metrics rather than re-saving
+    # *_latest.pth with best weights but final-epoch metadata, which would mix
+    # two epochs' state in one file and mislead later audits. The in-loop
+    # *_latest.pth from the final epoch is left untouched.
+    best_state["test_counts"] = asdict(test_result.counts)
+    best_state["test_metrics"] = asdict(test_result.metrics)
+    best_state["test_loss"] = test_result.mean_loss
+    torch.save(best_state, best_checkpoint)
+    logger.info("Augmented best checkpoint with test metrics: %s", best_checkpoint)
+
     summary_path = save_training_summary(
         config=config,
         history=history,
@@ -649,8 +681,8 @@ def run_training(
         effective_eval_max_batches=eval_max_batches,
         test_result=test_result,
     )
-    logger.info("Saved latest checkpoint to %s", latest_checkpoint)
-    logger.info("Saved best checkpoint to %s", best_checkpoint)
+    logger.info("Latest checkpoint (from final epoch): %s", latest_checkpoint)
+    logger.info("Best checkpoint (with test metrics):  %s", best_checkpoint)
     logger.info("Saved experiment summary to %s", summary_path)
 
     if save_curves and config.max_steps is None:

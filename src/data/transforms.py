@@ -4,12 +4,44 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
+import pandas as pd
 import torch
 import torchvision.transforms as T
 import torchvision.transforms.functional as TF
 import torchvision.transforms.v2 as v2
 from torchvision import tv_tensors
 from PIL import Image
+
+
+NORMALISATION_MODES = ("fixed", "per_image", "full_image")
+
+
+def normalise_tensor(
+    image: torch.Tensor,
+    mode: str,
+    full_image_mean: float | None = None,
+    full_image_std: float | None = None,
+) -> torch.Tensor:
+    """Apply the requested normalisation to a [0, 1] image tensor.
+
+    ``fixed`` is the paper-agnostic default ``(x - 0.5) / 0.5``. ``per_image``
+    is a per-patch z-score. ``full_image`` is a per-source-image z-score from
+    pre-computed stats; if either stat is missing or non-finite it falls back
+    to the per-patch z-score so a partial manifest cannot silently produce
+    NaN outputs.
+    """
+    if mode == "per_image":
+        return (image - image.mean()) / (image.std() + 1e-6)
+    if mode == "full_image":
+        if (
+            full_image_mean is not None
+            and full_image_std is not None
+            and not pd.isna(full_image_mean)
+            and not pd.isna(full_image_std)
+        ):
+            return (image - float(full_image_mean)) / (float(full_image_std) + 1e-6)
+        return (image - image.mean()) / (image.std() + 1e-6)
+    return (image - 0.5) / 0.5
 
 
 class _RandomRotate90(v2.Transform):

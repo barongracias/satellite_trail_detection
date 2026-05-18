@@ -1,0 +1,30 @@
+# Ablation 0 — pos_weight removed, legacy Dice formula (linear denominator, eps=1e-6).
+# Isolates the pos_weight effect against the pre-refactor baseline.
+# Compared to Ablation A, the delta attributes the Dice-formula contribution.
+
+experiment_name: unet_ablation_0
+data_root: data/Processed
+patch_dir: data/patches  # required: ablation runs use the pre-built patch directory
+patch_size: 512
+stride: 512
+batch_size: 4
+learning_rate: 1.0e-3
+epochs: 50
+base_channels: 8
+dropout_rate: 0.5
+normalisation: fixed
+train_ratio: 0.70
+val_ratio: 0.15
+seed: 2804
+threshold: 0.5
+auto_pos_weight: false
+pos_weight: null
+augment_train: false
+bce_weight: 0.5
+dice_weight: 0.5
+dice_smooth: 1.0e-6              # legacy value; pre-refactor baseline
+dice_denominator_squared: false  # legacy linear denominator
+num_workers: 4
+device: auto
+checkpoint_dir: results/checkpoints
+log_dir: results/logs

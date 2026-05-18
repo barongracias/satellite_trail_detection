@@ -34,7 +34,21 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--patch_dir", default="data/patches")
     p.add_argument("--batch_size", type=int, default=16)
     p.add_argument("--num_workers", type=int, default=4)
+    p.add_argument(
+        "--tag",
+        default=None,
+        help="Suffix for output filenames. Defaults to the checkpoint stem with "
+             "any trailing '_best' stripped, so each ablation gets its own "
+             "threshold_sweep_<tag>.json and threshold_sweep_<tag>_pr_curve.png.",
+    )
     return p.parse_args()
+
+
+def _resolve_tag(args: argparse.Namespace) -> str:
+    if args.tag:
+        return args.tag
+    stem = Path(args.checkpoint).stem
+    return stem[:-5] if stem.endswith("_best") else stem
 
 
 def collect_probs_and_targets(
@@ -93,8 +107,10 @@ def eval_at_threshold(
 
 def main() -> None:
     args = parse_args()
+    tag = _resolve_tag(args)
     logger = get_logger("threshold_sweep")
     seed_everything()
+    logger.info("Output tag: %s", tag)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logger.info("Device: %s", device)
@@ -179,12 +195,14 @@ def main() -> None:
     axes[1].grid(True, alpha=0.3)
 
     fig.tight_layout()
-    fig_path = figures_dir / "threshold_sweep_pr_curve.png"
+    fig_path = figures_dir / f"threshold_sweep_{tag}_pr_curve.png"
     fig.savefig(fig_path, dpi=150, bbox_inches="tight")
     plt.close(fig)
     logger.info("Saved figure to %s", fig_path)
 
     out: dict = {
+        "tag": tag,
+        "checkpoint": str(args.checkpoint),
         "optimal_threshold": optimal_threshold,
         "val_f1": best["f1"],
         "val_precision": best["precision"],
@@ -195,7 +213,7 @@ def main() -> None:
         "test_iou": test_m["iou"],
         "pr_curve": sweep,
     }
-    out_path = Path("results/classical/threshold_sweep.json")
+    out_path = Path("results/classical") / f"threshold_sweep_{tag}.json"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with open(out_path, "w") as f:
         json.dump(out, f, indent=2)

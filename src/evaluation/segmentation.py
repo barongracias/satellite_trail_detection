@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import random
 from dataclasses import dataclass
-from typing import Any, Iterable, Mapping
+from typing import Any, Iterable, Mapping, Sequence
 
 import numpy as np
 import torch
+
+from src.config.constants import GLOBAL_SEED
 
 
 @dataclass(frozen=True)
@@ -282,3 +285,107 @@ def evaluate_model_on_dataloader(
         metrics=compute_metrics_from_counts(combined_counts),
         mean_loss=mean_loss,
     )
+
+
+_BOOTSTRAP_METRIC_NAMES = ("precision", "recall", "dice", "iou")
+
+
+def _percentile(values: list[float], pct: float) -> float:
+    """Linearly-interpolated percentile (pct on [0, 100]) without numpy."""
+    if not values:
+        raise ValueError("percentile requires non-empty values")
+    sorted_values = sorted(values)
+    n = len(sorted_values)
+    rank = (pct / 100.0) * (n - 1)
+    lo = int(rank)
+    hi = min(lo + 1, n - 1)
+    weight = rank - lo
+    return sorted_values[lo] * (1.0 - weight) + sorted_values[hi] * weight
+
+
+def _bootstrap_resample_counts(
+    units: Sequence[SegmentationCounts],
+    n_resamples: int,
+    seed: int,
+) -> dict[str, list[float]]:
+    """Resample `units` with replacement and compute metrics per resample."""
+    if n_resamples <= 0:
+        raise ValueError("n_resamples must be positive")
+    rng = random.Random(seed)
+    n = len(units)
+    samples: dict[str, list[float]] = {name: [] for name in _BOOTSTRAP_METRIC_NAMES}
+    for _ in range(n_resamples):
+        draw = [units[rng.randrange(n)] for _ in range(n)]
+        m = compute_metrics_from_counts(combine_counts(draw))
+        samples["precision"].append(m.precision)
+        samples["recall"].append(m.recall)
+        samples["dice"].append(m.dice)
+        samples["iou"].append(m.iou)
+    return samples
+
+
+def _summarise_bootstrap(
+    samples: dict[str, list[float]],
+    point: SegmentationMetrics,
+    ci: float,
+) -> dict[str, tuple[float, float, float]]:
+    """Return ``{metric: (point, lo, hi)}`` from per-metric resample lists."""
+    if not 0.0 < ci < 1.0:
+        raise ValueError("ci must lie strictly between 0 and 1")
+    pct_lo = 100.0 * (1.0 - ci) / 2.0
+    pct_hi = 100.0 - pct_lo
+    point_values = {
+        "precision": point.precision,
+        "recall": point.recall,
+        "dice": point.dice,
+        "iou": point.iou,
+    }
+    return {
+        name: (
+            point_values[name],
+            _percentile(samples[name], pct_lo),
+            _percentile(samples[name], pct_hi),
+        )
+        for name in _BOOTSTRAP_METRIC_NAMES
+    }
+
+
+def bootstrap_metrics_cluster(
+    per_image_counts: Mapping[str, SegmentationCounts],
+    n_resamples: int = 1000,
+    seed: int = GLOBAL_SEED,
+    ci: float = 0.95,
+) -> dict[str, tuple[float, float, float]]:
+    """Cluster bootstrap by source image on pre-aggregated per-image counts.
+
+    Resamples image keys with replacement; sums each draw's counts; computes
+    P/R/Dice/IoU on the aggregate. Use when patches share within-image
+    correlation (lighting, noise, annotator) — the i.i.d. patch-level
+    bootstrap understates uncertainty in that regime.
+    """
+    if not per_image_counts:
+        raise ValueError("per_image_counts must contain at least one image")
+    units = list(per_image_counts.values())
+    point = compute_metrics_from_counts(combine_counts(units))
+    samples = _bootstrap_resample_counts(units, n_resamples, seed)
+    return _summarise_bootstrap(samples, point, ci)
+
+
+def bootstrap_metrics_patch(
+    patch_counts: Sequence[SegmentationCounts],
+    n_resamples: int = 1000,
+    seed: int = GLOBAL_SEED,
+    ci: float = 0.95,
+) -> dict[str, tuple[float, float, float]]:
+    """Patch-level (i.i.d.) bootstrap on per-patch counts.
+
+    Provided alongside :func:`bootstrap_metrics_cluster` as a sanity-check
+    comparison: the gap between the two CI widths quantifies the within-image
+    correlation effect that cluster bootstrap captures.
+    """
+    if not patch_counts:
+        raise ValueError("patch_counts must be non-empty")
+    units = list(patch_counts)
+    point = compute_metrics_from_counts(combine_counts(units))
+    samples = _bootstrap_resample_counts(units, n_resamples, seed)
+    return _summarise_bootstrap(samples, point, ci)

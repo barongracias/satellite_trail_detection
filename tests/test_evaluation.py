@@ -34,7 +34,11 @@ from src.evaluation.eda import (
     summarise_patches_by_image,
 )
 from src.evaluation.segmentation import (
+    SegmentationCounts,
+    bootstrap_metrics_cluster,
+    bootstrap_metrics_patch,
     combine_counts,
+    compute_metrics_from_counts,
     compute_segmentation_counts,
     compute_segmentation_metrics,
 )
@@ -333,3 +337,41 @@ def test_segmentation_counts_handles_mixed_numpy_torch_input() -> None:
     assert counts_a == counts_b
     assert counts_a.true_positive == 1
     assert counts_a.false_positive == 1
+
+
+def test_bootstrap_metrics_cluster_point_matches_aggregate_and_is_reproducible() -> None:
+    """Point estimate equals compute_metrics_from_counts on the aggregated
+    counts; fixed seed → identical resample draws → identical CIs."""
+    per_image = {
+        "img_a": SegmentationCounts(true_positive=10, false_positive=2,
+                                     true_negative=88, false_negative=1),
+        "img_b": SegmentationCounts(true_positive=5, false_positive=1,
+                                     true_negative=44, false_negative=0),
+        "img_c": SegmentationCounts(true_positive=0, false_positive=0,
+                                     true_negative=50, false_negative=0),
+    }
+    point = compute_metrics_from_counts(combine_counts(per_image.values()))
+    result = bootstrap_metrics_cluster(per_image, n_resamples=200, seed=2804)
+
+    assert set(result.keys()) == {"precision", "recall", "dice", "iou"}
+    assert abs(result["precision"][0] - point.precision) < 1e-9
+    assert abs(result["recall"][0] - point.recall) < 1e-9
+    assert abs(result["dice"][0] - point.dice) < 1e-9
+    assert abs(result["iou"][0] - point.iou) < 1e-9
+    for name in ("precision", "recall", "dice", "iou"):
+        _, lo, hi = result[name]
+        assert lo <= hi, f"{name}: lo {lo} > hi {hi}"
+
+    result_again = bootstrap_metrics_cluster(per_image, n_resamples=200, seed=2804)
+    assert result == result_again
+
+
+def test_bootstrap_metrics_patch_collapses_with_single_unit() -> None:
+    """With one patch, every resample is that patch → CI lo == hi == point."""
+    counts = SegmentationCounts(true_positive=4, false_positive=1,
+                                 true_negative=10, false_negative=1)
+    result = bootstrap_metrics_patch([counts], n_resamples=50, seed=1)
+    for name in ("precision", "recall", "dice", "iou"):
+        point, lo, hi = result[name]
+        assert abs(lo - point) < 1e-12, f"{name}: lo {lo} != point {point}"
+        assert abs(hi - point) < 1e-12, f"{name}: hi {hi} != point {point}"

@@ -43,8 +43,8 @@ nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 
 CONFIG="${CONFIG:-configs/experiments/unet_reoptuna_base.yaml}"
 PATCH_DIR="${PATCH_DIR:-data/patches}"
-N_TRIALS="${N_TRIALS:-30}"
-STUDY_NAME="${STUDY_NAME:-unet_sweep}"
+N_TRIALS="${N_TRIALS:-40}"
+STUDY_NAME="${STUDY_NAME:-unet_sweep_paper_faithful}"
 
 echo "Config:     $CONFIG"
 echo "Patch dir:  $PATCH_DIR"

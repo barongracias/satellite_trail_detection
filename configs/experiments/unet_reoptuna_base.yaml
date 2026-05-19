@@ -1,0 +1,44 @@
+# Base config for the re-Optuna sweep under the paper-faithful loss
+# (squared Dice, smooth=1e-4, pos_weight=null, augment_train=true) combined
+# with a performance bundle (batch_size=16, num_workers=8, AMP, cosine LR).
+# Optuna searches lr / dropout / bce_weight / normalisation on top of these
+# fixed settings. Hyperparameters chosen by Optuna are tuned *for this
+# optimisation regime*, so don't mix with ablation runs (which use baseline
+# batch_size=4, FP32, num_workers=4, no scheduler).
+#
+# Run with:
+#   STUDY_NAME=unet_sweep_paper_faithful CONFIG=configs/experiments/unet_reoptuna_base.yaml \
+#     sbatch slurm/optuna_sweep.sbatch
+
+experiment_name: unet_reoptuna_base
+data_root: data/Processed
+patch_dir: data/patches
+patch_size: 512
+stride: 512
+
+# Performance bundle — only the re-Optuna flips these (ablations stay on the
+# legacy values for clean methodology attribution).
+batch_size: 16
+num_workers: 8
+use_amp: true
+lr_scheduler: cosine
+
+learning_rate: 1.0e-3       # Optuna searches; this is the seed value
+epochs: 50
+base_channels: 8
+dropout_rate: 0.5
+normalisation: fixed        # Optuna searches; this is the seed value
+train_ratio: 0.70
+val_ratio: 0.15
+seed: 2804
+threshold: 0.5
+auto_pos_weight: false
+pos_weight: null
+augment_train: true
+bce_weight: 0.5
+dice_weight: 0.5
+dice_smooth: 1.0e-4
+dice_denominator_squared: true
+device: auto
+checkpoint_dir: results/checkpoints
+log_dir: results/logs

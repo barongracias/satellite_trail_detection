@@ -41,6 +41,15 @@ def parse_args() -> argparse.Namespace:
              "any trailing '_best' stripped, so each ablation gets its own "
              "threshold_sweep_<tag>.json and threshold_sweep_<tag>_pr_curve.png.",
     )
+    p.add_argument(
+        "--threshold",
+        type=float,
+        default=None,
+        help="If set, skip the val PR sweep and evaluate the test split at this "
+             "threshold directly. Required when the manifest has no val split "
+             "(e.g., parity test sets built with --splits test). Pass the "
+             "F1-optimal threshold from a matching val-sweep JSON.",
+    )
     return p.parse_args()
 
 
@@ -136,19 +145,33 @@ def main() -> None:
             pin_memory=device.type == "cuda",
         )
 
-    val_loader = make_loader("val")
-    logger.info("Val set: %d patches", len(val_loader.dataset))  # type: ignore[arg-type]
-    val_probs, val_targets = collect_probs_and_targets(model, val_loader, device)
+    if args.threshold is not None:
+        # Fixed-threshold mode: skip val sweep, evaluate test only. Used when
+        # the manifest has no val split (e.g., a parity test set built by
+        # passing --splits test to build_patch_dataset.py). PR curve and val
+        # metrics are unavailable in this mode.
+        optimal_threshold = float(args.threshold)
+        sweep = []
+        best = {"threshold": optimal_threshold, "f1": float("nan"),
+                "precision": float("nan"), "recall": float("nan")}
+        logger.info(
+            "Skipping val sweep; evaluating test at supplied threshold %.4f",
+            optimal_threshold,
+        )
+    else:
+        val_loader = make_loader("val")
+        logger.info("Val set: %d patches", len(val_loader.dataset))  # type: ignore[arg-type]
+        val_probs, val_targets = collect_probs_and_targets(model, val_loader, device)
 
-    thresholds = np.round(np.arange(0.05, 0.955, 0.01), 2)
-    sweep = sweep_thresholds(val_probs, val_targets, thresholds)
+        thresholds = np.round(np.arange(0.05, 0.955, 0.01), 2)
+        sweep = sweep_thresholds(val_probs, val_targets, thresholds)
 
-    best = max(sweep, key=lambda r: r["f1"])
-    optimal_threshold = best["threshold"]
-    logger.info(
-        "Optimal threshold %.2f: val_F1=%.4f  P=%.4f  R=%.4f",
-        optimal_threshold, best["f1"], best["precision"], best["recall"],
-    )
+        best = max(sweep, key=lambda r: r["f1"])
+        optimal_threshold = best["threshold"]
+        logger.info(
+            "Optimal threshold %.2f: val_F1=%.4f  P=%.4f  R=%.4f",
+            optimal_threshold, best["f1"], best["precision"], best["recall"],
+        )
 
     test_loader = make_loader("test")
     logger.info("Test set: %d patches", len(test_loader.dataset))  # type: ignore[arg-type]
@@ -162,43 +185,45 @@ def main() -> None:
     figures_dir = Path("results/figures")
     figures_dir.mkdir(parents=True, exist_ok=True)
 
-    precisions = [r["precision"] for r in sweep]
-    recalls = [r["recall"] for r in sweep]
-    f1s = [r["f1"] for r in sweep]
-    thresh_vals = [r["threshold"] for r in sweep]
+    if not sweep:
+        logger.info("No val sweep performed (--threshold supplied); skipping PR-curve figure.")
+    else:
+        precisions = [r["precision"] for r in sweep]
+        recalls = [r["recall"] for r in sweep]
+        f1s = [r["f1"] for r in sweep]
+        thresh_vals = [r["threshold"] for r in sweep]
 
-    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+        fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+        axes[0].plot(recalls, precisions, linewidth=1.5)
+        axes[0].scatter(
+            [best["recall"]], [best["precision"]],
+            color="red", zorder=5,
+            label=f"F1-optimal (t={optimal_threshold:.2f})",
+        )
+        axes[0].set_xlabel("Recall")
+        axes[0].set_ylabel("Precision")
+        axes[0].set_title("Precision–Recall curve (val)")
+        axes[0].legend()
+        axes[0].grid(True, alpha=0.3)
 
-    axes[0].plot(recalls, precisions, linewidth=1.5)
-    axes[0].scatter(
-        [best["recall"]], [best["precision"]],
-        color="red", zorder=5,
-        label=f"F1-optimal (t={optimal_threshold:.2f})",
-    )
-    axes[0].set_xlabel("Recall")
-    axes[0].set_ylabel("Precision")
-    axes[0].set_title("Precision–Recall curve (val)")
-    axes[0].legend()
-    axes[0].grid(True, alpha=0.3)
+        axes[1].plot(thresh_vals, f1s, label="F1", linewidth=1.5)
+        axes[1].plot(thresh_vals, precisions, "--", label="Precision", linewidth=1.0)
+        axes[1].plot(thresh_vals, recalls, "--", label="Recall", linewidth=1.0)
+        axes[1].axvline(
+            optimal_threshold, color="k", linestyle=":", alpha=0.7,
+            label=f"t*={optimal_threshold:.2f}",
+        )
+        axes[1].set_xlabel("Threshold")
+        axes[1].set_ylabel("Score")
+        axes[1].set_title("Metrics vs threshold (val)")
+        axes[1].legend()
+        axes[1].grid(True, alpha=0.3)
 
-    axes[1].plot(thresh_vals, f1s, label="F1", linewidth=1.5)
-    axes[1].plot(thresh_vals, precisions, "--", label="Precision", linewidth=1.0)
-    axes[1].plot(thresh_vals, recalls, "--", label="Recall", linewidth=1.0)
-    axes[1].axvline(
-        optimal_threshold, color="k", linestyle=":", alpha=0.7,
-        label=f"t*={optimal_threshold:.2f}",
-    )
-    axes[1].set_xlabel("Threshold")
-    axes[1].set_ylabel("Score")
-    axes[1].set_title("Metrics vs threshold (val)")
-    axes[1].legend()
-    axes[1].grid(True, alpha=0.3)
-
-    fig.tight_layout()
-    fig_path = figures_dir / f"threshold_sweep_{tag}_pr_curve.png"
-    fig.savefig(fig_path, dpi=150, bbox_inches="tight")
-    plt.close(fig)
-    logger.info("Saved figure to %s", fig_path)
+        fig.tight_layout()
+        fig_path = figures_dir / f"threshold_sweep_{tag}_pr_curve.png"
+        fig.savefig(fig_path, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        logger.info("Saved figure to %s", fig_path)
 
     out: dict = {
         "tag": tag,

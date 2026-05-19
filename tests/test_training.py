@@ -111,3 +111,22 @@ def test_combo_loss_formulas_disagree_on_partial_probabilities() -> None:
     lin = ComboBCEDiceLoss(bce_weight=0.0, dice_weight=1.0,
                            dice_smooth=1e-6, dice_denominator_squared=False)
     assert not torch.isclose(sq(logits, targets), lin(logits, targets), atol=1e-3)
+
+
+def test_training_config_validates_lr_scheduler_choice(tmp_path: Path) -> None:
+    TrainingConfig(data_root=tmp_path, lr_scheduler=None)
+    TrainingConfig(data_root=tmp_path, lr_scheduler="cosine")
+    with pytest.raises(ValueError):
+        TrainingConfig(data_root=tmp_path, lr_scheduler="step")
+
+
+def test_amp_scaler_is_noop_when_disabled() -> None:
+    # The CPU CI path can't exercise FP16 autocast meaningfully, but it must
+    # still construct GradScaler(enabled=False) and let gradients flow through
+    # the normal backward path.
+    scaler = torch.amp.GradScaler(device="cpu", enabled=False)
+    assert not scaler.is_enabled()
+    x = torch.tensor([2.0], requires_grad=True)
+    loss = (x ** 2).sum()
+    scaler.scale(loss).backward()
+    assert torch.allclose(x.grad, torch.tensor([4.0]))

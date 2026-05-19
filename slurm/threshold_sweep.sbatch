@@ -41,13 +41,28 @@ nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 
 CHECKPOINT="${CHECKPOINT:-results/checkpoints/unet_baseline_best.pth}"
 PATCH_DIR="${PATCH_DIR:-data/patches}"
+TAG="${TAG:-}"
+THRESHOLD="${THRESHOLD:-}"
 
 echo "Checkpoint: $CHECKPOINT"
 echo "Patch dir:  $PATCH_DIR"
+echo "Tag:        ${TAG:-<auto-derived from checkpoint stem>}"
+echo "Threshold:  ${THRESHOLD:-<val PR sweep>}"
+
+TAG_ARG=()
+if [ -n "$TAG" ]; then
+    TAG_ARG=(--tag "$TAG")
+fi
+THRESHOLD_ARG=()
+if [ -n "$THRESHOLD" ]; then
+    THRESHOLD_ARG=(--threshold "$THRESHOLD")
+fi
 
 python scripts/threshold_sweep.py \
     --checkpoint "$CHECKPOINT" \
     --patch_dir "$PATCH_DIR" \
-    --num_workers 0
+    --num_workers 0 \
+    "${TAG_ARG[@]}" \
+    "${THRESHOLD_ARG[@]}"
 
 echo "Job finished."

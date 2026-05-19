@@ -58,6 +58,8 @@ class TrainingConfig:
     dice_weight: float = 0.5
     dice_smooth: float = 1e-4
     dice_denominator_squared: bool = True
+    use_amp: bool = False
+    lr_scheduler: str | None = None
     base_channels: int = 8
     dropout_rate: float = 0.5
     normalisation: str = "fixed"
@@ -100,6 +102,8 @@ class TrainingConfig:
             raise ValueError("normalisation must be 'fixed', 'per_image', or 'full_image'")
         if self.dice_smooth <= 0:
             raise ValueError("dice_smooth must be positive")
+        if self.lr_scheduler not in (None, "cosine"):
+            raise ValueError("lr_scheduler must be None or 'cosine'")
 
 
 def parse_args() -> TrainingConfig:
@@ -185,6 +189,8 @@ def build_dataloaders(
                 num_workers=config.num_workers,
                 worker_init_fn=worker_init if config.num_workers > 0 else None,
                 generator=torch.Generator().manual_seed(config.seed),
+                pin_memory=torch.cuda.is_available(),
+                persistent_workers=config.num_workers > 0,
             )
 
         return (
@@ -434,23 +440,33 @@ def train_one_epoch(
     logger: logging.Logger,
     steps_completed: int,
     max_steps: int | None,
+    scaler: torch.amp.GradScaler | None = None,
 ) -> tuple[float, int]:
     """Run one training epoch and return the mean loss and updated step count."""
     model.train()
     batch_losses: list[float] = []
+    amp_enabled = scaler is not None and scaler.is_enabled()
 
     for batch in dataloader:
         if max_steps is not None and steps_completed >= max_steps:
             break
 
-        images = batch["image"].to(device=device, dtype=torch.float32)
-        masks = batch["mask"].to(device=device, dtype=torch.float32)
+        images = batch["image"].to(device=device, dtype=torch.float32, non_blocking=True)
+        masks = batch["mask"].to(device=device, dtype=torch.float32, non_blocking=True)
 
         optimiser.zero_grad(set_to_none=True)
-        logits = model(images)
-        loss = criterion(logits, masks)
-        loss.backward()
-        optimiser.step()
+        with torch.amp.autocast(device_type=device.type, enabled=amp_enabled):
+            logits = model(images)
+        # Loss in FP32 always — Dice's spatial-sum denominator can overflow FP16
+        # on 512x512 patches (max ~65504 vs sum up to 262144).
+        loss = criterion(logits.float(), masks)
+        if scaler is not None:
+            scaler.scale(loss).backward()
+            scaler.step(optimiser)
+            scaler.update()
+        else:
+            loss.backward()
+            optimiser.step()
 
         steps_completed += 1
         loss_value = float(loss.item())
@@ -523,6 +539,17 @@ def run_training(
     ).to(device)
     optimiser = Adam(model.parameters(), lr=config.learning_rate)
 
+    scheduler: torch.optim.lr_scheduler.LRScheduler | None = None
+    if config.lr_scheduler == "cosine":
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimiser, T_max=config.epochs
+        )
+
+    scaler = torch.amp.GradScaler(
+        device=device.type,
+        enabled=config.use_amp and device.type == "cuda",
+    )
+
     pos_weight = config.pos_weight
     if config.auto_pos_weight:
         pos_weight = infer_pos_weight(config)
@@ -546,6 +573,12 @@ def run_training(
     )
     if pos_weight is not None:
         logger.info("Using pos_weight=%.6f", pos_weight)
+    logger.info(
+        "Perf settings | AMP=%s (requested=%s) | scheduler=%s | batch_size=%d | num_workers=%d",
+        scaler.is_enabled(), config.use_amp,
+        config.lr_scheduler or "none",
+        config.batch_size, config.num_workers,
+    )
     if eval_max_batches is not None:
         logger.info(
             "Validation and test evaluation limited to %d batches",
@@ -574,7 +607,10 @@ def run_training(
             logger=logger,
             steps_completed=steps_completed,
             max_steps=config.max_steps,
+            scaler=scaler,
         )
+        if scheduler is not None:
+            scheduler.step()
         val_result = evaluate_model_on_dataloader(
             model=model,
             dataloader=val_loader,

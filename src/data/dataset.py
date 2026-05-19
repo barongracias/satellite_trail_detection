@@ -131,6 +131,9 @@ class PatchDirectoryDataset(Dataset[dict[str, Any]]):
             manifest_path = self.patch_dir.parent / "manifest.csv"
         manifest = pd.read_csv(manifest_path)
         self.records = manifest[manifest["split"] == split].reset_index(drop=True)
+        # Pre-materialise rows as plain dicts to avoid pandas Series construction
+        # in __getitem__, which dominates the DataLoader CPU path otherwise.
+        self._rows = self.records.to_dict("records")
         self._transform = JointTransform(augment=augment_train and split == "train")
 
         if normalisation == "full_image":
@@ -151,7 +154,7 @@ class PatchDirectoryDataset(Dataset[dict[str, Any]]):
         return len(self.records)
 
     def __getitem__(self, idx: int) -> dict[str, Any]:
-        row = self.records.iloc[idx]
+        row = self._rows[idx]
         with Image.open(row["patch_path"]) as img:
             img_pil = img.convert("L")
         with Image.open(row["mask_path"]) as msk:

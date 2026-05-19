@@ -88,13 +88,19 @@ def _write_patches(
     patch_size: int,
     rng: random.Random,
     manifest_rows: list,
+    no_neg_sampling: bool = False,
 ) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     total_pixels = patch_size * patch_size
 
-    # 1:3 sampling — all positives, random sample of negatives
-    n_neg = min(len(neg_patches), len(pos_patches) * 3)
-    sampled_neg = rng.sample(neg_patches, n_neg) if n_neg > 0 else []
+    # Default: 1:3 sampling — all positives, random sample of negatives.
+    # no_neg_sampling=True: keep every negative patch (matches the paper's
+    # natural class distribution; used when building a parity test set).
+    if no_neg_sampling:
+        sampled_neg = neg_patches
+    else:
+        n_neg = min(len(neg_patches), len(pos_patches) * 3)
+        sampled_neg = rng.sample(neg_patches, n_neg) if n_neg > 0 else []
     all_patches = pos_patches + sampled_neg
 
     for img_patch, msk_patch, src_img, y, x, pos_pixels in all_patches:
@@ -133,6 +139,8 @@ def build(
     train_ratio: float = 0.70,
     val_ratio: float = 0.15,
     seed: int = GLOBAL_SEED,
+    splits: tuple[str, ...] = ("train", "val", "test"),
+    no_neg_sampling: bool = False,
 ) -> Path:
     """Run the full patch-building pipeline and return the manifest path."""
     seed_everything(seed)
@@ -154,7 +162,7 @@ def build(
         ("val", val_pairs, eval_transform),
         ("test", test_pairs, eval_transform),
     ]:
-        if not split_pairs:
+        if split_name not in splits or not split_pairs:
             continue
         pos_patches, neg_patches = _extract_split_patches(
             split_pairs, patch_size, stride
@@ -168,6 +176,7 @@ def build(
             patch_size=patch_size,
             rng=rng,
             manifest_rows=manifest_rows,
+            no_neg_sampling=no_neg_sampling,
         )
 
     manifest_path = out_dir / "manifest.csv"
@@ -189,11 +198,25 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--train-ratio", type=float, default=0.70)
     parser.add_argument("--val-ratio", type=float, default=0.15)
     parser.add_argument("--seed", type=int, default=GLOBAL_SEED)
+    parser.add_argument(
+        "--splits",
+        default="train,val,test",
+        help="Comma-separated splits to build. Use 'test' alone to build only "
+             "the parity test set (see --no-neg-sampling).",
+    )
+    parser.add_argument(
+        "--no-neg-sampling",
+        action="store_true",
+        help="Disable 1:3 pos:neg sampling and keep all negative patches. "
+             "Use with --splits test --out-dir data/patches_test_full to build "
+             "a paper-comparable test set with the natural class distribution.",
+    )
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = _parse_args()
+    splits = tuple(s.strip() for s in args.splits.split(",") if s.strip())
     manifest = build(
         data_root=args.data_root,
         out_dir=args.out_dir,
@@ -202,5 +225,7 @@ if __name__ == "__main__":
         train_ratio=args.train_ratio,
         val_ratio=args.val_ratio,
         seed=args.seed,
+        splits=splits,
+        no_neg_sampling=args.no_neg_sampling,
     )
     print(f"Manifest written to {manifest}")

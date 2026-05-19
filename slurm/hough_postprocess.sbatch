@@ -42,14 +42,22 @@ nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 CHECKPOINT="${CHECKPOINT:-results/checkpoints/unet_sweep_best_best.pth}"
 PATCH_DIR="${PATCH_DIR:-data/patches}"
 THRESHOLD="${THRESHOLD:-0.5}"
+OUT="${OUT:-}"
 
 echo "Checkpoint: $CHECKPOINT"
 echo "Patch dir:  $PATCH_DIR"
 echo "Threshold:  $THRESHOLD"
+echo "Out:        ${OUT:-<auto-derived from checkpoint stem>}"
+
+OUT_ARG=()
+if [ -n "$OUT" ]; then
+    OUT_ARG=(--out "$OUT")
+fi
 
 python scripts/hough_postprocess.py \
     --checkpoint "$CHECKPOINT" \
     --patch_dir "$PATCH_DIR" \
-    --threshold "$THRESHOLD"
+    --threshold "$THRESHOLD" \
+    "${OUT_ARG[@]}"
 
 echo "Job finished."

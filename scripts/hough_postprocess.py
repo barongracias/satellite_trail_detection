@@ -173,11 +173,20 @@ def main() -> None:
     logger.info("Test patches in manifest: %d", len(test_df))
 
     has_full_image_stats = {"image_mean", "image_std"}.issubset(test_df.columns)
-    if normalisation == "full_image" and not has_full_image_stats:
-        logger.warning(
-            "Checkpoint trained with normalisation=full_image but manifest lacks "
-            "image_mean/image_std; per-patch z-score fallback will be used."
-        )
+    if normalisation == "full_image":
+        if not has_full_image_stats:
+            logger.warning(
+                "Checkpoint trained with normalisation=full_image but manifest lacks "
+                "image_mean/image_std; per-patch z-score fallback will be used."
+            )
+        else:
+            n_nan = int(test_df[["image_mean", "image_std"]].isna().any(axis=1).sum())
+            if n_nan:
+                logger.warning(
+                    "normalisation=full_image: %d/%d test rows have NaN image_mean/"
+                    "image_std; per-patch z-score fallback will be used for those rows.",
+                    n_nan, len(test_df),
+                )
 
     groups = test_df.groupby("source_image")
     logger.info("Unique test images: %d", len(groups))

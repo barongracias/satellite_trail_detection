@@ -21,6 +21,10 @@ from src.utils.seed import seed_everything
 
 _SWEEP_EPOCHS = 20
 _RETRAIN_EPOCHS = 75
+# Slurm gives 12 h on gpu1. Retrain (75 epochs) ~1.5 h with perf bundle on,
+# ~2.5 h without. Reserve 1.5 h headroom for retrain + I/O. 10 h sweep budget
+# fits ~40 trials when the perf bundle is enabled, ~30 when it isn't.
+_SWEEP_TIMEOUT_SECONDS = 10 * 3600
 
 
 def parse_args() -> argparse.Namespace:
@@ -28,31 +32,47 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--config", default="configs/experiments/unet_baseline.yaml")
     p.add_argument("--patch_dir", default="data/patches")
     p.add_argument("--n_trials", type=int, default=30)
-    p.add_argument("--storage", default="sqlite:///results/classical/optuna_sweep.db")
-    p.add_argument("--study_name", default="unet_sweep")
+    p.add_argument(
+        "--study_name",
+        default="unet_sweep",
+        help="Optuna study name. Drives the storage path, best-params JSON, "
+             "and retrain experiment_name so successive sweeps don't collide.",
+    )
+    p.add_argument(
+        "--storage",
+        default=None,
+        help="SQLite URL. Defaults to results/classical/<study_name>.db.",
+    )
     return p.parse_args()
 
 
-def _make_trial_config(trial: optuna.Trial, base: dict, patch_dir: str) -> TrainingConfig:
+def _make_trial_config(
+    trial: optuna.Trial,
+    base: dict,
+    patch_dir: str,
+    study_name: str,
+) -> TrainingConfig:
     bce_w = trial.suggest_float("bce_weight", 0.2, 0.8)
     return TrainingConfig(
         **{
             **base,
             "patch_dir": patch_dir,
-            "experiment_name": f"sweep_trial_{trial.number:03d}",
+            "experiment_name": f"{study_name}_trial_{trial.number:03d}",
             "epochs": _SWEEP_EPOCHS,
             "num_workers": 4,
             "learning_rate": trial.suggest_float("learning_rate", 1e-4, 5e-3, log=True),
             "dropout_rate": trial.suggest_float("dropout_rate", 0.1, 0.7),
             "bce_weight": bce_w,
             "dice_weight": 1.0 - bce_w,
-            "normalisation": trial.suggest_categorical("normalisation", ["fixed", "per_image"]),
+            "normalisation": trial.suggest_categorical(
+                "normalisation", ["fixed", "per_image", "full_image"],
+            ),
         }
     )
 
 
-def _objective(trial: optuna.Trial, base: dict, patch_dir: str) -> float:
-    cfg = _make_trial_config(trial, base, patch_dir)
+def _objective(trial: optuna.Trial, base: dict, patch_dir: str, study_name: str) -> float:
+    cfg = _make_trial_config(trial, base, patch_dir, study_name)
     pruned = False
 
     def _pruner(epoch: int, val_dice: float) -> bool:
@@ -81,18 +101,19 @@ def main() -> None:
 
     Path("results/classical").mkdir(parents=True, exist_ok=True)
 
+    storage = args.storage or f"sqlite:///results/classical/{args.study_name}.db"
     study = optuna.create_study(
         study_name=args.study_name,
-        storage=args.storage,
+        storage=storage,
         direction="maximize",
         sampler=optuna.samplers.TPESampler(seed=GLOBAL_SEED),
         pruner=optuna.pruners.MedianPruner(n_startup_trials=5, n_warmup_steps=10),
         load_if_exists=True,
     )
     study.optimize(
-        lambda trial: _objective(trial, base, args.patch_dir),
+        lambda trial: _objective(trial, base, args.patch_dir, args.study_name),
         n_trials=args.n_trials,
-        timeout=9 * 3600,
+        timeout=_SWEEP_TIMEOUT_SECONDS,
     )
 
     best = study.best_trial
@@ -101,9 +122,14 @@ def main() -> None:
         best.number, best.value, best.params,
     )
 
-    out_path = Path("results/classical/optuna_best.json")
+    out_path = Path("results/classical") / f"{args.study_name}_best.json"
     out_path.write_text(json.dumps(
-        {"trial_number": best.number, "val_dice": best.value, "params": best.params},
+        {
+            "study_name": args.study_name,
+            "trial_number": best.number,
+            "val_dice": best.value,
+            "params": best.params,
+        },
         indent=2,
     ))
     logger.info("Saved best params to %s", out_path)
@@ -113,7 +139,7 @@ def main() -> None:
         **{
             **base,
             "patch_dir": args.patch_dir,
-            "experiment_name": "unet_sweep_best",
+            "experiment_name": args.study_name,
             "epochs": _RETRAIN_EPOCHS,
             "num_workers": 4,
             "learning_rate": best.params["learning_rate"],

@@ -1,6 +1,8 @@
 """Compute per-image mean/std from processed images and add to manifest."""
 
+import argparse
 from pathlib import Path
+
 import numpy as np
 import pandas as pd
 from PIL import Image
@@ -20,11 +22,22 @@ def compute_image_stats(image_path: Path) -> tuple[float, float]:
     return float(arr.mean()), float(arr.std())
 
 
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--manifest",
+        type=Path,
+        default=Path("data/patches/manifest.csv"),
+        help="Path to the manifest CSV to update in place.",
+    )
+    return parser.parse_args()
+
+
 def main() -> None:
-    manifest_path = Path("data/patches/manifest.csv")
+    args = _parse_args()
+    manifest_path = args.manifest
     if not manifest_path.exists():
-        print(f"Manifest not found: {manifest_path}")
-        return
+        raise SystemExit(f"Manifest not found: {manifest_path}")
 
     manifest = pd.read_csv(manifest_path)
     source_images = manifest["source_image"].unique()

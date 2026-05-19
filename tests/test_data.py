@@ -271,11 +271,10 @@ def test_patch_directory_dataset_returns_correct_dict_format(tmp_path: Path) -> 
     assert len(dataset) == 1
 
     sample = dataset[0]
-    assert set(sample.keys()) >= {"image", "mask", "coords"}
+    assert set(sample.keys()) == {"image", "mask"}
     assert sample["image"].shape[0] == 1  # grayscale channel
     assert sample["mask"].shape[0] == 1
     assert sample["image"].shape[1:] == sample["mask"].shape[1:]
-    assert sample["coords"].shape == (2,)
 
 
 def test_patch_directory_dataset_per_image_normalisation_differs_from_fixed(

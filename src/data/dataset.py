@@ -113,8 +113,7 @@ class PatchDirectoryDataset(Dataset[dict[str, Any]]):
 
     Patches are expected to have been written by ``scripts/build_patch_dataset.py``.
     Image patches are normalised at load time; mask patches are converted to float
-    tensors.  The returned dict matches the format of
-    :class:`SatelliteTrailPatchDataset`.
+    tensors. ``__getitem__`` returns ``{"image": ..., "mask": ...}``.
     """
 
     def __init__(
@@ -168,8 +167,4 @@ class PatchDirectoryDataset(Dataset[dict[str, Any]]):
             full_image_std=row.get("image_std"),
         )
 
-        return {
-            "image": image,
-            "mask": mask,
-            "coords": torch.tensor([0, 0], dtype=torch.int32),
-        }
+        return {"image": image, "mask": mask}

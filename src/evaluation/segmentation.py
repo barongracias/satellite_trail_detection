@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any, Iterable, Mapping
 
 import numpy as np
+import torch
 
 
 @dataclass(frozen=True)
@@ -57,27 +58,51 @@ def _safe_divide(numerator: int, denominator: int) -> float:
     return float(numerator) / float(denominator)
 
 
-def _to_numpy_binary_mask(
-    values: Any,
-    threshold: float = 0.5,
-    from_logits: bool = False,
-) -> np.ndarray:
-    """Convert logits, probabilities, or binary masks to a flat boolean mask."""
-    if hasattr(values, "detach"):
-        values = values.detach().cpu().numpy()
-    else:
-        values = np.asarray(values)
+def _as_writable_tensor(values: torch.Tensor | np.ndarray) -> torch.Tensor:
+    """Wrap torch.as_tensor with writability handling for numpy inputs.
 
-    if values.dtype == np.bool_:
-        return values.reshape(-1)
+    PIL-backed numpy arrays are non-writable; ``torch.as_tensor`` accepts them
+    but emits a noisy "non-writable tensor" UserWarning. Take a cheap copy
+    when that's the case so the warning never fires through the public API.
+    """
+    if torch.is_tensor(values):
+        return values.detach()
+    arr = np.asarray(values)
+    if not arr.flags.writeable:
+        arr = arr.copy()
+    return torch.from_numpy(arr)
 
-    if np.issubdtype(values.dtype, np.integer) and not from_logits:
-        return (values > 0).reshape(-1)
 
-    float_values = values.astype(np.float32, copy=False)
+def _to_binary_mask(
+    values: torch.Tensor | np.ndarray,
+    threshold: float,
+    from_logits: bool,
+    device: torch.device,
+) -> torch.Tensor:
+    """Convert logits/probabilities/binary masks to a bool tensor on `device`."""
+    t = _as_writable_tensor(values).to(device)
+
+    if t.dtype == torch.bool:
+        return t
+
+    if not torch.is_floating_point(t) and not from_logits:
+        return t > 0
+
+    t = t.float()
     if from_logits:
-        float_values = 1.0 / (1.0 + np.exp(-float_values))
-    return (float_values >= threshold).reshape(-1)
+        t = torch.sigmoid(t)
+    return t >= threshold
+
+
+def _segmentation_counts_torch(
+    pred_mask: torch.Tensor, target_mask: torch.Tensor
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Compute confusion counts as four int64 scalar tensors on the input device."""
+    tp = torch.logical_and(pred_mask, target_mask).sum(dtype=torch.int64)
+    fp = torch.logical_and(pred_mask, ~target_mask).sum(dtype=torch.int64)
+    tn = torch.logical_and(~pred_mask, ~target_mask).sum(dtype=torch.int64)
+    fn = torch.logical_and(~pred_mask, target_mask).sum(dtype=torch.int64)
+    return tp, fp, tn, fn
 
 
 def combine_counts(counts: Iterable[SegmentationCounts]) -> SegmentationCounts:
@@ -93,32 +118,40 @@ def combine_counts(counts: Iterable[SegmentationCounts]) -> SegmentationCounts:
 
 
 def compute_segmentation_counts(
-    prediction: Any,
-    target: Any,
+    prediction: torch.Tensor | np.ndarray,
+    target: torch.Tensor | np.ndarray,
     threshold: float = 0.5,
     from_logits: bool = False,
 ) -> SegmentationCounts:
-    """Compute confusion counts for a binary segmentation prediction."""
-    prediction_mask = _to_numpy_binary_mask(
-        prediction,
-        threshold=threshold,
-        from_logits=from_logits,
-    )
-    target_mask = _to_numpy_binary_mask(target, threshold=0.5, from_logits=False)
+    """Compute confusion counts for a binary segmentation prediction.
 
-    if prediction_mask.shape != target_mask.shape:
-        raise ValueError("Prediction and target masks must share the same shape")
+    Public API guarantee: returned fields are Python ints (not tensors) so
+    SegmentationCounts remains safe to serialise via asdict()/json.dump.
+    """
+    # Convert prediction first so its device is the source of truth for
+    # subsequent target alignment (target may be on CPU/numpy initially).
+    pred = _as_writable_tensor(prediction)
+    device = pred.device
+    targ = _as_writable_tensor(target)
 
-    true_positive = int(np.logical_and(prediction_mask, target_mask).sum())
-    false_positive = int(np.logical_and(prediction_mask, ~target_mask).sum())
-    true_negative = int(np.logical_and(~prediction_mask, ~target_mask).sum())
-    false_negative = int(np.logical_and(~prediction_mask, target_mask).sum())
+    # Strict shape check BEFORE any flattening, so same-numel-different-shape
+    # mismatches still raise (would otherwise be hidden by ravel/reshape).
+    if pred.shape != targ.shape:
+        raise ValueError(
+            f"Prediction and target shapes differ: "
+            f"{tuple(pred.shape)} vs {tuple(targ.shape)}"
+        )
+
+    pred_mask = _to_binary_mask(pred, threshold, from_logits, device)
+    target_mask = _to_binary_mask(targ, threshold=0.5, from_logits=False, device=device)
+
+    tp, fp, tn, fn = _segmentation_counts_torch(pred_mask, target_mask)
 
     return SegmentationCounts(
-        true_positive=true_positive,
-        false_positive=false_positive,
-        true_negative=true_negative,
-        false_negative=false_negative,
+        true_positive=int(tp.item()),
+        false_positive=int(fp.item()),
+        true_negative=int(tn.item()),
+        false_negative=int(fn.item()),
     )
 
 
@@ -193,16 +226,19 @@ def evaluate_model_on_dataloader(
     criterion: Any | None = None,
     max_batches: int | None = None,
 ) -> DatasetEvaluationResult:
-    """
-    Evaluate a segmentation model on a batched dataloader.
+    """Evaluate a segmentation model on a batched dataloader.
 
-    The dataloader must yield dictionaries containing `image` and `mask`.
+    Accumulates confusion counts and loss as on-device tensors and syncs to
+    Python ints once at the end (five .item() calls per pass, regardless of
+    batch count). The dataloader must yield dicts containing `image` and `mask`.
     """
-    import torch
-
     model.eval()
-    all_counts: list[SegmentationCounts] = []
-    loss_total = 0.0
+    # int64 running totals; loss accumulates as float on the same device.
+    tp_total = torch.zeros((), dtype=torch.int64, device=device)
+    fp_total = torch.zeros((), dtype=torch.int64, device=device)
+    tn_total = torch.zeros((), dtype=torch.int64, device=device)
+    fn_total = torch.zeros((), dtype=torch.int64, device=device)
+    loss_total = torch.zeros((), dtype=torch.float32, device=device)
     batch_count = 0
 
     with torch.no_grad():
@@ -210,26 +246,36 @@ def evaluate_model_on_dataloader(
             if max_batches is not None and batch_index > max_batches:
                 break
 
-            images = batch["image"].to(device=device, dtype=torch.float32)
-            masks = batch["mask"].to(device=device, dtype=torch.float32)
+            images = batch["image"].to(
+                device=device, dtype=torch.float32, non_blocking=True
+            )
+            masks = batch["mask"].to(
+                device=device, dtype=torch.float32, non_blocking=True
+            )
             logits = model(images)
 
             if criterion is not None:
-                loss_total += float(criterion(logits, masks).item())
+                loss_total += criterion(logits, masks).detach()
                 batch_count += 1
 
-            all_counts.append(
-                compute_segmentation_counts(
-                    logits,
-                    masks,
-                    threshold=threshold,
-                    from_logits=True,
-                )
-            )
+            pred_mask = _to_binary_mask(logits, threshold, True, device)
+            target_mask = _to_binary_mask(masks, 0.5, False, device)
+            tp, fp, tn, fn = _segmentation_counts_torch(pred_mask, target_mask)
+            tp_total += tp
+            fp_total += fp
+            tn_total += tn
+            fn_total += fn
 
-    combined_counts = combine_counts(all_counts)
+    combined_counts = SegmentationCounts(
+        true_positive=int(tp_total.item()),
+        false_positive=int(fp_total.item()),
+        true_negative=int(tn_total.item()),
+        false_negative=int(fn_total.item()),
+    )
     mean_loss = (
-        None if criterion is None or batch_count == 0 else loss_total / batch_count
+        None
+        if criterion is None or batch_count == 0
+        else float(loss_total.item()) / batch_count
     )
     return DatasetEvaluationResult(
         counts=combined_counts,

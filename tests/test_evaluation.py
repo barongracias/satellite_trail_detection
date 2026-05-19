@@ -241,3 +241,95 @@ def test_segmentation_metrics_work_for_binary_masks_and_logits() -> None:
     combined = combine_counts([counts, counts])
 
     assert combined.true_positive == 2
+
+
+def test_segmentation_counts_returns_python_ints() -> None:
+    """Locks the public API guarantee: SegmentationCounts fields are Python ints,
+    not torch.Tensor / np.integer / numpy scalars. Required for asdict()/json.dump
+    serialisation into checkpoint payloads and summary JSONs."""
+    import torch as _torch
+    prediction = _torch.tensor([[1, 0], [1, 0]], dtype=_torch.float32)
+    target = _torch.tensor([[1, 0], [0, 0]], dtype=_torch.float32)
+    counts = compute_segmentation_counts(prediction, target)
+    assert type(counts.true_positive) is int
+    assert type(counts.false_positive) is int
+    assert type(counts.true_negative) is int
+    assert type(counts.false_negative) is int
+
+
+def test_evaluate_accumulates_match_direct_counts(tmp_path: Path) -> None:
+    """The streaming eval accumulator must yield identical counts to the
+    one-shot compute_segmentation_counts on the concatenation of all batches."""
+    import torch as _torch
+    from src.evaluation.segmentation import evaluate_model_on_dataloader
+
+    _torch.manual_seed(0)
+    # 3 batches × 2 samples × 1 channel × 4×4
+    images_batches = [_torch.randn(2, 1, 4, 4) for _ in range(3)]
+    masks_batches = [(_torch.rand(2, 1, 4, 4) > 0.7).float() for _ in range(3)]
+    loader = [
+        {"image": img, "mask": msk}
+        for img, msk in zip(images_batches, masks_batches)
+    ]
+
+    class _Identity(_torch.nn.Module):
+        def forward(self, x):
+            return x   # logits == input; sigmoid path exercised via threshold
+
+    model = _Identity()
+    device = _torch.device("cpu")
+    result = evaluate_model_on_dataloader(model, loader, device, threshold=0.5)
+
+    # Direct counts on concatenated batches:
+    all_logits = _torch.cat(images_batches, dim=0)
+    all_masks = _torch.cat(masks_batches, dim=0)
+    direct = compute_segmentation_counts(
+        all_logits, all_masks, threshold=0.5, from_logits=True
+    )
+    assert result.counts.true_positive == direct.true_positive
+    assert result.counts.false_positive == direct.false_positive
+    assert result.counts.true_negative == direct.true_negative
+    assert result.counts.false_negative == direct.false_negative
+
+
+def test_segmentation_counts_rejects_shape_mismatch() -> None:
+    """Strict shape check must fire before flattening so same-numel-different-shape
+    mismatches (e.g. (1,4) vs (2,2)) still raise."""
+    import torch as _torch
+    # Case (a): different number of elements.
+    a = _torch.zeros((1, 4))
+    b = _torch.zeros((1, 5))
+    try:
+        compute_segmentation_counts(a, b)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("Expected ValueError on different-numel shapes")
+
+    # Case (b): same numel, different shape.
+    a = _torch.zeros((1, 4))
+    b = _torch.zeros((2, 2))
+    try:
+        compute_segmentation_counts(a, b)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("Expected ValueError on same-numel different-shape")
+
+
+def test_segmentation_counts_handles_mixed_numpy_torch_input() -> None:
+    """Codex device-alignment fix: prediction may be numpy, target torch, or
+    vice versa; the public function must align both to the prediction device
+    without raising."""
+    import torch as _torch
+    pred_np = np.array([[1, 0, 1, 0]], dtype=np.uint8)
+    target_torch = _torch.tensor([[1, 0, 0, 0]], dtype=_torch.float32)
+    counts_a = compute_segmentation_counts(pred_np, target_torch)
+
+    pred_torch = _torch.tensor([[1, 0, 1, 0]], dtype=_torch.float32)
+    target_np = np.array([[1, 0, 0, 0]], dtype=np.uint8)
+    counts_b = compute_segmentation_counts(pred_torch, target_np)
+
+    assert counts_a == counts_b
+    assert counts_a.true_positive == 1
+    assert counts_a.false_positive == 1

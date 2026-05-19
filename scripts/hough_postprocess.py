@@ -59,6 +59,7 @@ Image.MAX_IMAGE_PIXELS = None
 
 _PATCH_SIZE = 512
 _YX_RE = re.compile(r"_(\d+)_(\d+)_image$")
+_HOUGH_MAX_BATCH = 64
 
 
 def parse_args() -> argparse.Namespace:
@@ -109,20 +110,34 @@ def _parse_yx(patch_path: str) -> tuple[int, int]:
     return int(m.group(1)), int(m.group(2))
 
 
-def _infer_patch(
+def _load_normalised_patch(
     patch_path: str,
-    model: UNet,
     normalisation: str,
-    device: torch.device,
     full_image_mean: float | None = None,
     full_image_std: float | None = None,
-) -> np.ndarray:
-    """Return raw sigmoid probability map (float32, shape HxW, values in [0,1])."""
+) -> torch.Tensor:
+    """Load + normalise one patch as a (1, H, W) float tensor (still on CPU)."""
     with Image.open(patch_path) as img:
         t = TF.pil_to_tensor(img.convert("L")).float() / 255.0
-    t = normalise_tensor(t, normalisation, full_image_mean, full_image_std).unsqueeze(0).to(device)
-    with torch.no_grad():
-        return torch.sigmoid(model(t))[0, 0].cpu().numpy()
+    return normalise_tensor(t, normalisation, full_image_mean, full_image_std)
+
+
+def _infer_batch(
+    patches: list[torch.Tensor],
+    model: UNet,
+    device: torch.device,
+) -> np.ndarray:
+    """Forward a stacked batch of patches; return (N, H, W) sigmoid probs."""
+    batch = torch.stack(patches).to(device, non_blocking=True)
+    with torch.inference_mode():
+        probs = torch.sigmoid(model(batch))
+    return probs.squeeze(1).cpu().numpy()
+
+
+def _chunks(seq: list, size: int):
+    """Yield successive size-bounded slices of seq."""
+    for start in range(0, len(seq), size):
+        yield seq[start : start + size]
 
 
 def _apply_hough(
@@ -205,24 +220,43 @@ def main() -> None:
         prob_canvas = np.zeros((canvas_h, canvas_w), dtype=np.float32)
         target_canvas = np.zeros((canvas_h, canvas_w), dtype=np.uint8)
 
-        for row in group.itertuples(index=False):
-            patch_path = row.patch_path
-            mask_path = row.mask_path
-            mean = getattr(row, "image_mean", None) if has_full_image_stats else None
-            std = getattr(row, "image_std", None) if has_full_image_stats else None
-            prob = _infer_patch(
-                patch_path, model, normalisation, device,
-                full_image_mean=mean, full_image_std=std,
-            )
-            y, x = _parse_yx(patch_path)
-            prob_canvas[y : y + _PATCH_SIZE, x : x + _PATCH_SIZE] = np.maximum(
-                prob_canvas[y : y + _PATCH_SIZE, x : x + _PATCH_SIZE], prob
-            )
-            with Image.open(mask_path) as msk:
-                mask_patch = np.asarray(msk.convert("L"), dtype=np.uint8)
-            target_canvas[y : y + _PATCH_SIZE, x : x + _PATCH_SIZE] = np.maximum(
-                target_canvas[y : y + _PATCH_SIZE, x : x + _PATCH_SIZE], mask_patch
-            )
+        # Per-source-image inference in chunks: cap load + stack + forward at
+        # _HOUGH_MAX_BATCH to bound the per-step working set. Peak memory per
+        # image is dominated by the two full-image canvases declared above
+        # (prob_canvas float32 ≈ 446 MB at 10560×10560, target_canvas uint8
+        # ≈ 112 MB) plus the current chunk's stacked-patch tensors
+        # (chunk × 1 × 512 × 512 × 4 bytes ≈ 67 MB at MAX_BATCH=64). The
+        # canvases are inherent to image-level FNR reconstruction; chunking
+        # only bounds the *inference* tensor footprint, not the canvas one.
+        # Batched forward is numerically equivalent (not bitwise-identical) to
+        # single-patch inference: model.eval() disables dropout and there are
+        # no BatchNorm layers, but cuDNN convolution kernel selection is
+        # batch-shape-dependent so floating-point output may differ at LSB
+        # precision. Predictions exactly at the threshold could in principle
+        # flip; for thresholded FNR the difference is negligible.
+        group_rows = list(group.itertuples(index=False))
+        for chunk in _chunks(group_rows, _HOUGH_MAX_BATCH):
+            patches: list[torch.Tensor] = []
+            coords: list[tuple[int, int]] = []
+            for row in chunk:
+                mean = getattr(row, "image_mean", None) if has_full_image_stats else None
+                std = getattr(row, "image_std", None) if has_full_image_stats else None
+                patches.append(
+                    _load_normalised_patch(row.patch_path, normalisation, mean, std)
+                )
+                coords.append(_parse_yx(row.patch_path))
+
+            probs = _infer_batch(patches, model, device)   # (N, H, W) numpy
+
+            for (y, x), prob, row in zip(coords, probs, chunk):
+                prob_canvas[y : y + _PATCH_SIZE, x : x + _PATCH_SIZE] = np.maximum(
+                    prob_canvas[y : y + _PATCH_SIZE, x : x + _PATCH_SIZE], prob
+                )
+                with Image.open(row.mask_path) as msk:
+                    mask_patch = np.asarray(msk.convert("L"), dtype=np.uint8)
+                target_canvas[y : y + _PATCH_SIZE, x : x + _PATCH_SIZE] = np.maximum(
+                    target_canvas[y : y + _PATCH_SIZE, x : x + _PATCH_SIZE], mask_patch
+                )
 
         binary_canvas = (prob_canvas >= args.threshold).astype(np.uint8) * 255
         # Detection requires overlap with ground truth
@@ -258,8 +292,12 @@ def main() -> None:
             "detected_post_hough": detected_post,
         })
 
-    fnr_pre = n_fn_pre / n_positive if n_positive > 0 else float("nan")
-    fnr_post = n_fn_post / n_positive if n_positive > 0 else float("nan")
+    if n_positive > 0:
+        fnr_pre = n_fn_pre / n_positive
+        fnr_post = n_fn_post / n_positive
+    else:
+        fnr_pre = None
+        fnr_post = None
 
     result = {
         "checkpoint": str(args.checkpoint),
@@ -270,8 +308,8 @@ def main() -> None:
         "max_line_gap": args.max_line_gap,
         "n_test_images": len(rows),
         "n_positive_images": n_positive,
-        "fnr_pre_hough": round(fnr_pre, 6),
-        "fnr_post_hough": round(fnr_post, 6),
+        "fnr_pre_hough": None if fnr_pre is None else round(fnr_pre, 6),
+        "fnr_post_hough": None if fnr_post is None else round(fnr_post, 6),
         "paper_fnr_pre_hough": PAPER_FNR_PRE_HOUGH,
         "paper_fnr_post_hough": PAPER_FNR_POST_HOUGH,
         "per_image": rows,
@@ -279,16 +317,24 @@ def main() -> None:
 
     out_path = _resolve_out_path(args)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(json.dumps(result, indent=2))
-    logger.info(
-        "FNR  pre-Hough: %.4f  post-Hough: %.4f  (paper: %.4f → %.4f)",
-        fnr_pre, fnr_post, PAPER_FNR_PRE_HOUGH, PAPER_FNR_POST_HOUGH,
-    )
+    out_path.write_text(json.dumps(result, indent=2, allow_nan=False))
+    if fnr_pre is None:
+        logger.warning(
+            "No positive test images; FNR pre/post undefined (n_positive=0)."
+        )
+    else:
+        logger.info(
+            "FNR  pre-Hough: %.4f  post-Hough: %.4f  (paper: %.4f → %.4f)",
+            fnr_pre, fnr_post, PAPER_FNR_PRE_HOUGH, PAPER_FNR_POST_HOUGH,
+        )
     logger.info("Saved to %s", out_path)
-    print(
-        f"\nFNR pre-Hough:  {fnr_pre:.4f}  (paper: {PAPER_FNR_PRE_HOUGH})"
-        f"\nFNR post-Hough: {fnr_post:.4f}  (paper: {PAPER_FNR_POST_HOUGH})"
-    )
+    if fnr_pre is None:
+        print("\nFNR pre/post: undefined (no positive test images)")
+    else:
+        print(
+            f"\nFNR pre-Hough:  {fnr_pre:.4f}  (paper: {PAPER_FNR_PRE_HOUGH})"
+            f"\nFNR post-Hough: {fnr_post:.4f}  (paper: {PAPER_FNR_POST_HOUGH})"
+        )
 
 
 if __name__ == "__main__":

@@ -23,6 +23,11 @@ import torch
 from torch.utils.data import DataLoader
 
 from src.data.dataset import PatchDirectoryDataset
+from src.evaluation.segmentation import (
+    SegmentationCounts,
+    compute_metrics_from_counts,
+    evaluate_model_on_dataloader,
+)
 from src.models.unet import UNet
 from src.utils.logger import get_logger
 from src.utils.seed import seed_everything
@@ -60,58 +65,91 @@ def _resolve_tag(args: argparse.Namespace) -> str:
     return stem[:-5] if stem.endswith("_best") else stem
 
 
-def collect_probs_and_targets(
+def streaming_sweep_thresholds(
     model: UNet,
     loader: DataLoader,
     device: torch.device,
-) -> tuple[np.ndarray, np.ndarray]:
-    all_probs: list[np.ndarray] = []
-    all_targets: list[np.ndarray] = []
+    thresholds: np.ndarray,
+) -> list[dict]:
+    """Sweep `thresholds` over a loader without materialising the full prob array.
+
+    Per-threshold TP/FP/FN/TN are accumulated as int64 tensors on `device` across
+    batches; a single .tolist() syncs to Python at the end. Memory cost is
+    O(num_thresholds × 4 × 8 bytes) regardless of dataset size.
+    """
+    num_t = len(thresholds)
+    tp = torch.zeros(num_t, dtype=torch.int64, device=device)
+    fp = torch.zeros(num_t, dtype=torch.int64, device=device)
+    tn = torch.zeros(num_t, dtype=torch.int64, device=device)
+    fn = torch.zeros(num_t, dtype=torch.int64, device=device)
+
     model.eval()
     with torch.no_grad():
         for batch in loader:
-            images = batch["image"].to(device=device, dtype=torch.float32)
-            masks = batch["mask"].to(device=device, dtype=torch.float32)
+            images = batch["image"].to(
+                device=device, dtype=torch.float32, non_blocking=True
+            )
+            masks = batch["mask"].to(
+                device=device, dtype=torch.float32, non_blocking=True
+            )
             probs = torch.sigmoid(model(images))
-            all_probs.append(probs.cpu().numpy().reshape(-1))
-            all_targets.append(masks.cpu().numpy().reshape(-1))
-    return np.concatenate(all_probs), np.concatenate(all_targets)
+            target_bool = masks > 0.5
+            not_target_bool = ~target_bool
+            for ti, t in enumerate(thresholds):
+                pred_bool = probs >= float(t)
+                not_pred_bool = ~pred_bool
+                tp[ti] += torch.logical_and(pred_bool, target_bool).sum(dtype=torch.int64)
+                fp[ti] += torch.logical_and(pred_bool, not_target_bool).sum(dtype=torch.int64)
+                fn[ti] += torch.logical_and(not_pred_bool, target_bool).sum(dtype=torch.int64)
+                tn[ti] += torch.logical_and(not_pred_bool, not_target_bool).sum(dtype=torch.int64)
 
+    tp_list = tp.tolist()
+    fp_list = fp.tolist()
+    fn_list = fn.tolist()
+    tn_list = tn.tolist()
 
-def sweep_thresholds(
-    probs: np.ndarray,
-    targets: np.ndarray,
-    thresholds: np.ndarray,
-) -> list[dict]:
-    target_bool = targets >= 0.5
-    rows = []
-    for t in thresholds:
-        pred_bool = probs >= t
-        tp = int(np.logical_and(pred_bool, target_bool).sum())
-        fp = int(np.logical_and(pred_bool, ~target_bool).sum())
-        fn = int(np.logical_and(~pred_bool, target_bool).sum())
-        precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
-        recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
-        f1 = 2 * tp / (2 * tp + fp + fn) if (2 * tp + fp + fn) > 0 else 0.0
-        rows.append({"threshold": float(t), "precision": precision, "recall": recall, "f1": f1})
+    rows: list[dict] = []
+    for ti, t in enumerate(thresholds):
+        counts = SegmentationCounts(
+            true_positive=tp_list[ti],
+            false_positive=fp_list[ti],
+            true_negative=tn_list[ti],
+            false_negative=fn_list[ti],
+        )
+        m = compute_metrics_from_counts(counts)
+        f1 = (
+            2.0 * m.precision * m.recall / (m.precision + m.recall)
+            if (m.precision + m.recall) > 0
+            else 0.0
+        )
+        rows.append({
+            "threshold": float(t),
+            "precision": m.precision,
+            "recall": m.recall,
+            "f1": f1,
+        })
     return rows
 
 
-def eval_at_threshold(
-    probs: np.ndarray,
-    targets: np.ndarray,
+def evaluate_at_threshold(
+    model: UNet,
+    loader: DataLoader,
+    device: torch.device,
     threshold: float,
 ) -> dict[str, float]:
-    target_bool = targets >= 0.5
-    pred_bool = probs >= threshold
-    tp = int(np.logical_and(pred_bool, target_bool).sum())
-    fp = int(np.logical_and(pred_bool, ~target_bool).sum())
-    fn = int(np.logical_and(~pred_bool, target_bool).sum())
-    precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
-    recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
-    dice = 2 * tp / (2 * tp + fp + fn) if (2 * tp + fp + fn) > 0 else 0.0
-    iou = tp / (tp + fp + fn) if (tp + fp + fn) > 0 else 0.0
-    return {"precision": precision, "recall": recall, "dice": dice, "iou": iou}
+    """Evaluate the model on `loader` at a single threshold (tensor-native)."""
+    result = evaluate_model_on_dataloader(
+        model=model,
+        dataloader=loader,
+        device=device,
+        threshold=threshold,
+    )
+    return {
+        "precision": result.metrics.precision,
+        "recall": result.metrics.recall,
+        "dice": result.metrics.dice,
+        "iou": result.metrics.iou,
+    }
 
 
 def main() -> None:
@@ -152,8 +190,8 @@ def main() -> None:
         # metrics are unavailable in this mode.
         optimal_threshold = float(args.threshold)
         sweep = []
-        best = {"threshold": optimal_threshold, "f1": float("nan"),
-                "precision": float("nan"), "recall": float("nan")}
+        best = {"threshold": optimal_threshold, "f1": None,
+                "precision": None, "recall": None}
         logger.info(
             "Skipping val sweep; evaluating test at supplied threshold %.4f",
             optimal_threshold,
@@ -161,10 +199,9 @@ def main() -> None:
     else:
         val_loader = make_loader("val")
         logger.info("Val set: %d patches", len(val_loader.dataset))  # type: ignore[arg-type]
-        val_probs, val_targets = collect_probs_and_targets(model, val_loader, device)
 
         thresholds = np.round(np.arange(0.05, 0.955, 0.01), 2)
-        sweep = sweep_thresholds(val_probs, val_targets, thresholds)
+        sweep = streaming_sweep_thresholds(model, val_loader, device, thresholds)
 
         best = max(sweep, key=lambda r: r["f1"])
         optimal_threshold = best["threshold"]
@@ -175,8 +212,7 @@ def main() -> None:
 
     test_loader = make_loader("test")
     logger.info("Test set: %d patches", len(test_loader.dataset))  # type: ignore[arg-type]
-    test_probs, test_targets = collect_probs_and_targets(model, test_loader, device)
-    test_m = eval_at_threshold(test_probs, test_targets, optimal_threshold)
+    test_m = evaluate_at_threshold(model, test_loader, device, optimal_threshold)
     logger.info(
         "Test @ t=%.2f: P=%.4f  R=%.4f  Dice=%.4f  IoU=%.4f",
         optimal_threshold, test_m["precision"], test_m["recall"], test_m["dice"], test_m["iou"],
@@ -241,11 +277,17 @@ def main() -> None:
     out_path = Path("results/classical") / f"threshold_sweep_{tag}.json"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with open(out_path, "w") as f:
-        json.dump(out, f, indent=2)
+        json.dump(out, f, indent=2, allow_nan=False)
     logger.info("Saved results to %s", out_path)
 
     print(f"\nOptimal threshold: {optimal_threshold:.2f}")
-    print(f"Val   F1={best['f1']:.4f}  P={best['precision']:.4f}  R={best['recall']:.4f}")
+    if args.threshold is None:
+        print(
+            f"Val   F1={best['f1']:.4f}  "
+            f"P={best['precision']:.4f}  R={best['recall']:.4f}"
+        )
+    else:
+        print(f"Val   <skipped — threshold supplied: {args.threshold:.4f}>")
     print(
         f"Test  P={test_m['precision']:.4f}  R={test_m['recall']:.4f}"
         f"  Dice={test_m['dice']:.4f}  IoU={test_m['iou']:.4f}"

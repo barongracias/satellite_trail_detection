@@ -41,7 +41,7 @@ echo "Python: $(which python)"
 python -c "import torch; print('PyTorch:', torch.__version__, '| CUDA:', torch.cuda.is_available())"
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 
-CONFIG="${CONFIG:-configs/experiments/unet_baseline.yaml}"
+CONFIG="${CONFIG:-configs/experiments/unet_reoptuna_base.yaml}"
 PATCH_DIR="${PATCH_DIR:-data/patches}"
 N_TRIALS="${N_TRIALS:-30}"
 STUDY_NAME="${STUDY_NAME:-unet_sweep}"

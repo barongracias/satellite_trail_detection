@@ -153,12 +153,16 @@ def _worker_init_fn(worker_id: int, seed: int = GLOBAL_SEED) -> None:
 
 def build_dataloaders(
     config: TrainingConfig,
+    device: torch.device,
 ) -> tuple[DataLoader, DataLoader, DataLoader]:
     """Create deterministic train, validation, and test dataloaders.
 
     When ``config.patch_dir`` is set, loads pre-built patches from that directory
     tree using :class:`PatchDirectoryDataset`.  Otherwise falls back to on-the-fly
     patch extraction from ``config.data_root`` via :class:`SatelliteTrailPatchDataset`.
+
+    ``device`` is the resolved training device; passed in so ``pin_memory`` only
+    fires when the actual runtime is CUDA (not merely available on the host).
     """
     if config.patch_dir is not None:
         manifest = config.patch_dir / "manifest.csv"
@@ -189,7 +193,7 @@ def build_dataloaders(
                 num_workers=config.num_workers,
                 worker_init_fn=worker_init if config.num_workers > 0 else None,
                 generator=torch.Generator().manual_seed(config.seed),
-                pin_memory=torch.cuda.is_available(),
+                pin_memory=device.type == "cuda",
                 persistent_workers=config.num_workers > 0,
             )
 
@@ -426,8 +430,13 @@ def save_training_summary(
         "test_metrics": asdict(test_result.metrics),
         "test_loss": test_result.mean_loss,
     }
-    summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    summary_path.write_text(
+        json.dumps(summary, indent=2, allow_nan=False), encoding="utf-8"
+    )
     return summary_path
+
+
+_LOG_EVERY_N_STEPS = 10
 
 
 def train_one_epoch(
@@ -442,10 +451,18 @@ def train_one_epoch(
     max_steps: int | None,
     scaler: torch.amp.GradScaler | None = None,
 ) -> tuple[float, int]:
-    """Run one training epoch and return the mean loss and updated step count."""
+    """Run one training epoch and return the mean loss and updated step count.
+
+    Loss is accumulated as an on-device scalar; .item() is called once at end
+    of epoch. Per-batch logging is throttled to every _LOG_EVERY_N_STEPS to
+    avoid forcing a host/device sync on each step.
+    """
     model.train()
-    batch_losses: list[float] = []
     amp_enabled = scaler is not None and scaler.is_enabled()
+    loss_total = torch.zeros((), dtype=torch.float32, device=device)
+    batch_count = 0
+    last_loss_value: float | None = None
+    last_pos_fraction: float | None = None
 
     for batch in dataloader:
         if max_steps is not None and steps_completed >= max_steps:
@@ -469,21 +486,28 @@ def train_one_epoch(
             optimiser.step()
 
         steps_completed += 1
-        loss_value = float(loss.item())
-        batch_losses.append(loss_value)
+        batch_count += 1
+        loss_total += loss.detach()
 
-        logger.info(
-            "Epoch %d | step %d | train_loss=%.6f | batch_positive_fraction=%.6f",
-            epoch,
-            steps_completed,
-            loss_value,
-            float(masks.mean().item()),
-        )
+        if steps_completed % _LOG_EVERY_N_STEPS == 0:
+            last_loss_value = float(loss.item())
+            last_pos_fraction = float(masks.mean().item())
+            logger.info(
+                "Epoch %d | step %d | train_loss=%.6f | batch_positive_fraction=%.6f",
+                epoch, steps_completed, last_loss_value, last_pos_fraction,
+            )
 
-    if not batch_losses:
+    if batch_count == 0:
         raise RuntimeError("No training batches were processed")
 
-    return sum(batch_losses) / len(batch_losses), steps_completed
+    mean_loss = float(loss_total.item()) / batch_count
+    # Ensure end-of-epoch progress is visible even if the last logged step
+    # wasn't a multiple of _LOG_EVERY_N_STEPS.
+    logger.info(
+        "Epoch %d | end | steps=%d | mean_train_loss=%.6f",
+        epoch, steps_completed, mean_loss,
+    )
+    return mean_loss, steps_completed
 
 
 def save_training_curves(
@@ -526,7 +550,7 @@ def run_training(
     seed_everything(config.seed)
     logger = get_logger(name=config.experiment_name, run_dir=config.log_dir)
     device = resolve_device(config.device)
-    train_loader, val_loader, test_loader = build_dataloaders(config)
+    train_loader, val_loader, test_loader = build_dataloaders(config, device)
     eval_max_batches = config.eval_max_batches
     if eval_max_batches is None and config.max_steps is not None:
         eval_max_batches = 10

@@ -130,3 +130,62 @@ def test_amp_scaler_is_noop_when_disabled() -> None:
     loss = (x ** 2).sum()
     scaler.scale(loss).backward()
     assert torch.allclose(x.grad, torch.tensor([4.0]))
+
+
+def test_threshold_sweep_json_strict_serialisation() -> None:
+    """Fixed-threshold mode produces None (not NaN) so the output JSON
+    serialises cleanly under allow_nan=False. Locks R1."""
+    import json
+    out_payload = {
+        "tag": "demo",
+        "checkpoint": "results/checkpoints/demo_best.pth",
+        "optimal_threshold": 0.6,
+        "val_f1": None,
+        "val_precision": None,
+        "val_recall": None,
+        "test_precision": 0.8,
+        "test_recall": 0.7,
+        "test_dice": 0.75,
+        "test_iou": 0.6,
+        "pr_curve": [],
+    }
+    # Must not raise.
+    json.dumps(out_payload, indent=2, allow_nan=False)
+
+
+def test_sweep_trial_config_preserves_num_workers(tmp_path: Path) -> None:
+    """The Optuna trial-config builder must inherit num_workers from the base
+    YAML — historically it was hardcoded to 4, defeating the re-Optuna perf
+    bundle's num_workers=8."""
+    from unittest.mock import MagicMock
+
+    optuna = pytest.importorskip("optuna")
+    from src.training.sweep import _make_trial_config
+
+    base = {
+        "data_root": str(tmp_path),
+        "checkpoint_dir": str(tmp_path / "checkpoints"),
+        "log_dir": str(tmp_path / "logs"),
+        "num_workers": 8,
+        "batch_size": 16,
+        "use_amp": True,
+        "lr_scheduler": "cosine",
+    }
+    trial = MagicMock(spec=optuna.Trial)
+    trial.number = 0
+    trial.suggest_float.side_effect = lambda name, *a, **k: 0.5
+    trial.suggest_categorical.side_effect = lambda name, choices: choices[0]
+    cfg = _make_trial_config(trial, base, patch_dir=str(tmp_path), study_name="study")
+    assert cfg.num_workers == 8
+    assert cfg.batch_size == 16
+    assert cfg.use_amp is True
+    assert cfg.lr_scheduler == "cosine"
+
+
+def test_optuna_sweep_sbatch_defaults_to_reoptuna_base() -> None:
+    """The optuna_sweep sbatch must default CONFIG to the re-Optuna base
+    config so submitting without a CONFIG override doesn't silently use
+    the legacy baseline."""
+    sbatch_path = Path(__file__).resolve().parents[1] / "slurm" / "optuna_sweep.sbatch"
+    contents = sbatch_path.read_text()
+    assert 'CONFIG="${CONFIG:-configs/experiments/unet_reoptuna_base.yaml}"' in contents

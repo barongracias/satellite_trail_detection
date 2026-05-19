@@ -29,7 +29,14 @@ _SWEEP_TIMEOUT_SECONDS = 10 * 3600
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--config", default="configs/experiments/unet_baseline.yaml")
+    p.add_argument(
+        "--config",
+        default="configs/experiments/unet_reoptuna_base.yaml",
+        help="Base YAML config; defaults to the re-Optuna perf-bundle base so "
+             "direct `python -m src.training.sweep` invocations match the "
+             "Slurm sbatch wrapper. Pass --config configs/experiments/unet_baseline.yaml "
+             "for the legacy pre-perf-bundle path.",
+    )
     p.add_argument("--patch_dir", default="data/patches")
     p.add_argument("--n_trials", type=int, default=30)
     p.add_argument(
@@ -59,7 +66,6 @@ def _make_trial_config(
             "patch_dir": patch_dir,
             "experiment_name": f"{study_name}_trial_{trial.number:03d}",
             "epochs": _SWEEP_EPOCHS,
-            "num_workers": 4,
             "learning_rate": trial.suggest_float("learning_rate", 1e-4, 5e-3, log=True),
             "dropout_rate": trial.suggest_float("dropout_rate", 0.1, 0.7),
             "bce_weight": bce_w,
@@ -131,6 +137,7 @@ def main() -> None:
             "params": best.params,
         },
         indent=2,
+        allow_nan=False,
     ))
     logger.info("Saved best params to %s", out_path)
 
@@ -141,7 +148,6 @@ def main() -> None:
             "patch_dir": args.patch_dir,
             "experiment_name": args.study_name,
             "epochs": _RETRAIN_EPOCHS,
-            "num_workers": 4,
             "learning_rate": best.params["learning_rate"],
             "dropout_rate": best.params["dropout_rate"],
             "bce_weight": bce_w,

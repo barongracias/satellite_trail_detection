@@ -72,7 +72,7 @@ def main() -> None:
             "counts": asdict(result.summary_counts),
             "metrics": asdict(result.summary_metrics),
         }
-        summary_path.write_text(json.dumps(summary, indent=2))
+        summary_path.write_text(json.dumps(summary, indent=2, allow_nan=False))
         logger.info("Saved summary JSON to %s", summary_path)
 
 

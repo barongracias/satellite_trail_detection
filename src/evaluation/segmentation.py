@@ -365,7 +365,9 @@ def bootstrap_metrics_cluster(
     """
     if not per_image_counts:
         raise ValueError("per_image_counts must contain at least one image")
-    units = list(per_image_counts.values())
+    # Sort keys so the seeded bootstrap is reproducible across construction
+    # paths — dict insertion order shouldn't leak into CI values.
+    units = [per_image_counts[key] for key in sorted(per_image_counts)]
     point = compute_metrics_from_counts(combine_counts(units))
     samples = _bootstrap_resample_counts(units, n_resamples, seed)
     return _summarise_bootstrap(samples, point, ci)

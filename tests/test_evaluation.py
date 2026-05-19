@@ -366,6 +366,25 @@ def test_bootstrap_metrics_cluster_point_matches_aggregate_and_is_reproducible()
     assert result == result_again
 
 
+def test_bootstrap_metrics_cluster_is_insertion_order_independent() -> None:
+    """Dict insertion order must not change the seeded bootstrap output —
+    callers building the per-image mapping via glob/walk vs. a sorted iterator
+    should land identical CIs from the same underlying counts."""
+    counts_a = SegmentationCounts(true_positive=10, false_positive=2,
+                                   true_negative=88, false_negative=1)
+    counts_b = SegmentationCounts(true_positive=5, false_positive=1,
+                                   true_negative=44, false_negative=0)
+    counts_c = SegmentationCounts(true_positive=0, false_positive=0,
+                                   true_negative=50, false_negative=0)
+
+    forward = {"img_a": counts_a, "img_b": counts_b, "img_c": counts_c}
+    reverse = {"img_c": counts_c, "img_b": counts_b, "img_a": counts_a}
+
+    result_forward = bootstrap_metrics_cluster(forward, n_resamples=200, seed=2804)
+    result_reverse = bootstrap_metrics_cluster(reverse, n_resamples=200, seed=2804)
+    assert result_forward == result_reverse
+
+
 def test_bootstrap_metrics_patch_collapses_with_single_unit() -> None:
     """With one patch, every resample is that patch → CI lo == hi == point."""
     counts = SegmentationCounts(true_positive=4, false_positive=1,

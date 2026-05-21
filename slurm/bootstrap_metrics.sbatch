@@ -2,12 +2,12 @@
 #! ==============================================================
 #!  CSD3 Ampere GPU job — interactive queue (< 59 min)
 #!  Usage:
-#!    CHECKPOINT=results/checkpoints/unet_sweep_best_best.pth \
-#!    THRESHOLD=0.63 \
-#!      sbatch slurm/hough_postprocess.sbatch
+#!    CHECKPOINT=results/checkpoints/unet_<tag>_best.pth \
+#!    THRESHOLD=0.72 \
+#!      sbatch slurm/bootstrap_metrics.sbatch
 #! ==============================================================
 
-#SBATCH -J hough_postprocess
+#SBATCH -J bootstrap_metrics
 #SBATCH -A MPHIL-DIS-SL2-GPU
 #SBATCH -p ampere
 #SBATCH --nodes=1
@@ -16,8 +16,8 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
 #SBATCH --time=00:59:00
-#SBATCH --output=results/logs/hough_postprocess_%j.out
-#SBATCH --error=results/logs/hough_postprocess_%j.err
+#SBATCH --output=results/logs/bootstrap_metrics_%j.out
+#SBATCH --error=results/logs/bootstrap_metrics_%j.err
 #SBATCH --qos=intr
 
 set -euo pipefail
@@ -39,25 +39,33 @@ echo "Python: $(which python)"
 python -c "import torch; print('PyTorch:', torch.__version__, '| CUDA:', torch.cuda.is_available())"
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 
-CHECKPOINT="${CHECKPOINT:-results/checkpoints/unet_sweep_best_best.pth}"
+CHECKPOINT="${CHECKPOINT:?must be set; e.g. results/checkpoints/unet_<tag>_best.pth}"
+THRESHOLD="${THRESHOLD:?must be set; extract from results/classical/threshold_sweep_<tag>.json optimal_threshold}"
 PATCH_DIR="${PATCH_DIR:-data/patches}"
-THRESHOLD="${THRESHOLD:?must be set; extract from results/classical/threshold_sweep_<tag>.json optimal_threshold (default 0.5 silently corrupted Hough across all ablations)}"
+N_RESAMPLES="${N_RESAMPLES:-1000}"
+TAG="${TAG:-}"
 OUT="${OUT:-}"
 
-echo "Checkpoint: $CHECKPOINT"
-echo "Patch dir:  $PATCH_DIR"
-echo "Threshold:  $THRESHOLD"
-echo "Out:        ${OUT:-<auto-derived from checkpoint stem>}"
+echo "Checkpoint:  $CHECKPOINT"
+echo "Threshold:   $THRESHOLD"
+echo "Patch dir:   $PATCH_DIR"
+echo "N resamples: $N_RESAMPLES"
+echo "Tag:         ${TAG:-<auto-derived from checkpoint stem>}"
+echo "Out:         ${OUT:-<auto-derived from tag>}"
 
-OUT_ARG=()
+EXTRA_ARGS=()
+if [ -n "$TAG" ]; then
+    EXTRA_ARGS+=(--tag "$TAG")
+fi
 if [ -n "$OUT" ]; then
-    OUT_ARG=(--out "$OUT")
+    EXTRA_ARGS+=(--out "$OUT")
 fi
 
-python scripts/hough_postprocess.py \
+python scripts/bootstrap_metrics.py \
     --checkpoint "$CHECKPOINT" \
-    --patch_dir "$PATCH_DIR" \
     --threshold "$THRESHOLD" \
-    "${OUT_ARG[@]}"
+    --patch_dir "$PATCH_DIR" \
+    --n_resamples "$N_RESAMPLES" \
+    "${EXTRA_ARGS[@]}"
 
 echo "Job finished."

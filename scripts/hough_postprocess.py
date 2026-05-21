@@ -72,7 +72,7 @@ def parse_args() -> argparse.Namespace:
                         "Hough to recover faint detections below the main threshold.")
     p.add_argument("--hough_threshold", type=int, default=50)
     p.add_argument("--min_line_length", type=int, default=100)
-    p.add_argument("--max_line_gap", type=int, default=50)
+    p.add_argument("--max_line_gap", type=int, default=250)
     p.add_argument("--line_thickness", type=int, default=3)
     p.add_argument(
         "--out",

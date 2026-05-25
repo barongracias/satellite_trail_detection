@@ -2,9 +2,9 @@
 #! ==============================================================
 #!  CSD3 Ampere job - prediction visualisation figures
 #!  Usage:
-#!    CHECKPOINT=results/checkpoints/unet_ablation_0_best.pth \
-#!    THRESHOLD=0.47 \
-#!    HOUGH_JSON=results/classical/hough_postprocess_unet_ablation_0.json \
+#!    CHECKPOINT=results/checkpoints/<tag>_best.pth \
+#!    THRESHOLD=<t> \
+#!    HOUGH_JSON=results/classical/hough_postprocess_<tag>.json \
 #!      sbatch slurm/visualise_predictions.sbatch
 #! ==============================================================
 

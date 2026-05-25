@@ -16,6 +16,28 @@ from PIL import Image
 NORMALISATION_MODES = ("fixed", "per_image", "full_image")
 
 
+class SignalDependentNoise:
+    """Add calibrated signal-dependent Gaussian noise to a [0, 1] image tensor."""
+
+    def __init__(self, alpha: float, beta: float, multiplier: float = 1.0) -> None:
+        if alpha < 0:
+            raise ValueError("alpha must be non-negative")
+        if beta < 0:
+            raise ValueError("beta must be non-negative")
+        if multiplier <= 0:
+            raise ValueError("multiplier must be positive")
+        self.alpha = float(alpha)
+        self.beta = float(beta)
+        self.multiplier = float(multiplier)
+
+    def __call__(self, image: torch.Tensor) -> torch.Tensor:
+        image_nonnegative = image.clamp_min(0.0)
+        variance = self.alpha * image_nonnegative + self.beta ** 2
+        std = self.multiplier * torch.sqrt(variance)
+        noisy = image + torch.randn_like(image) * std
+        return noisy.clamp(0.0, 1.0)
+
+
 def normalise_tensor(
     image: torch.Tensor,
     mode: str,

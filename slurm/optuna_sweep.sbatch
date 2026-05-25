@@ -4,6 +4,7 @@
 #!  Usage:
 #!    sbatch slurm/optuna_sweep.sbatch
 #!    N_TRIALS=50 sbatch slurm/optuna_sweep.sbatch
+#!    SKIP_RETRAIN=1 sbatch slurm/optuna_sweep.sbatch
 #! ==============================================================
 
 #SBATCH -J optuna_sweep
@@ -45,15 +46,23 @@ CONFIG="${CONFIG:-configs/experiments/unet_reoptuna_base.yaml}"
 PATCH_DIR="${PATCH_DIR:-data/patches}"
 N_TRIALS="${N_TRIALS:-40}"
 STUDY_NAME="${STUDY_NAME:-unet_sweep_paper_faithful}"
+SKIP_RETRAIN="${SKIP_RETRAIN:-0}"
 
 echo "Config:     $CONFIG"
 echo "Patch dir:  $PATCH_DIR"
 echo "N trials:   $N_TRIALS"
+echo "Skip retrain: $SKIP_RETRAIN"
+
+SKIP_RETRAIN_ARG=()
+if [[ "$SKIP_RETRAIN" == "1" || "$SKIP_RETRAIN" == "true" || "$SKIP_RETRAIN" == "TRUE" ]]; then
+    SKIP_RETRAIN_ARG=(--skip-retrain)
+fi
 
 python -m src.training.sweep \
     --config "$CONFIG" \
     --patch_dir "$PATCH_DIR" \
     --n_trials "$N_TRIALS" \
-    --study_name "$STUDY_NAME"
+    --study_name "$STUDY_NAME" \
+    "${SKIP_RETRAIN_ARG[@]}"
 
 echo "Job finished."

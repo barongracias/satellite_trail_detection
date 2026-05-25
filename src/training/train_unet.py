@@ -59,11 +59,16 @@ class TrainingConfig:
     dice_smooth: float = 1e-4
     dice_denominator_squared: bool = True
     use_amp: bool = False
+    amp_dtype: str = "fp16"
+    float32_matmul_precision: str = "highest"
     lr_scheduler: str | None = None
     base_channels: int = 8
     dropout_rate: float = 0.5
     normalisation: str = "fixed"
     augment_train: bool = True
+    noise_augment: bool = False
+    noise_std_multiplier: float = 1.0
+    noise_calibration_path: str | Path = Path("results/classical/background_noise_calibration.json")
     device: str = "auto"
     checkpoint_dir: str | Path = Path("results/checkpoints")
     log_dir: str | Path = Path("results/logs")
@@ -73,6 +78,7 @@ class TrainingConfig:
     seed: int = GLOBAL_SEED
     threshold: float = 0.5
     eval_max_batches: int | None = None
+    skip_test_eval: bool = False
 
     def __post_init__(self) -> None:
         """Normalise paths and validate the few settings that must be sane."""
@@ -81,6 +87,11 @@ class TrainingConfig:
         object.__setattr__(self, "log_dir", Path(self.log_dir))
         if self.patch_dir is not None:
             object.__setattr__(self, "patch_dir", Path(self.patch_dir))
+        object.__setattr__(self, "noise_calibration_path", Path(self.noise_calibration_path))
+        if self.amp_dtype == "bf16":
+            object.__setattr__(self, "amp_dtype", "bfloat16")
+        if self.amp_dtype == "float16":
+            object.__setattr__(self, "amp_dtype", "fp16")
 
         if self.patch_size <= 0 or self.batch_size <= 0 or self.epochs <= 0:
             raise ValueError("patch_size, batch_size, and epochs must be positive")
@@ -102,6 +113,14 @@ class TrainingConfig:
             raise ValueError("normalisation must be 'fixed', 'per_image', or 'full_image'")
         if self.dice_smooth <= 0:
             raise ValueError("dice_smooth must be positive")
+        if self.noise_std_multiplier <= 0:
+            raise ValueError("noise_std_multiplier must be positive")
+        if self.amp_dtype not in ("fp16", "bfloat16"):
+            raise ValueError("amp_dtype must be 'fp16' or 'bfloat16'")
+        if self.float32_matmul_precision not in ("highest", "high", "medium"):
+            raise ValueError(
+                "float32_matmul_precision must be 'highest', 'high', or 'medium'"
+            )
         if self.lr_scheduler not in (None, "cosine"):
             raise ValueError("lr_scheduler must be None or 'cosine'")
 
@@ -124,6 +143,7 @@ def parse_args() -> TrainingConfig:
     args = parser.parse_args()
     with open(args.config) as f:
         data = yaml.safe_load(f)
+    data.pop("sweep", None)
     if args.patch_dir is not None:
         data["patch_dir"] = str(args.patch_dir)
     return TrainingConfig(**data)
@@ -136,6 +156,7 @@ def _serialise_config(config: TrainingConfig) -> dict[str, Any]:
     data["checkpoint_dir"] = str(config.checkpoint_dir)
     data["log_dir"] = str(config.log_dir)
     data["patch_dir"] = str(config.patch_dir) if config.patch_dir is not None else None
+    data["noise_calibration_path"] = str(config.noise_calibration_path)
     return data
 
 
@@ -144,6 +165,30 @@ def resolve_device(device_name: str) -> torch.device:
     if device_name == "auto":
         return torch.device("cuda" if torch.cuda.is_available() else "cpu")
     return torch.device(device_name)
+
+
+def resolve_amp_dtype(config: TrainingConfig, device: torch.device) -> torch.dtype | None:
+    """Resolve the autocast dtype requested by the training config."""
+    if not config.use_amp or device.type != "cuda":
+        return None
+    if config.amp_dtype == "fp16":
+        return torch.float16
+    return torch.bfloat16
+
+
+def configure_precision(
+    config: TrainingConfig,
+    device: torch.device,
+) -> tuple[torch.dtype | None, dict[str, Any]]:
+    """Apply global matmul precision settings and return run metadata."""
+    torch.set_float32_matmul_precision(config.float32_matmul_precision)
+    amp_dtype = resolve_amp_dtype(config, device)
+    return amp_dtype, {
+        "amp_requested": config.use_amp,
+        "amp_enabled": amp_dtype is not None,
+        "amp_dtype": "fp32" if amp_dtype is None else config.amp_dtype,
+        "float32_matmul_precision": torch.get_float32_matmul_precision(),
+    }
 
 
 def _worker_init_fn(worker_id: int, seed: int = GLOBAL_SEED) -> None:
@@ -169,6 +214,9 @@ def build_dataloaders(
         train_ds = PatchDirectoryDataset(
             config.patch_dir / "train", manifest, config.normalisation,
             augment_train=config.augment_train,
+            noise_augment=config.noise_augment,
+            noise_std_multiplier=config.noise_std_multiplier,
+            noise_calibration_path=config.noise_calibration_path,
         )
         val_ds = PatchDirectoryDataset(
             config.patch_dir / "val", manifest, config.normalisation,
@@ -378,6 +426,7 @@ def save_checkpoint(
     val_result: DatasetEvaluationResult,
     filename: str,
     effective_eval_max_batches: int | None,
+    precision_metadata: dict[str, Any],
     test_result: DatasetEvaluationResult | None = None,
 ) -> Path:
     """Persist a model checkpoint and return its path."""
@@ -392,6 +441,7 @@ def save_checkpoint(
         "train_loss": train_loss,
         "smoke_run": config.max_steps is not None,
         "effective_eval_max_batches": effective_eval_max_batches,
+        "precision": precision_metadata,
         "val_counts": asdict(val_result.counts),
         "val_metrics": asdict(val_result.metrics),
         "val_loss": val_result.mean_loss,
@@ -414,22 +464,27 @@ def save_training_summary(
     best_checkpoint: Path,
     latest_checkpoint: Path,
     effective_eval_max_batches: int | None,
-    test_result: DatasetEvaluationResult,
+    precision_metadata: dict[str, Any],
+    test_result: DatasetEvaluationResult | None = None,
 ) -> Path:
-    """Save a JSON summary of the experiment history and final test metrics."""
+    """Save a JSON summary of the experiment history and optional test metrics."""
     config.checkpoint_dir.mkdir(parents=True, exist_ok=True)
     summary_path = config.checkpoint_dir / f"{config.experiment_name}_summary.json"
     summary = {
         "config": _serialise_config(config),
         "smoke_run": config.max_steps is not None,
         "effective_eval_max_batches": effective_eval_max_batches,
+        "precision": precision_metadata,
         "history": history,
         "best_checkpoint": str(best_checkpoint),
         "latest_checkpoint": str(latest_checkpoint),
-        "test_counts": asdict(test_result.counts),
-        "test_metrics": asdict(test_result.metrics),
-        "test_loss": test_result.mean_loss,
     }
+    if test_result is not None:
+        summary.update({
+            "test_counts": asdict(test_result.counts),
+            "test_metrics": asdict(test_result.metrics),
+            "test_loss": test_result.mean_loss,
+        })
     summary_path.write_text(
         json.dumps(summary, indent=2, allow_nan=False), encoding="utf-8"
     )
@@ -449,6 +504,7 @@ def train_one_epoch(
     logger: logging.Logger,
     steps_completed: int,
     max_steps: int | None,
+    amp_dtype: torch.dtype | None = None,
     scaler: torch.amp.GradScaler | None = None,
 ) -> tuple[float, int]:
     """Run one training epoch and return the mean loss and updated step count.
@@ -458,7 +514,7 @@ def train_one_epoch(
     avoid forcing a host/device sync on each step.
     """
     model.train()
-    amp_enabled = scaler is not None and scaler.is_enabled()
+    amp_enabled = amp_dtype is not None
     loss_total = torch.zeros((), dtype=torch.float32, device=device)
     batch_count = 0
     last_loss_value: float | None = None
@@ -472,12 +528,16 @@ def train_one_epoch(
         masks = batch["mask"].to(device=device, dtype=torch.float32, non_blocking=True)
 
         optimiser.zero_grad(set_to_none=True)
-        with torch.amp.autocast(device_type=device.type, enabled=amp_enabled):
+        with torch.amp.autocast(
+            device_type=device.type,
+            dtype=amp_dtype,
+            enabled=amp_enabled,
+        ):
             logits = model(images)
         # Loss in FP32 always — Dice's spatial-sum denominator can overflow FP16
         # on 512x512 patches (max ~65504 vs sum up to 262144).
         loss = criterion(logits.float(), masks)
-        if scaler is not None:
+        if scaler is not None and scaler.is_enabled():
             scaler.scale(loss).backward()
             scaler.step(optimiser)
             scaler.update()
@@ -550,6 +610,7 @@ def run_training(
     seed_everything(config.seed)
     logger = get_logger(name=config.experiment_name, run_dir=config.log_dir)
     device = resolve_device(config.device)
+    amp_dtype, precision_metadata = configure_precision(config, device)
     train_loader, val_loader, test_loader = build_dataloaders(config, device)
     eval_max_batches = config.eval_max_batches
     if eval_max_batches is None and config.max_steps is not None:
@@ -569,10 +630,9 @@ def run_training(
             optimiser, T_max=config.epochs
         )
 
-    scaler = torch.amp.GradScaler(
-        device=device.type,
-        enabled=config.use_amp and device.type == "cuda",
-    )
+    scaler: torch.amp.GradScaler | None = None
+    if amp_dtype == torch.float16:
+        scaler = torch.amp.GradScaler(device=device.type, enabled=True)
 
     pos_weight = config.pos_weight
     if config.auto_pos_weight:
@@ -598,8 +658,12 @@ def run_training(
     if pos_weight is not None:
         logger.info("Using pos_weight=%.6f", pos_weight)
     logger.info(
-        "Perf settings | AMP=%s (requested=%s) | scheduler=%s | batch_size=%d | num_workers=%d",
-        scaler.is_enabled(), config.use_amp,
+        "Perf settings | AMP=%s (requested=%s, dtype=%s, scaler=%s) | "
+        "float32_matmul_precision=%s | scheduler=%s | batch_size=%d | num_workers=%d",
+        precision_metadata["amp_enabled"], config.use_amp,
+        precision_metadata["amp_dtype"],
+        scaler is not None and scaler.is_enabled(),
+        precision_metadata["float32_matmul_precision"],
         config.lr_scheduler or "none",
         config.batch_size, config.num_workers,
     )
@@ -631,6 +695,7 @@ def run_training(
             logger=logger,
             steps_completed=steps_completed,
             max_steps=config.max_steps,
+            amp_dtype=amp_dtype,
             scaler=scaler,
         )
         if scheduler is not None:
@@ -674,6 +739,7 @@ def run_training(
             val_result=val_result,
             filename=f"{config.experiment_name}_latest.pth",
             effective_eval_max_batches=eval_max_batches,
+            precision_metadata=precision_metadata,
         )
 
         if val_result.metrics.dice > best_dice:
@@ -688,6 +754,7 @@ def run_training(
                 val_result=val_result,
                 filename=f"{config.experiment_name}_best.pth",
                 effective_eval_max_batches=eval_max_batches,
+                precision_metadata=precision_metadata,
             )
             logger.info("Updated best checkpoint with validation Dice %.6f", best_dice)
 
@@ -702,36 +769,40 @@ def run_training(
     if latest_val_result is None:
         raise RuntimeError("Training completed without a validation pass")
 
-    best_state = torch.load(best_checkpoint, map_location=device, weights_only=False)
-    model.load_state_dict(best_state["model_state_dict"])
-    logger.info("Reloaded best checkpoint (epoch %d) for test evaluation", best_state["epoch"])
+    test_result: DatasetEvaluationResult | None = None
+    if config.skip_test_eval:
+        logger.info("Skipping final test evaluation for validation-only run")
+    else:
+        best_state = torch.load(best_checkpoint, map_location=device, weights_only=False)
+        model.load_state_dict(best_state["model_state_dict"])
+        logger.info("Reloaded best checkpoint (epoch %d) for test evaluation", best_state["epoch"])
 
-    test_result = evaluate_model_on_dataloader(
-        model=model,
-        dataloader=test_loader,
-        device=device,
-        threshold=config.threshold,
-        criterion=criterion,
-        max_batches=eval_max_batches,
-    )
-    logger.info(
-        "Final test metrics | loss=%.6f | dice=%.6f | iou=%.6f | precision=%.6f | recall=%.6f",
-        0.0 if test_result.mean_loss is None else test_result.mean_loss,
-        test_result.metrics.dice,
-        test_result.metrics.iou,
-        test_result.metrics.precision,
-        test_result.metrics.recall,
-    )
+        test_result = evaluate_model_on_dataloader(
+            model=model,
+            dataloader=test_loader,
+            device=device,
+            threshold=config.threshold,
+            criterion=criterion,
+            max_batches=eval_max_batches,
+        )
+        logger.info(
+            "Final test metrics | loss=%.6f | dice=%.6f | iou=%.6f | precision=%.6f | recall=%.6f",
+            0.0 if test_result.mean_loss is None else test_result.mean_loss,
+            test_result.metrics.dice,
+            test_result.metrics.iou,
+            test_result.metrics.precision,
+            test_result.metrics.recall,
+        )
 
-    # Augment the best checkpoint with the test metrics rather than re-saving
-    # *_latest.pth with best weights but final-epoch metadata, which would mix
-    # two epochs' state in one file and mislead later audits. The in-loop
-    # *_latest.pth from the final epoch is left untouched.
-    best_state["test_counts"] = asdict(test_result.counts)
-    best_state["test_metrics"] = asdict(test_result.metrics)
-    best_state["test_loss"] = test_result.mean_loss
-    torch.save(best_state, best_checkpoint)
-    logger.info("Augmented best checkpoint with test metrics: %s", best_checkpoint)
+        # Augment the best checkpoint with the test metrics rather than re-saving
+        # *_latest.pth with best weights but final-epoch metadata, which would mix
+        # two epochs' state in one file and mislead later audits. The in-loop
+        # *_latest.pth from the final epoch is left untouched.
+        best_state["test_counts"] = asdict(test_result.counts)
+        best_state["test_metrics"] = asdict(test_result.metrics)
+        best_state["test_loss"] = test_result.mean_loss
+        torch.save(best_state, best_checkpoint)
+        logger.info("Augmented best checkpoint with test metrics: %s", best_checkpoint)
 
     summary_path = save_training_summary(
         config=config,
@@ -739,10 +810,15 @@ def run_training(
         best_checkpoint=best_checkpoint,
         latest_checkpoint=latest_checkpoint,
         effective_eval_max_batches=eval_max_batches,
+        precision_metadata=precision_metadata,
         test_result=test_result,
     )
     logger.info("Latest checkpoint (from final epoch): %s", latest_checkpoint)
-    logger.info("Best checkpoint (with test metrics):  %s", best_checkpoint)
+    logger.info(
+        "Best checkpoint (%s):  %s",
+        "without test metrics" if config.skip_test_eval else "with test metrics",
+        best_checkpoint,
+    )
     logger.info("Saved experiment summary to %s", summary_path)
 
     if save_curves and config.max_steps is None:

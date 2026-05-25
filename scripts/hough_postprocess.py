@@ -3,8 +3,9 @@
 
 For each test image, reconstructs a probability canvas from sampled test patches,
 then applies probabilistic Hough transform to detect line-like structures that the
-U-Net partially detected but fell below the main threshold.  Reports image-level
-FNR before and after post-processing.
+U-Net partially detected but fell below the main threshold.  Reports three
+levels of FNR/recall before and after post-processing: image-level,
+patch-level, and pixel-level.
 
 FNR logic (image-level, requires overlap with ground truth):
 - pre-Hough:  detected if the thresholded prediction canvas overlaps the
@@ -18,6 +19,17 @@ FNR logic (image-level, requires overlap with ground truth):
 Without the overlap requirement, any false-positive pixel would count as a
 detection, trivially driving FNR to 0; the target-canvas mask grounds the
 metric in the actual trail location.
+
+Patch-level FNR uses the same overlap rule but on a per-patch denominator
+(any test patch with positive_pixel_fraction > 0 in the manifest). The
+denominator is ~28x the image-level one (864 vs 31 on our test set) and
+gives Hough headroom to recover trail fragments the U-Net underpaints.
+
+Pixel-level recall is GT-pixel coverage on positive images aggregated
+across the test set: (binary & target).sum() / target.sum() and the
+union with the Hough line canvas. Reports the absolute fraction of true
+trail pixels covered, so a Hough that completes fragmented detections
+shows up here even if every image is already detected at image-level.
 
 Deviations from Stoppa et al. 2024:
 - Hough is applied to the reconstructed patch-subset canvas rather than a
@@ -210,6 +222,12 @@ def main() -> None:
     n_positive = 0
     n_fn_pre = 0
     n_fn_post = 0
+    total_pos_patches = 0
+    total_fn_pre_patch = 0
+    total_fn_post_patch = 0
+    total_gt_pixels = 0
+    total_pixels_pre = 0
+    total_pixels_post = 0
 
     for source_image, group in groups:
         is_positive = bool((group["positive_pixel_fraction"] > 0).any())
@@ -274,22 +292,64 @@ def main() -> None:
         )
         detected_post = bool(((binary_canvas | hough_canvas) & target_canvas).any())
 
+        binary_bool = binary_canvas > 0
+        target_bool = target_canvas > 0
+        combined_bool = (binary_canvas | hough_canvas) > 0
+
+        n_patches_pos = 0
+        n_fn_pre_patch = 0
+        n_fn_post_patch = 0
+        for row in group_rows:
+            if row.positive_pixel_fraction <= 0:
+                continue
+            y, x = _parse_yx(row.patch_path)
+            sl_y = slice(y, y + _PATCH_SIZE)
+            sl_x = slice(x, x + _PATCH_SIZE)
+            tgt_patch = target_bool[sl_y, sl_x]
+            if not tgt_patch.any():
+                continue
+            n_patches_pos += 1
+            if not (binary_bool[sl_y, sl_x] & tgt_patch).any():
+                n_fn_pre_patch += 1
+            if not (combined_bool[sl_y, sl_x] & tgt_patch).any():
+                n_fn_post_patch += 1
+
+        gt_pixels = int(target_bool.sum())
+        pixels_pre = int((binary_bool & target_bool).sum())
+        pixels_post = int((combined_bool & target_bool).sum())
+
         if is_positive:
             n_positive += 1
             if not detected_pre:
                 n_fn_pre += 1
             if not detected_post:
                 n_fn_post += 1
+            total_pos_patches += n_patches_pos
+            total_fn_pre_patch += n_fn_pre_patch
+            total_fn_post_patch += n_fn_post_patch
+            total_gt_pixels += gt_pixels
+            total_pixels_pre += pixels_pre
+            total_pixels_post += pixels_post
 
         logger.info(
-            "%s | positive=%s | pre=%s | post=%s",
+            "%s | positive=%s | pre=%s | post=%s | patch FN pre/post=%d/%d | "
+            "pixel recall pre/post=%.4f/%.4f",
             Path(source_image).name, is_positive, detected_pre, detected_post,
+            n_fn_pre_patch, n_fn_post_patch,
+            pixels_pre / gt_pixels if gt_pixels else 0.0,
+            pixels_post / gt_pixels if gt_pixels else 0.0,
         )
         rows.append({
             "source_image": str(source_image),
             "is_positive": is_positive,
             "detected_pre_hough": detected_pre,
             "detected_post_hough": detected_post,
+            "n_positive_patches": n_patches_pos,
+            "n_fn_pre_patch": n_fn_pre_patch,
+            "n_fn_post_patch": n_fn_post_patch,
+            "gt_pixels": gt_pixels,
+            "pixels_covered_pre": pixels_pre,
+            "pixels_covered_post": pixels_post,
         })
 
     if n_positive > 0:
@@ -298,6 +358,20 @@ def main() -> None:
     else:
         fnr_pre = None
         fnr_post = None
+
+    if total_pos_patches > 0:
+        fnr_pre_patch = total_fn_pre_patch / total_pos_patches
+        fnr_post_patch = total_fn_post_patch / total_pos_patches
+    else:
+        fnr_pre_patch = None
+        fnr_post_patch = None
+
+    if total_gt_pixels > 0:
+        pixel_recall_pre = total_pixels_pre / total_gt_pixels
+        pixel_recall_post = total_pixels_post / total_gt_pixels
+    else:
+        pixel_recall_pre = None
+        pixel_recall_post = None
 
     result = {
         "checkpoint": str(args.checkpoint),
@@ -308,8 +382,16 @@ def main() -> None:
         "max_line_gap": args.max_line_gap,
         "n_test_images": len(rows),
         "n_positive_images": n_positive,
+        "n_positive_patches": total_pos_patches,
         "fnr_pre_hough": None if fnr_pre is None else round(fnr_pre, 6),
         "fnr_post_hough": None if fnr_post is None else round(fnr_post, 6),
+        "fnr_pre_patch": None if fnr_pre_patch is None else round(fnr_pre_patch, 6),
+        "fnr_post_patch": None if fnr_post_patch is None else round(fnr_post_patch, 6),
+        "pixel_recall_pre": None if pixel_recall_pre is None else round(pixel_recall_pre, 6),
+        "pixel_recall_post": None if pixel_recall_post is None else round(pixel_recall_post, 6),
+        "total_gt_pixels": total_gt_pixels,
+        "total_pixels_covered_pre": total_pixels_pre,
+        "total_pixels_covered_post": total_pixels_post,
         "paper_fnr_pre_hough": PAPER_FNR_PRE_HOUGH,
         "paper_fnr_post_hough": PAPER_FNR_POST_HOUGH,
         "per_image": rows,
@@ -324,17 +406,37 @@ def main() -> None:
         )
     else:
         logger.info(
-            "FNR  pre-Hough: %.4f  post-Hough: %.4f  (paper: %.4f → %.4f)",
+            "FNR image-level  pre: %.4f  post: %.4f  (paper: %.4f → %.4f)",
             fnr_pre, fnr_post, PAPER_FNR_PRE_HOUGH, PAPER_FNR_POST_HOUGH,
         )
+        if fnr_pre_patch is not None:
+            logger.info(
+                "FNR patch-level  pre: %.4f  post: %.4f  (n_pos_patches=%d)",
+                fnr_pre_patch, fnr_post_patch, total_pos_patches,
+            )
+        if pixel_recall_pre is not None:
+            logger.info(
+                "Pixel recall     pre: %.4f  post: %.4f  (gt_pixels=%d)",
+                pixel_recall_pre, pixel_recall_post, total_gt_pixels,
+            )
     logger.info("Saved to %s", out_path)
     if fnr_pre is None:
         print("\nFNR pre/post: undefined (no positive test images)")
     else:
         print(
-            f"\nFNR pre-Hough:  {fnr_pre:.4f}  (paper: {PAPER_FNR_PRE_HOUGH})"
-            f"\nFNR post-Hough: {fnr_post:.4f}  (paper: {PAPER_FNR_POST_HOUGH})"
+            f"\nFNR image-level  pre: {fnr_pre:.4f}  post: {fnr_post:.4f}  "
+            f"(paper: {PAPER_FNR_PRE_HOUGH} → {PAPER_FNR_POST_HOUGH})"
         )
+        if fnr_pre_patch is not None:
+            print(
+                f"FNR patch-level  pre: {fnr_pre_patch:.4f}  post: {fnr_post_patch:.4f}  "
+                f"(n_pos_patches={total_pos_patches})"
+            )
+        if pixel_recall_pre is not None:
+            print(
+                f"Pixel recall     pre: {pixel_recall_pre:.4f}  post: {pixel_recall_post:.4f}  "
+                f"(gt_pixels={total_gt_pixels})"
+            )
 
 
 if __name__ == "__main__":

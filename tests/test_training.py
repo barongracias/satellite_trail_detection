@@ -120,6 +120,18 @@ def test_training_config_validates_lr_scheduler_choice(tmp_path: Path) -> None:
         TrainingConfig(data_root=tmp_path, lr_scheduler="step")
 
 
+def test_training_config_validates_precision_choices(tmp_path: Path) -> None:
+    assert TrainingConfig(data_root=tmp_path, amp_dtype="bf16").amp_dtype == "bfloat16"
+    assert TrainingConfig(data_root=tmp_path, amp_dtype="float16").amp_dtype == "fp16"
+    TrainingConfig(data_root=tmp_path, amp_dtype="fp16")
+    TrainingConfig(data_root=tmp_path, amp_dtype="bfloat16")
+    TrainingConfig(data_root=tmp_path, float32_matmul_precision="high")
+    with pytest.raises(ValueError):
+        TrainingConfig(data_root=tmp_path, amp_dtype="tf32")
+    with pytest.raises(ValueError):
+        TrainingConfig(data_root=tmp_path, float32_matmul_precision="low")
+
+
 def test_amp_scaler_is_noop_when_disabled() -> None:
     # The CPU CI path can't exercise FP16 autocast meaningfully, but it must
     # still construct GradScaler(enabled=False) and let gradients flow through
@@ -169,6 +181,8 @@ def test_sweep_trial_config_preserves_num_workers(tmp_path: Path) -> None:
         "num_workers": 8,
         "batch_size": 16,
         "use_amp": True,
+        "amp_dtype": "bfloat16",
+        "float32_matmul_precision": "high",
         "lr_scheduler": "cosine",
     }
     trial = MagicMock(spec=optuna.Trial)
@@ -179,7 +193,21 @@ def test_sweep_trial_config_preserves_num_workers(tmp_path: Path) -> None:
     assert cfg.num_workers == 8
     assert cfg.batch_size == 16
     assert cfg.use_amp is True
+    assert cfg.amp_dtype == "bfloat16"
+    assert cfg.float32_matmul_precision == "high"
     assert cfg.lr_scheduler == "cosine"
+    assert cfg.normalisation == "per_image"
+    trial.suggest_float.assert_any_call("learning_rate", 1e-4, 1e-3, log=True)
+    trial.suggest_categorical.assert_any_call("normalisation", ["per_image", "full_image"])
+
+
+def test_reoptuna_base_uses_bf16_precision_bundle() -> None:
+    base_path = Path(__file__).resolve().parents[1] / "configs" / "experiments" / "unet_reoptuna_base.yaml"
+    contents = base_path.read_text()
+    assert "use_amp: true" in contents
+    assert "amp_dtype: bfloat16" in contents
+    assert "float32_matmul_precision: high" in contents
+    assert "normalisation: per_image" in contents
 
 
 def test_optuna_sweep_sbatch_defaults_to_reoptuna_base() -> None:
@@ -189,3 +217,136 @@ def test_optuna_sweep_sbatch_defaults_to_reoptuna_base() -> None:
     sbatch_path = Path(__file__).resolve().parents[1] / "slurm" / "optuna_sweep.sbatch"
     contents = sbatch_path.read_text()
     assert 'CONFIG="${CONFIG:-configs/experiments/unet_reoptuna_base.yaml}"' in contents
+
+
+
+def test_save_training_summary_omits_test_keys_without_test_result(tmp_path: Path) -> None:
+    import json
+    from src.training.train_unet import save_training_summary
+
+    config = TrainingConfig(
+        data_root=tmp_path / "processed",
+        checkpoint_dir=tmp_path / "checkpoints",
+        log_dir=tmp_path / "logs",
+        skip_test_eval=True,
+    )
+    summary_path = save_training_summary(
+        config=config,
+        history=[],
+        best_checkpoint=tmp_path / "best.pth",
+        latest_checkpoint=tmp_path / "latest.pth",
+        effective_eval_max_batches=None,
+        precision_metadata={"amp_enabled": False},
+        test_result=None,
+    )
+    data = json.loads(summary_path.read_text())
+    assert "test_counts" not in data
+    assert "test_metrics" not in data
+    assert "test_loss" not in data
+    assert data["config"]["skip_test_eval"] is True
+
+
+def test_paper_noise_base_config_locks_restudy_bundle() -> None:
+    import yaml
+
+    base_path = Path(__file__).resolve().parents[1] / "configs" / "experiments" / "unet_paper_noise_base.yaml"
+    data = yaml.safe_load(base_path.read_text())
+    sweep = data.pop("sweep")
+    cfg = TrainingConfig(**data)
+
+    assert cfg.batch_size == 16
+    assert cfg.num_workers == 8
+    assert cfg.use_amp is True
+    assert cfg.amp_dtype == "bfloat16"
+    assert cfg.float32_matmul_precision == "high"
+    assert cfg.lr_scheduler == "cosine"
+    assert cfg.normalisation == "full_image"
+    assert cfg.noise_augment is True
+    assert cfg.noise_std_multiplier == 1.0
+    assert cfg.auto_pos_weight is False
+    assert cfg.pos_weight is None
+    assert cfg.dice_denominator_squared is True
+    assert cfg.dice_smooth == pytest.approx(1.0e-4)
+    assert sweep["objective"] == "val_f1"
+    assert sweep["auto_retrain"] is False
+    assert sweep["skip_test_eval"] is True
+    assert sweep["normalisation_search_space"] == []
+    assert sweep["batch_size_search_space"] == [8, 16, 32]
+    assert sweep["learning_rate_max_by_batch_size"][8] == pytest.approx(5.0e-4)
+    assert sweep["learning_rate_max_by_batch_size"][16] == pytest.approx(1.0e-3)
+    assert sweep["learning_rate_max_by_batch_size"][32] == pytest.approx(2.0e-3)
+
+
+def test_restudy_sweep_config_searches_batch_size_and_keeps_full_image(tmp_path: Path) -> None:
+    from unittest.mock import MagicMock
+    import yaml
+
+    optuna = pytest.importorskip("optuna")
+    from src.training.sweep import _make_trial_config
+
+    base_path = Path(__file__).resolve().parents[1] / "configs" / "experiments" / "unet_paper_noise_base.yaml"
+    base = yaml.safe_load(base_path.read_text())
+    base["data_root"] = str(tmp_path / "processed")
+    base["checkpoint_dir"] = str(tmp_path / "checkpoints")
+    base["log_dir"] = str(tmp_path / "logs")
+
+    trial = MagicMock(spec=optuna.Trial)
+    trial.number = 3
+
+    def suggest_categorical(name, choices):
+        assert name == "batch_size"
+        assert choices == [8, 16, 32]
+        return 32
+
+    def suggest_float(name, low, high, **kwargs):
+        if name == "bce_weight":
+            assert (low, high) == (0.2, 0.8)
+            return 0.6
+        if name == "learning_rate":
+            assert low == pytest.approx(1.0e-4)
+            assert high == pytest.approx(2.0e-3)
+            assert kwargs == {"log": True}
+            return high
+        if name == "dropout_rate":
+            assert (low, high) == (0.1, 0.7)
+            return 0.2
+        raise AssertionError(name)
+
+    trial.suggest_categorical.side_effect = suggest_categorical
+    trial.suggest_float.side_effect = suggest_float
+
+    cfg = _make_trial_config(trial, base, patch_dir=str(tmp_path), study_name="study")
+    assert cfg.experiment_name == "study_trial_003"
+    assert cfg.batch_size == 32
+    assert cfg.learning_rate == pytest.approx(2.0e-3)
+    assert cfg.dropout_rate == pytest.approx(0.2)
+    assert cfg.bce_weight == pytest.approx(0.6)
+    assert cfg.dice_weight == pytest.approx(0.4)
+    assert cfg.normalisation == "full_image"
+    assert cfg.noise_augment is True
+    assert cfg.noise_std_multiplier == 1.0
+    assert cfg.skip_test_eval is True
+    assert trial.suggest_categorical.call_count == 1
+
+
+def test_sweep_best_payload_records_val_f1_user_attrs() -> None:
+    from types import SimpleNamespace
+    from src.training.sweep import _best_payload
+
+    best = SimpleNamespace(
+        number=12,
+        value=0.84,
+        params={"batch_size": 16, "learning_rate": 3e-4},
+        user_attrs={"val_f1": 0.84, "optimal_threshold": 0.51},
+    )
+    payload = _best_payload("study", best, "val_f1")
+    assert payload["objective_metric"] == "val_f1"
+    assert payload["val_f1"] == pytest.approx(0.84)
+    assert payload["user_attrs"]["optimal_threshold"] == pytest.approx(0.51)
+
+
+def test_optuna_sweep_sbatch_supports_skip_retrain_flag() -> None:
+    sbatch_path = Path(__file__).resolve().parents[1] / "slurm" / "optuna_sweep.sbatch"
+    contents = sbatch_path.read_text()
+    assert 'SKIP_RETRAIN="${SKIP_RETRAIN:-0}"' in contents
+    assert "--skip-retrain" in contents

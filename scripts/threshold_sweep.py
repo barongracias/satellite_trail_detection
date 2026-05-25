@@ -55,6 +55,13 @@ def parse_args() -> argparse.Namespace:
              "(e.g., parity test sets built with --splits test). Pass the "
              "F1-optimal threshold from a matching val-sweep JSON.",
     )
+    p.add_argument(
+        "--val-only",
+        action="store_true",
+        help="Run only the validation PR sweep and do not evaluate or write test "
+             "metrics. Used for diagnostic sensitivity runs where test metrics "
+             "are intentionally inadmissible.",
+    )
     return p.parse_args()
 
 
@@ -154,6 +161,9 @@ def evaluate_at_threshold(
 
 def main() -> None:
     args = parse_args()
+    if args.val_only and args.threshold is not None:
+        raise SystemExit("--val-only cannot be combined with --threshold")
+
     tag = _resolve_tag(args)
     logger = get_logger("threshold_sweep")
     seed_everything()
@@ -210,13 +220,17 @@ def main() -> None:
             optimal_threshold, best["f1"], best["precision"], best["recall"],
         )
 
-    test_loader = make_loader("test")
-    logger.info("Test set: %d patches", len(test_loader.dataset))  # type: ignore[arg-type]
-    test_m = evaluate_at_threshold(model, test_loader, device, optimal_threshold)
-    logger.info(
-        "Test @ t=%.2f: P=%.4f  R=%.4f  Dice=%.4f  IoU=%.4f",
-        optimal_threshold, test_m["precision"], test_m["recall"], test_m["dice"], test_m["iou"],
-    )
+    test_m: dict[str, float] | None = None
+    if args.val_only:
+        logger.info("Val-only mode: skipping test evaluation and test metric output.")
+    else:
+        test_loader = make_loader("test")
+        logger.info("Test set: %d patches", len(test_loader.dataset))  # type: ignore[arg-type]
+        test_m = evaluate_at_threshold(model, test_loader, device, optimal_threshold)
+        logger.info(
+            "Test @ t=%.2f: P=%.4f  R=%.4f  Dice=%.4f  IoU=%.4f",
+            optimal_threshold, test_m["precision"], test_m["recall"], test_m["dice"], test_m["iou"],
+        )
 
     figures_dir = Path("results/figures")
     figures_dir.mkdir(parents=True, exist_ok=True)
@@ -268,12 +282,15 @@ def main() -> None:
         "val_f1": best["f1"],
         "val_precision": best["precision"],
         "val_recall": best["recall"],
-        "test_precision": test_m["precision"],
-        "test_recall": test_m["recall"],
-        "test_dice": test_m["dice"],
-        "test_iou": test_m["iou"],
         "pr_curve": sweep,
     }
+    if test_m is not None:
+        out.update({
+            "test_precision": test_m["precision"],
+            "test_recall": test_m["recall"],
+            "test_dice": test_m["dice"],
+            "test_iou": test_m["iou"],
+        })
     out_path = Path("results/classical") / f"threshold_sweep_{tag}.json"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with open(out_path, "w") as f:
@@ -288,10 +305,13 @@ def main() -> None:
         )
     else:
         print(f"Val   <skipped — threshold supplied: {args.threshold:.4f}>")
-    print(
-        f"Test  P={test_m['precision']:.4f}  R={test_m['recall']:.4f}"
-        f"  Dice={test_m['dice']:.4f}  IoU={test_m['iou']:.4f}"
-    )
+    if test_m is None:
+        print("Test  <skipped - val-only mode>")
+    else:
+        print(
+            f"Test  P={test_m['precision']:.4f}  R={test_m['recall']:.4f}"
+            f"  Dice={test_m['dice']:.4f}  IoU={test_m['iou']:.4f}"
+        )
 
 
 if __name__ == "__main__":

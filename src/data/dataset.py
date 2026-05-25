@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import warnings
 from pathlib import Path
 from typing import Any, Callable
@@ -18,7 +19,7 @@ from src.data.indexing import (
     build_patch_index,
     discover_image_mask_pairs,
 )
-from src.data.transforms import JointTransform, normalise_tensor
+from src.data.transforms import JointTransform, SignalDependentNoise, normalise_tensor
 
 
 Image.MAX_IMAGE_PIXELS = None
@@ -122,6 +123,9 @@ class PatchDirectoryDataset(Dataset[dict[str, Any]]):
         manifest_path: str | Path | None = None,
         normalisation: str = "fixed",
         augment_train: bool = True,
+        noise_augment: bool = False,
+        noise_std_multiplier: float = 1.0,
+        noise_calibration_path: str | Path = "results/classical/background_noise_calibration.json",
     ) -> None:
         self.patch_dir = Path(patch_dir)
         self.normalisation = normalisation
@@ -134,6 +138,19 @@ class PatchDirectoryDataset(Dataset[dict[str, Any]]):
         # in __getitem__, which dominates the DataLoader CPU path otherwise.
         self._rows = self.records.to_dict("records")
         self._transform = JointTransform(augment=augment_train and split == "train")
+        self._noise: SignalDependentNoise | None = None
+        if noise_augment and split == "train":
+            calibration_path = Path(noise_calibration_path)
+            if not calibration_path.exists():
+                raise FileNotFoundError(
+                    f"noise calibration file not found: {calibration_path}"
+                )
+            calibration = json.loads(calibration_path.read_text())
+            self._noise = SignalDependentNoise(
+                alpha=float(calibration["alpha"]),
+                beta=float(calibration["beta"]),
+                multiplier=noise_std_multiplier,
+            )
 
         if normalisation == "full_image":
             has_stats = {"image_mean", "image_std"}.issubset(self.records.columns)
@@ -160,6 +177,8 @@ class PatchDirectoryDataset(Dataset[dict[str, Any]]):
             mask_pil = msk.convert("L")
 
         image, mask = self._transform(img_pil, mask_pil)
+        if self._noise is not None:
+            image = self._noise(image)
         image = normalise_tensor(
             image,
             self.normalisation,

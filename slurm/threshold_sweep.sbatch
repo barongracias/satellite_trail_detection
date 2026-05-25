@@ -43,11 +43,13 @@ CHECKPOINT="${CHECKPOINT:-results/checkpoints/unet_baseline_best.pth}"
 PATCH_DIR="${PATCH_DIR:-data/patches}"
 TAG="${TAG:-}"
 THRESHOLD="${THRESHOLD:-}"
+VAL_ONLY="${VAL_ONLY:-0}"
 
 echo "Checkpoint: $CHECKPOINT"
 echo "Patch dir:  $PATCH_DIR"
 echo "Tag:        ${TAG:-<auto-derived from checkpoint stem>}"
 echo "Threshold:  ${THRESHOLD:-<val PR sweep>}"
+echo "Val only:   $VAL_ONLY"
 
 TAG_ARG=()
 if [ -n "$TAG" ]; then
@@ -57,12 +59,17 @@ THRESHOLD_ARG=()
 if [ -n "$THRESHOLD" ]; then
     THRESHOLD_ARG=(--threshold "$THRESHOLD")
 fi
+VAL_ONLY_ARG=()
+if [ "$VAL_ONLY" = "1" ] || [ "$VAL_ONLY" = "true" ] || [ "$VAL_ONLY" = "TRUE" ]; then
+    VAL_ONLY_ARG=(--val-only)
+fi
 
 python scripts/threshold_sweep.py \
     --checkpoint "$CHECKPOINT" \
     --patch_dir "$PATCH_DIR" \
     --num_workers 0 \
     "${TAG_ARG[@]}" \
-    "${THRESHOLD_ARG[@]}"
+    "${THRESHOLD_ARG[@]}" \
+    "${VAL_ONLY_ARG[@]}"
 
 echo "Job finished."

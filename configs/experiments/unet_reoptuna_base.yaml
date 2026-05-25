@@ -21,13 +21,15 @@ stride: 512
 batch_size: 16
 num_workers: 8
 use_amp: true
+amp_dtype: bfloat16
+float32_matmul_precision: high
 lr_scheduler: cosine
 
 learning_rate: 1.0e-3       # Optuna searches; this is the seed value
 epochs: 50
 base_channels: 8
 dropout_rate: 0.5
-normalisation: fixed        # Optuna searches; this is the seed value
+normalisation: per_image    # Optuna searches; this is the seed value
 train_ratio: 0.70
 val_ratio: 0.15
 seed: 2804

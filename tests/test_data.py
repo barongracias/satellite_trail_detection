@@ -22,7 +22,11 @@ torch = pytest.importorskip("torch")
 
 from src.data.dataset import SatelliteTrailPatchDataset, PatchDirectoryDataset  # noqa: E402
 from src.data.splits import create_splits, create_image_level_splits  # noqa: E402
-from src.data.transforms import get_train_transforms, get_eval_transforms  # noqa: E402
+from src.data.transforms import (  # noqa: E402
+    SignalDependentNoise,
+    get_eval_transforms,
+    get_train_transforms,
+)
 
 
 def _write_pair(
@@ -457,3 +461,164 @@ def test_patch_directory_dataset_full_image_normalisation_uses_manifest_stats(
     # full_image normalisation then gives (0.784 - 0.5) / 0.25 ≈ 1.137.
     expected = (200.0 / 255.0 - target_mean) / (target_std + 1e-6)
     assert torch.allclose(image, torch.full_like(image, expected), atol=1e-4)
+
+
+
+def _write_directory_patch(
+    tmp_path: Path,
+    split: str,
+    image_array: np.ndarray,
+    mask_array: np.ndarray,
+) -> tuple[Path, Path, Path]:
+    import csv
+
+    split_dir = tmp_path / "patches" / split
+    split_dir.mkdir(parents=True)
+    img_path = split_dir / "patch0_image.png"
+    mask_path = split_dir / "patch0_mask.png"
+    Image.fromarray(image_array).save(img_path)
+    Image.fromarray(mask_array).save(mask_path)
+
+    manifest_path = tmp_path / "patches" / "manifest.csv"
+    with open(manifest_path, "w", newline="") as f:
+        writer = csv.DictWriter(
+            f,
+            fieldnames=[
+                "split", "source_image", "patch_path", "mask_path",
+                "positive_pixel_fraction", "pos_weight",
+            ],
+        )
+        writer.writeheader()
+        writer.writerow({
+            "split": split,
+            "source_image": "fake.png",
+            "patch_path": str(img_path),
+            "mask_path": str(mask_path),
+            "positive_pixel_fraction": float(mask_array.max() > 0),
+            "pos_weight": 1.0,
+        })
+    return split_dir, manifest_path, mask_path
+
+
+def _write_noise_calibration(tmp_path: Path, alpha: float = 0.0, beta: float = 0.1) -> Path:
+    import json
+
+    path = tmp_path / "noise_calibration.json"
+    path.write_text(json.dumps({"alpha": alpha, "beta": beta}))
+    return path
+
+
+def test_patch_directory_dataset_noise_default_preserves_images(tmp_path: Path) -> None:
+    image_array = np.full((8, 8), 128, dtype=np.uint8)
+    mask_array = np.zeros((8, 8), dtype=np.uint8)
+    split_dir, manifest_path, _ = _write_directory_patch(tmp_path, "train", image_array, mask_array)
+
+    dataset = PatchDirectoryDataset(
+        split_dir,
+        manifest_path,
+        normalisation="fixed",
+        augment_train=False,
+    )
+    image = dataset[0]["image"]
+
+    expected = (128.0 / 255.0 - 0.5) / 0.5
+    assert torch.allclose(image, torch.full_like(image, expected), atol=1e-6)
+
+
+def test_patch_directory_dataset_noise_changes_train_image_not_mask(tmp_path: Path) -> None:
+    image_array = np.full((8, 8), 128, dtype=np.uint8)
+    mask_array = np.zeros((8, 8), dtype=np.uint8)
+    mask_array[2:4, 3:5] = 255
+    split_dir, manifest_path, _ = _write_directory_patch(tmp_path, "train", image_array, mask_array)
+    calibration = _write_noise_calibration(tmp_path)
+
+    plain = PatchDirectoryDataset(
+        split_dir,
+        manifest_path,
+        normalisation="fixed",
+        augment_train=False,
+    )
+    noisy = PatchDirectoryDataset(
+        split_dir,
+        manifest_path,
+        normalisation="fixed",
+        augment_train=False,
+        noise_augment=True,
+        noise_std_multiplier=1.0,
+        noise_calibration_path=calibration,
+    )
+
+    torch.manual_seed(0)
+    noisy_sample = noisy[0]
+    plain_sample = plain[0]
+
+    assert not torch.allclose(noisy_sample["image"], plain_sample["image"])
+    assert torch.equal(noisy_sample["mask"], plain_sample["mask"])
+
+
+def test_patch_directory_dataset_noise_never_applies_to_eval_splits(tmp_path: Path) -> None:
+    image_array = np.full((8, 8), 128, dtype=np.uint8)
+    mask_array = np.zeros((8, 8), dtype=np.uint8)
+    split_dir, manifest_path, _ = _write_directory_patch(tmp_path, "val", image_array, mask_array)
+    calibration = _write_noise_calibration(tmp_path)
+
+    plain = PatchDirectoryDataset(
+        split_dir,
+        manifest_path,
+        normalisation="fixed",
+        augment_train=False,
+    )
+    requested_noise = PatchDirectoryDataset(
+        split_dir,
+        manifest_path,
+        normalisation="fixed",
+        augment_train=False,
+        noise_augment=True,
+        noise_std_multiplier=1.0,
+        noise_calibration_path=calibration,
+    )
+
+    torch.manual_seed(0)
+    image_a = plain[0]["image"]
+    torch.manual_seed(123)
+    image_b = requested_noise[0]["image"]
+
+    assert torch.allclose(image_a, image_b)
+
+
+def test_patch_directory_dataset_noise_is_deterministic_for_fixed_seed(tmp_path: Path) -> None:
+    image_array = np.full((8, 8), 128, dtype=np.uint8)
+    mask_array = np.zeros((8, 8), dtype=np.uint8)
+    split_dir, manifest_path, _ = _write_directory_patch(tmp_path, "train", image_array, mask_array)
+    calibration = _write_noise_calibration(tmp_path)
+    dataset = PatchDirectoryDataset(
+        split_dir,
+        manifest_path,
+        normalisation="fixed",
+        augment_train=False,
+        noise_augment=True,
+        noise_std_multiplier=1.0,
+        noise_calibration_path=calibration,
+    )
+
+    torch.manual_seed(2804)
+    first = dataset[0]["image"]
+    torch.manual_seed(2804)
+    second = dataset[0]["image"]
+
+    assert torch.allclose(first, second)
+
+
+def test_signal_dependent_noise_calibration_matches_background_sigma() -> None:
+    mu_bg = 0.5
+    sigma_bg = 0.05
+    alpha = sigma_bg ** 2 / (2.0 * mu_bg)
+    beta = sigma_bg / np.sqrt(2.0)
+    transform = SignalDependentNoise(alpha=alpha, beta=beta, multiplier=1.0)
+    image = torch.full((1, 256, 256), mu_bg)
+
+    torch.manual_seed(0)
+    noisy = transform(image)
+    empirical_std = (noisy - image).std(unbiased=False).item()
+
+    assert abs(empirical_std - sigma_bg) < 0.003

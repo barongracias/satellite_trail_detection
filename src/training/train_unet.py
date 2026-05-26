@@ -22,7 +22,7 @@ from torch import nn
 from torch.optim import Adam
 from torch.utils.data import DataLoader
 
-from src.config.constants import GLOBAL_SEED
+from src.config.constants import GLOBAL_SEED, PATCH_SIZE
 from src.data.dataset import PatchDatasetConfig, PatchDirectoryDataset, SatelliteTrailPatchDataset
 from src.data.indexing import discover_image_mask_pairs
 from src.data.splits import create_splits
@@ -44,7 +44,7 @@ class TrainingConfig:
     """Collect the runtime configuration for a local U-Net experiment."""
 
     data_root: str | Path
-    patch_size: int = 512
+    patch_size: int = PATCH_SIZE
     stride: int | None = None
     batch_size: int = 2
     learning_rate: float = 1e-3
@@ -535,7 +535,7 @@ def train_one_epoch(
         ):
             logits = model(images)
         # Loss in FP32 always — Dice's spatial-sum denominator can overflow FP16
-        # on 512x512 patches (max ~65504 vs sum up to 262144).
+        # on 528x528 patches (max ~65504 vs sum up to 278784).
         loss = criterion(logits.float(), masks)
         if scaler is not None and scaler.is_enabled():
             scaler.scale(loss).backward()

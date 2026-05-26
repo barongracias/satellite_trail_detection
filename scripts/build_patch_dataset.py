@@ -1,17 +1,17 @@
 """Build a pre-split, pre-sampled patch dataset on disk.
 
 Reads all image/mask pairs from data/Processed/, performs an image-level
-stratified split, extracts 512×512 patches at stride 512, applies 1:3 pos:neg
-sampling (all positive patches + 3× random negatives), applies the appropriate
-augmentation transform at write time, and saves the resulting PNG pairs under
-data/patches/{train,val,test}/.  A manifest CSV is written to data/patches/.
+stratified split, extracts 528×528 patches at stride 528, applies 1:3 pos:neg
+sampling (all positive patches + 3× random negatives), writes canonical patch
+orientations for every split, and saves the resulting PNG pairs under
+data/patches/{train,val,test}/. A manifest CSV is written to data/patches/.
 
 Usage (CSD3 — do NOT run locally):
     python scripts/build_patch_dataset.py \
         --data-root data/Processed \
         --out-dir   data/patches \
-        --patch-size 512 \
-        --stride    512 \
+        --patch-size 528 \
+        --stride    528 \
         --seed      2804
 """
 
@@ -28,10 +28,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import numpy as np
 from PIL import Image
 
-from src.config.constants import GLOBAL_SEED
+from src.config.constants import GLOBAL_SEED, PATCH_SIZE
 from src.data.indexing import PatchDatasetConfig, discover_image_mask_pairs
 from src.data.splits import create_image_level_splits
-from src.data.transforms import get_train_transforms, get_eval_transforms
+from src.data.transforms import get_eval_transforms
 from src.utils.seed import seed_everything
 
 
@@ -137,8 +137,8 @@ def _write_patches(
 def build(
     data_root: Path,
     out_dir: Path,
-    patch_size: int = 512,
-    stride: int = 512,
+    patch_size: int = PATCH_SIZE,
+    stride: int = PATCH_SIZE,
     train_ratio: float = 0.70,
     val_ratio: float = 0.15,
     seed: int = GLOBAL_SEED,
@@ -155,13 +155,12 @@ def build(
         pairs, trail_counts, train_ratio=train_ratio, val_ratio=val_ratio, seed=seed
     )
 
-    train_transform = get_train_transforms()
     eval_transform = get_eval_transforms()
     rng = random.Random(seed)
     manifest_rows: list = []
 
     for split_name, split_pairs, transform in [
-        ("train", train_pairs, train_transform),
+        ("train", train_pairs, eval_transform),
         ("val", val_pairs, eval_transform),
         ("test", test_pairs, eval_transform),
     ]:
@@ -196,8 +195,8 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data-root", type=Path, default=Path("data/Processed"))
     parser.add_argument("--out-dir", type=Path, default=Path("data/patches"))
-    parser.add_argument("--patch-size", type=int, default=512)
-    parser.add_argument("--stride", type=int, default=512)
+    parser.add_argument("--patch-size", type=int, default=PATCH_SIZE)
+    parser.add_argument("--stride", type=int, default=PATCH_SIZE)
     parser.add_argument("--train-ratio", type=float, default=0.70)
     parser.add_argument("--val-ratio", type=float, default=0.15)
     parser.add_argument("--seed", type=int, default=GLOBAL_SEED)

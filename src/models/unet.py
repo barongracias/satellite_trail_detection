@@ -1,8 +1,4 @@
-"""Minimal U-Net implementation for binary satellite trail segmentation.
-
-Architecture follows Stoppa et al. 2024: filters 8→128, LeakyReLU, spatial dropout.
-Dropout is applied in the bottleneck and the three deepest decoder blocks.
-"""
+"""Minimal U-Net implementation for binary satellite trail segmentation."""
 
 from __future__ import annotations
 
@@ -76,7 +72,7 @@ class UpBlock(nn.Module):
 
 
 class UNet(nn.Module):
-    """U-Net for 512×512 binary segmentation (paper-faithful: 8→128 filters, LeakyReLU, Dropout)."""
+    """U-Net for patch-based binary segmentation."""
 
     def __init__(
         self,

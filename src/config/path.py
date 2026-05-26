@@ -6,11 +6,9 @@ from pathlib import Path
 PROJECT_ROOT: Path = Path(__file__).resolve().parents[2]
 
 # Data
-DATA_ROOT: Path = PROJECT_ROOT / "data" / "subset" / "processed"
+DATA_ROOT: Path = PROJECT_ROOT / "data" / "Processed"
 PATCH_DIR: Path = PROJECT_ROOT / "data" / "patches"
-METADATA_CSV: Path = (
-    PROJECT_ROOT / "data" / "subset" / "metadata" / "Satellites_Catalog_Application.csv"
-)
+METADATA_CSV: Path = PROJECT_ROOT / "data" / "Satellites_Catalog_Application.csv"
 
 # Results
 RESULTS_DIR: Path = PROJECT_ROOT / "results"

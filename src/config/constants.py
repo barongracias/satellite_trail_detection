@@ -4,7 +4,7 @@
 GLOBAL_SEED: int = 2804
 
 # Patch extraction
-PATCH_SIZE: int = 512
+PATCH_SIZE: int = 528
 POS_NEG_RATIO: int = 3  # negative patches sampled per positive patch
 
 # Dataset splits (image-level, stratified by trail-pixel count)

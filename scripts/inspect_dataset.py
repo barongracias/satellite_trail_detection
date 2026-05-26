@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from src.config.constants import PATCH_SIZE
 from src.data.indexing import PatchDatasetConfig
 from src.evaluation.eda import compute_patch_dataframe, summarise_patch_dataframe
 from src.utils.logger import get_logger
@@ -22,13 +23,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--patch-size",
         type=int,
-        default=512,
+        default=PATCH_SIZE,
         help="Square patch size in pixels.",
     )
     parser.add_argument(
         "--stride",
         type=int,
-        default=512,
+        default=PATCH_SIZE,
         help="Patch stride in pixels.",
     )
     parser.add_argument(

@@ -35,8 +35,8 @@ source venv/bin/activate
 
 DATA_ROOT="${DATA_ROOT:-data/Processed}"
 OUT_DIR="${OUT_DIR:-data/patches}"
-PATCH_SIZE="${PATCH_SIZE:-512}"
-STRIDE="${STRIDE:-512}"
+PATCH_SIZE="${PATCH_SIZE:-528}"
+STRIDE="${STRIDE:-528}"
 SEED="${SEED:-2804}"
 SPLITS="${SPLITS:-train,val,test}"
 NO_NEG_SAMPLING="${NO_NEG_SAMPLING:-0}"

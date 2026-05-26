@@ -11,6 +11,7 @@ import pytest
 from PIL import Image
 
 from src.data.catalog import SatelliteCatalog
+from src.config.constants import PATCH_SIZE
 from src.data.indexing import (
     PatchDatasetConfig,
     discover_image_mask_pairs,
@@ -107,6 +108,10 @@ def test_discover_image_pairs_validates_sizes_and_missing_masks(tmp_path: Path) 
 
 
 def test_dataset_config_validates_root_and_patch_parameters(tmp_path: Path) -> None:
+    default_config = PatchDatasetConfig(root_dir=tmp_path)
+    assert default_config.patch_size == PATCH_SIZE == 528
+    assert default_config.resolved_stride == PATCH_SIZE
+
     with pytest.raises(FileNotFoundError):
         PatchDatasetConfig(root_dir=tmp_path / "missing")
 
@@ -115,6 +120,14 @@ def test_dataset_config_validates_root_and_patch_parameters(tmp_path: Path) -> N
 
     with pytest.raises(ValueError):
         PatchDatasetConfig(root_dir=tmp_path, patch_size=2, stride=0)
+
+
+def test_csd3_patch_build_wrapper_defaults_to_active_patch_geometry() -> None:
+    sbatch_path = Path(__file__).resolve().parents[1] / "slurm" / "build_patches.sbatch"
+    contents = sbatch_path.read_text()
+
+    assert f'PATCH_SIZE="${{PATCH_SIZE:-{PATCH_SIZE}}}"' in contents
+    assert f'STRIDE="${{STRIDE:-{PATCH_SIZE}}}"' in contents
 
 
 def test_dataset_builds_deterministic_patch_index_and_bookkeeping(
@@ -334,6 +347,55 @@ def test_get_eval_transforms_returns_tensor_with_no_augmentation() -> None:
     assert mask_t[0, 0, 0].item() > 0
 
 
+def test_build_patch_dataset_writes_train_patches_without_augmentation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import csv
+
+    from scripts import build_patch_dataset as builder
+    from src.data import transforms as transform_module
+
+    processed_dir = tmp_path / "processed"
+    processed_dir.mkdir()
+
+    image_array = np.array([[0, 80], [160, 255]], dtype=np.uint8)
+    mask_array = np.array([[255, 0], [0, 255]], dtype=np.uint8)
+    _write_pair(processed_dir, "A", image_array, mask_array)
+
+    monkeypatch.setattr(
+        builder,
+        "create_image_level_splits",
+        lambda pairs, trail_counts, train_ratio, val_ratio, seed: (pairs, [], []),
+    )
+    monkeypatch.setattr(
+        transform_module,
+        "get_train_transforms",
+        lambda: pytest.fail("build_patch_dataset must not use train augmentation"),
+    )
+
+    out_dir = tmp_path / "patches"
+    manifest_path = builder.build(
+        data_root=processed_dir,
+        out_dir=out_dir,
+        patch_size=2,
+        stride=2,
+        splits=("train",),
+    )
+
+    assert not hasattr(builder, "get_train_transforms")
+
+    with open(manifest_path, newline="") as f:
+        rows = list(csv.DictReader(f))
+
+    assert len(rows) == 1
+    saved_image = np.asarray(Image.open(rows[0]["patch_path"]).convert("L"))
+    saved_mask = np.asarray(Image.open(rows[0]["mask_path"]).convert("L"))
+
+    assert np.allclose(saved_image, image_array, atol=1)
+    assert np.array_equal(saved_mask, mask_array)
+
+
 def test_patch_directory_dataset_augmentation_active_for_train_split(tmp_path: Path) -> None:
     import csv
 
@@ -417,6 +479,36 @@ def test_patch_directory_dataset_augment_train_false_freezes_augmentation(
     # With augment_train=False, repeated draws must be byte-identical.
     for i, img in enumerate(images[1:], start=1):
         assert torch.allclose(images[0], img), f"draw {i} differs with augment_train=False"
+
+
+def test_patch_directory_dataset_eval_splits_never_augment_by_default(
+    tmp_path: Path,
+) -> None:
+    image_array = np.zeros((8, 8), dtype=np.uint8)
+    image_array[0:4, 0:4] = 200
+    mask_array = np.zeros((8, 8), dtype=np.uint8)
+    mask_array[0:4, 0:4] = 255
+
+    for split in ("val", "test"):
+        split_dir, manifest_path, _ = _write_directory_patch(
+            tmp_path / split,
+            split,
+            image_array,
+            mask_array,
+        )
+        dataset = PatchDirectoryDataset(
+            split_dir,
+            manifest_path,
+            normalisation="fixed",
+        )
+
+        torch.manual_seed(0)
+        images = [dataset[0]["image"] for _ in range(8)]
+
+        for i, img in enumerate(images[1:], start=1):
+            assert torch.allclose(images[0], img), (
+                f"{split} draw {i} differs; augmentation leaked into eval split"
+            )
 
 
 def test_patch_directory_dataset_full_image_normalisation_uses_manifest_stats(

@@ -61,7 +61,7 @@ import torch
 import torchvision.transforms.functional as TF
 from PIL import Image
 
-from src.config.constants import PAPER_FNR_POST_HOUGH, PAPER_FNR_PRE_HOUGH
+from src.config.constants import PAPER_FNR_POST_HOUGH, PAPER_FNR_PRE_HOUGH, PATCH_SIZE
 from src.data.transforms import normalise_tensor
 from src.models.unet import UNet
 from src.utils.logger import get_logger
@@ -69,7 +69,7 @@ from src.utils.seed import seed_everything
 
 Image.MAX_IMAGE_PIXELS = None
 
-_PATCH_SIZE = 512
+_PATCH_SIZE = PATCH_SIZE
 _YX_RE = re.compile(r"_(\d+)_(\d+)_image$")
 _HOUGH_MAX_BATCH = 64
 
@@ -243,7 +243,7 @@ def main() -> None:
         # image is dominated by the two full-image canvases declared above
         # (prob_canvas float32 ≈ 446 MB at 10560×10560, target_canvas uint8
         # ≈ 112 MB) plus the current chunk's stacked-patch tensors
-        # (chunk × 1 × 512 × 512 × 4 bytes ≈ 67 MB at MAX_BATCH=64). The
+        # (chunk × 1 × 528 × 528 × 4 bytes ≈ 71 MB at MAX_BATCH=64). The
         # canvases are inherent to image-level FNR reconstruction; chunking
         # only bounds the *inference* tensor footprint, not the canvas one.
         # Batched forward is numerically equivalent (not bitwise-identical) to

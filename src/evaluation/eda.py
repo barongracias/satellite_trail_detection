@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 from PIL import Image
 
+from src.config.constants import PATCH_SIZE
 from src.data.catalog import SatelliteCatalog
 from src.data.indexing import (
     PatchDatasetConfig,
@@ -207,7 +208,7 @@ def get_image_mask_pairs(
 
 def compute_patch_dataframe(
     root_dir: str | Path | PatchDatasetConfig,
-    patch_size: int = 512,
+    patch_size: int = PATCH_SIZE,
     stride: int | None = None,
     logger: logging.Logger | None = None,
 ) -> pd.DataFrame:
@@ -533,7 +534,9 @@ def plot_image_level_summary(
         how="left",
     ).reset_index().sort_values("non_empty_patches")
 
-    fig, axes = plt.subplots(1, 2, figsize=(16, 8))
+    n_images = len(combined)
+    fig_height = max(8, n_images * 0.25)
+    fig, axes = plt.subplots(1, 2, figsize=(16, fig_height))
     axes[0].barh(
         combined["image_name"],
         combined["mask_positive_fraction"],
@@ -969,7 +972,7 @@ def plot_mask_inspection_grid(
     """Render the densest non-empty patches at full resolution for mask inspection.
 
     Each row shows the image patch, the mask patch, and an overlay at the
-    native 512×512 resolution. This is the qualitative tool the supervisor
+    native patch resolution. This is the qualitative tool the supervisor
     flagged at the 2026-05-14 meeting: visible trail pixels extending beyond
     the mask boundary should be visible at this resolution.
     """

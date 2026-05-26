@@ -10,6 +10,8 @@ from typing import Iterable
 
 from PIL import Image
 
+from src.config.constants import PATCH_SIZE
+
 
 Image.MAX_IMAGE_PIXELS = None
 
@@ -36,7 +38,7 @@ class PatchDatasetConfig:
     """Configuration for deterministic patch extraction from processed images."""
 
     root_dir: Path
-    patch_size: int = 512
+    patch_size: int = PATCH_SIZE
     stride: int | None = None
     strict_pairing: bool = True
 

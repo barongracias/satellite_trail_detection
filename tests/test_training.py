@@ -8,6 +8,7 @@ import pytest
 torch = pytest.importorskip("torch")
 pytest.importorskip("torchvision")
 
+from src.config.constants import PATCH_SIZE  # noqa: E402
 from src.training.train_unet import (  # noqa: E402
     ComboBCEDiceLoss,
     TrainingConfig,
@@ -35,6 +36,7 @@ def test_training_config_normalises_paths_for_programmatic_use(tmp_path: Path) -
     assert isinstance(config.data_root, Path)
     assert isinstance(config.checkpoint_dir, Path)
     assert isinstance(config.log_dir, Path)
+    assert config.patch_size == PATCH_SIZE == 528
 
 
 def test_estimate_positive_pixel_fraction_matches_patch_coverage(

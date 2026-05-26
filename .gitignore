@@ -47,18 +47,8 @@ Thumbs.db
 # Docker
 *.tar
 
-# Internal workflow and planning
-PLAN.md
-dissertation_context_satellite.md
-*_internal_plan*.md
-*_internal_context*.md
-*_agent_session_transcript*.md
-report/*.md
-CLAUDE_CONTEXT.md
-CSD3_PROMPT*.md
-CSD3_ABLATIONS.md
-claude_prompt.md
-meeting.md
+# Markdown files
+agents/
 
 # Misc
 proj_brief.png

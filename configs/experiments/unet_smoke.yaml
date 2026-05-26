@@ -4,8 +4,8 @@
 experiment_name: unet_smoke
 data_root: data/Processed
 patch_dir: null          # smoke run uses on-the-fly patch extraction
-patch_size: 512
-stride: 512
+patch_size: 528
+stride: 528
 batch_size: 2
 learning_rate: 1.0e-3
 epochs: 1

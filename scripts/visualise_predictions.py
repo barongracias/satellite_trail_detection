@@ -3,7 +3,7 @@
 
 Run against the final reported checkpoint — either the M5.2 re-Optuna retrain
 if it beats the winning ablation on val_f1, or the winning ablation itself.
-Decision rule lives in PLAN.md M5.1; this script does not enforce it.
+Decision rule lives in agents/PLAN.md M5.1; this script does not enforce it.
 
 Produces four figure types under results/figures/predictions/:
 1. Test-patch overlay grid: image / GT mask / predicted mask. N random plus
@@ -43,6 +43,7 @@ import torchvision.transforms.functional as TF
 from PIL import Image
 from torch.utils.data import DataLoader
 
+from src.config.constants import PATCH_SIZE
 from src.data.dataset import PatchDirectoryDataset
 from src.data.transforms import normalise_tensor
 from src.evaluation.segmentation import SegmentationCounts, compute_metrics_from_counts
@@ -52,7 +53,7 @@ from src.utils.seed import seed_everything
 
 Image.MAX_IMAGE_PIXELS = None
 
-_PATCH_SIZE = 512
+_PATCH_SIZE = PATCH_SIZE
 _YX_RE = re.compile(r"_(\d+)_(\d+)_image$")
 
 

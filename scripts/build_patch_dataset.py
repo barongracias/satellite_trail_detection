@@ -43,7 +43,6 @@ _MANIFEST_COLUMNS = [
     "patch_path",
     "mask_path",
     "positive_pixel_fraction",
-    "pos_weight",
 ]
 
 
@@ -120,7 +119,6 @@ def _write_patches(
         Image.fromarray(msk_arr, mode="L").save(msk_out)
 
         pos_frac = pos_pixels / total_pixels
-        pw = (1.0 - pos_frac) / pos_frac if pos_frac > 0.0 else float("inf")
 
         manifest_rows.append(
             {
@@ -129,7 +127,6 @@ def _write_patches(
                 "patch_path": str(img_out),
                 "mask_path": str(msk_out),
                 "positive_pixel_fraction": round(pos_frac, 8),
-                "pos_weight": round(pw, 4) if pw != float("inf") else "inf",
             }
         )
 

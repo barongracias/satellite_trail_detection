@@ -1,29 +1,15 @@
 from pathlib import Path
 
-import numpy as np
-from PIL import Image
 import pytest
 
 
 torch = pytest.importorskip("torch")
 pytest.importorskip("torchvision")
 
-from src.config.constants import PATCH_SIZE  # noqa: E402
 from src.training.train_unet import (  # noqa: E402
     ComboBCEDiceLoss,
     TrainingConfig,
-    estimate_positive_pixel_fraction,
 )
-
-
-def _write_pair(
-    root_dir: Path,
-    stem: str,
-    image_array: np.ndarray,
-    mask_array: np.ndarray,
-) -> None:
-    Image.fromarray(image_array).save(root_dir / f"{stem}_red.fits_full.png")
-    Image.fromarray(mask_array).save(root_dir / f"{stem}_red_mask.png")
 
 
 def test_training_config_normalises_paths_for_programmatic_use(tmp_path: Path) -> None:
@@ -36,34 +22,6 @@ def test_training_config_normalises_paths_for_programmatic_use(tmp_path: Path) -
     assert isinstance(config.data_root, Path)
     assert isinstance(config.checkpoint_dir, Path)
     assert isinstance(config.log_dir, Path)
-    assert config.patch_size == PATCH_SIZE == 528
-
-
-def test_estimate_positive_pixel_fraction_matches_patch_coverage(
-    tmp_path: Path,
-) -> None:
-    processed_dir = tmp_path / "processed"
-    processed_dir.mkdir()
-
-    image_array = np.full((4, 4), 100, dtype=np.uint8)
-    mask_array = np.array(
-        [
-            [255, 255, 0, 0],
-            [255, 255, 0, 0],
-            [0, 0, 0, 0],
-            [0, 0, 0, 0],
-        ],
-        dtype=np.uint8,
-    )
-    _write_pair(processed_dir, "A", image_array, mask_array)
-
-    config = TrainingConfig(
-        data_root=processed_dir,
-        patch_size=2,
-        stride=2,
-    )
-
-    assert estimate_positive_pixel_fraction(config) == 0.25
 
 
 def test_combo_loss_squared_denominator_matches_paper_formula() -> None:
@@ -167,61 +125,6 @@ def test_threshold_sweep_json_strict_serialisation() -> None:
     json.dumps(out_payload, indent=2, allow_nan=False)
 
 
-def test_sweep_trial_config_preserves_num_workers(tmp_path: Path) -> None:
-    """The Optuna trial-config builder must inherit num_workers from the base
-    YAML — historically it was hardcoded to 4, defeating the re-Optuna perf
-    bundle's num_workers=8."""
-    from unittest.mock import MagicMock
-
-    optuna = pytest.importorskip("optuna")
-    from src.training.sweep import _make_trial_config
-
-    base = {
-        "data_root": str(tmp_path),
-        "checkpoint_dir": str(tmp_path / "checkpoints"),
-        "log_dir": str(tmp_path / "logs"),
-        "num_workers": 8,
-        "batch_size": 16,
-        "use_amp": True,
-        "amp_dtype": "bfloat16",
-        "float32_matmul_precision": "high",
-        "lr_scheduler": "cosine",
-    }
-    trial = MagicMock(spec=optuna.Trial)
-    trial.number = 0
-    trial.suggest_float.side_effect = lambda name, *a, **k: 0.5
-    trial.suggest_categorical.side_effect = lambda name, choices: choices[0]
-    cfg = _make_trial_config(trial, base, patch_dir=str(tmp_path), study_name="study")
-    assert cfg.num_workers == 8
-    assert cfg.batch_size == 16
-    assert cfg.use_amp is True
-    assert cfg.amp_dtype == "bfloat16"
-    assert cfg.float32_matmul_precision == "high"
-    assert cfg.lr_scheduler == "cosine"
-    assert cfg.normalisation == "per_image"
-    trial.suggest_float.assert_any_call("learning_rate", 1e-4, 1e-3, log=True)
-    trial.suggest_categorical.assert_any_call("normalisation", ["per_image", "full_image"])
-
-
-def test_reoptuna_base_uses_bf16_precision_bundle() -> None:
-    base_path = Path(__file__).resolve().parents[1] / "configs" / "experiments" / "unet_reoptuna_base.yaml"
-    contents = base_path.read_text()
-    assert "use_amp: true" in contents
-    assert "amp_dtype: bfloat16" in contents
-    assert "float32_matmul_precision: high" in contents
-    assert "normalisation: per_image" in contents
-
-
-def test_optuna_sweep_sbatch_defaults_to_reoptuna_base() -> None:
-    """The optuna_sweep sbatch must default CONFIG to the re-Optuna base
-    config so submitting without a CONFIG override doesn't silently use
-    the legacy baseline."""
-    sbatch_path = Path(__file__).resolve().parents[1] / "slurm" / "optuna_sweep.sbatch"
-    contents = sbatch_path.read_text()
-    assert 'CONFIG="${CONFIG:-configs/experiments/unet_reoptuna_base.yaml}"' in contents
-
-
-
 def test_save_training_summary_omits_test_keys_without_test_result(tmp_path: Path) -> None:
     import json
     from src.training.train_unet import save_training_summary
@@ -246,89 +149,6 @@ def test_save_training_summary_omits_test_keys_without_test_result(tmp_path: Pat
     assert "test_metrics" not in data
     assert "test_loss" not in data
     assert data["config"]["skip_test_eval"] is True
-
-
-def test_paper_noise_base_config_locks_restudy_bundle() -> None:
-    import yaml
-
-    base_path = Path(__file__).resolve().parents[1] / "configs" / "experiments" / "unet_paper_noise_base.yaml"
-    data = yaml.safe_load(base_path.read_text())
-    sweep = data.pop("sweep")
-    cfg = TrainingConfig(**data)
-
-    assert cfg.batch_size == 16
-    assert cfg.num_workers == 8
-    assert cfg.use_amp is True
-    assert cfg.amp_dtype == "bfloat16"
-    assert cfg.float32_matmul_precision == "high"
-    assert cfg.lr_scheduler == "cosine"
-    assert cfg.normalisation == "full_image"
-    assert cfg.noise_augment is True
-    assert cfg.noise_std_multiplier == 1.0
-    assert cfg.auto_pos_weight is False
-    assert cfg.pos_weight is None
-    assert cfg.dice_denominator_squared is True
-    assert cfg.dice_smooth == pytest.approx(1.0e-4)
-    assert sweep["objective"] == "val_f1"
-    assert sweep["auto_retrain"] is False
-    assert sweep["skip_test_eval"] is True
-    assert sweep["normalisation_search_space"] == []
-    assert sweep["batch_size_search_space"] == [8, 16, 32]
-    assert sweep["learning_rate_max_by_batch_size"][8] == pytest.approx(5.0e-4)
-    assert sweep["learning_rate_max_by_batch_size"][16] == pytest.approx(1.0e-3)
-    assert sweep["learning_rate_max_by_batch_size"][32] == pytest.approx(2.0e-3)
-
-
-def test_restudy_sweep_config_searches_batch_size_and_keeps_full_image(tmp_path: Path) -> None:
-    from unittest.mock import MagicMock
-    import yaml
-
-    optuna = pytest.importorskip("optuna")
-    from src.training.sweep import _make_trial_config
-
-    base_path = Path(__file__).resolve().parents[1] / "configs" / "experiments" / "unet_paper_noise_base.yaml"
-    base = yaml.safe_load(base_path.read_text())
-    base["data_root"] = str(tmp_path / "processed")
-    base["checkpoint_dir"] = str(tmp_path / "checkpoints")
-    base["log_dir"] = str(tmp_path / "logs")
-
-    trial = MagicMock(spec=optuna.Trial)
-    trial.number = 3
-
-    def suggest_categorical(name, choices):
-        assert name == "batch_size"
-        assert choices == [8, 16, 32]
-        return 32
-
-    def suggest_float(name, low, high, **kwargs):
-        if name == "bce_weight":
-            assert (low, high) == (0.2, 0.8)
-            return 0.6
-        if name == "learning_rate":
-            assert low == pytest.approx(1.0e-4)
-            assert high == pytest.approx(2.0e-3)
-            assert kwargs == {"log": True}
-            return high
-        if name == "dropout_rate":
-            assert (low, high) == (0.1, 0.7)
-            return 0.2
-        raise AssertionError(name)
-
-    trial.suggest_categorical.side_effect = suggest_categorical
-    trial.suggest_float.side_effect = suggest_float
-
-    cfg = _make_trial_config(trial, base, patch_dir=str(tmp_path), study_name="study")
-    assert cfg.experiment_name == "study_trial_003"
-    assert cfg.batch_size == 32
-    assert cfg.learning_rate == pytest.approx(2.0e-3)
-    assert cfg.dropout_rate == pytest.approx(0.2)
-    assert cfg.bce_weight == pytest.approx(0.6)
-    assert cfg.dice_weight == pytest.approx(0.4)
-    assert cfg.normalisation == "full_image"
-    assert cfg.noise_augment is True
-    assert cfg.noise_std_multiplier == 1.0
-    assert cfg.skip_test_eval is True
-    assert trial.suggest_categorical.call_count == 1
 
 
 def test_sweep_best_payload_records_val_f1_user_attrs() -> None:

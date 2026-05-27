@@ -12,21 +12,16 @@ from typing import Any, Callable
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import pandas as pd
 import yaml
 
-import numpy as np
 import torch
 from PIL import Image
 from torch import nn
 from torch.optim import Adam
 from torch.utils.data import DataLoader
 
-from src.config.constants import GLOBAL_SEED, PATCH_SIZE
-from src.data.dataset import PatchDatasetConfig, PatchDirectoryDataset, SatelliteTrailPatchDataset
-from src.data.indexing import discover_image_mask_pairs
-from src.data.splits import create_splits
-from src.data.transforms import get_patch_transforms
+from src.config.constants import GLOBAL_SEED
+from src.data.dataset import PatchDirectoryDataset
 from src.evaluation.segmentation import (
     DatasetEvaluationResult,
     evaluate_model_on_dataloader,
@@ -44,16 +39,12 @@ class TrainingConfig:
     """Collect the runtime configuration for a local U-Net experiment."""
 
     data_root: str | Path
-    patch_size: int = PATCH_SIZE
-    stride: int | None = None
     batch_size: int = 2
     learning_rate: float = 1e-3
     epochs: int = 3
     max_steps: int | None = None
     num_workers: int = 0
     patch_dir: str | Path | None = None
-    pos_weight: float | None = None
-    auto_pos_weight: bool = False
     bce_weight: float = 0.5
     dice_weight: float = 0.5
     dice_smooth: float = 1e-4
@@ -73,8 +64,6 @@ class TrainingConfig:
     checkpoint_dir: str | Path = Path("results/checkpoints")
     log_dir: str | Path = Path("results/logs")
     experiment_name: str = "unet_baseline"
-    train_ratio: float = 0.7
-    val_ratio: float = 0.15
     seed: int = GLOBAL_SEED
     threshold: float = 0.5
     eval_max_batches: int | None = None
@@ -93,8 +82,8 @@ class TrainingConfig:
         if self.amp_dtype == "float16":
             object.__setattr__(self, "amp_dtype", "fp16")
 
-        if self.patch_size <= 0 or self.batch_size <= 0 or self.epochs <= 0:
-            raise ValueError("patch_size, batch_size, and epochs must be positive")
+        if self.batch_size <= 0 or self.epochs <= 0:
+            raise ValueError("batch_size and epochs must be positive")
         if self.max_steps is not None and self.max_steps <= 0:
             raise ValueError("max_steps must be positive when provided")
         if self.eval_max_batches is not None and self.eval_max_batches <= 0:
@@ -103,10 +92,6 @@ class TrainingConfig:
             raise ValueError("learning_rate and base_channels must be positive")
         if self.num_workers < 0:
             raise ValueError("num_workers cannot be negative")
-        if self.train_ratio <= 0 or self.val_ratio <= 0:
-            raise ValueError("train_ratio and val_ratio must be positive")
-        if self.train_ratio + self.val_ratio >= 1.0:
-            raise ValueError("train_ratio and val_ratio must leave room for a test split")
         if self.threshold <= 0 or self.threshold >= 1:
             raise ValueError("threshold must lie between 0 and 1")
         if self.normalisation not in ("fixed", "per_image", "full_image"):
@@ -200,157 +185,56 @@ def build_dataloaders(
     config: TrainingConfig,
     device: torch.device,
 ) -> tuple[DataLoader, DataLoader, DataLoader]:
-    """Create deterministic train, validation, and test dataloaders.
-
-    When ``config.patch_dir`` is set, loads pre-built patches from that directory
-    tree using :class:`PatchDirectoryDataset`.  Otherwise falls back to on-the-fly
-    patch extraction from ``config.data_root`` via :class:`SatelliteTrailPatchDataset`.
+    """Create deterministic train, validation, and test dataloaders from pre-built patches.
 
     ``device`` is the resolved training device; passed in so ``pin_memory`` only
     fires when the actual runtime is CUDA (not merely available on the host).
     """
-    if config.patch_dir is not None:
-        manifest = config.patch_dir / "manifest.csv"
-        train_ds = PatchDirectoryDataset(
-            config.patch_dir / "train", manifest, config.normalisation,
-            augment_train=config.augment_train,
-            noise_augment=config.noise_augment,
-            noise_std_multiplier=config.noise_std_multiplier,
-            noise_calibration_path=config.noise_calibration_path,
-        )
-        val_ds = PatchDirectoryDataset(
-            config.patch_dir / "val", manifest, config.normalisation,
-        )
-        test_ds = PatchDirectoryDataset(
-            config.patch_dir / "test", manifest, config.normalisation,
-        )
-
-        if min(len(train_ds), len(val_ds), len(test_ds)) == 0:
-            raise ValueError(
-                "PatchDirectoryDataset produced an empty train, validation, or test split"
-            )
-
-        def worker_init(wid: int) -> None:
-            _worker_init_fn(wid, config.seed)
-
-        def _make_loader(ds: Any, shuffle: bool) -> DataLoader:
-            return DataLoader(
-                ds,
-                batch_size=config.batch_size,
-                shuffle=shuffle,
-                num_workers=config.num_workers,
-                worker_init_fn=worker_init if config.num_workers > 0 else None,
-                generator=torch.Generator().manual_seed(config.seed),
-                pin_memory=device.type == "cuda",
-                persistent_workers=config.num_workers > 0,
-            )
-
-        return (
-            _make_loader(train_ds, shuffle=True),
-            _make_loader(val_ds, shuffle=False),
-            _make_loader(test_ds, shuffle=False),
-        )
-
-    # Legacy path: on-the-fly patch extraction.
-    image_transform, mask_transform = get_patch_transforms()
-    dataset = SatelliteTrailPatchDataset(
-        root_dir=PatchDatasetConfig(
-            root_dir=config.data_root,
-            patch_size=config.patch_size,
-            stride=config.stride,
-        ),
-        image_transform=image_transform,
-        mask_transform=mask_transform,
-    )
-    train_subset, val_subset, test_subset = create_splits(
-        dataset,
-        train_ratio=config.train_ratio,
-        val_ratio=config.val_ratio,
-        seed=config.seed,
-    )
-
-    if min(len(train_subset), len(val_subset), len(test_subset)) == 0:
+    if config.patch_dir is None:
         raise ValueError(
-            "Dataset split produced an empty train, validation, or test set"
+            "patch_dir must be set in the config; "
+            "run scripts/build_patch_dataset.py to build the patch directory first."
+        )
+    manifest = config.patch_dir / "manifest.csv"
+    train_ds = PatchDirectoryDataset(
+        config.patch_dir / "train", manifest, config.normalisation,
+        augment_train=config.augment_train,
+        noise_augment=config.noise_augment,
+        noise_std_multiplier=config.noise_std_multiplier,
+        noise_calibration_path=config.noise_calibration_path,
+    )
+    val_ds = PatchDirectoryDataset(
+        config.patch_dir / "val", manifest, config.normalisation,
+    )
+    test_ds = PatchDirectoryDataset(
+        config.patch_dir / "test", manifest, config.normalisation,
+    )
+
+    if min(len(train_ds), len(val_ds), len(test_ds)) == 0:
+        raise ValueError(
+            "PatchDirectoryDataset produced an empty train, validation, or test split"
+        )
+
+    def worker_init(wid: int) -> None:
+        _worker_init_fn(wid, config.seed)
+
+    def _make_loader(ds: Any, shuffle: bool) -> DataLoader:
+        return DataLoader(
+            ds,
+            batch_size=config.batch_size,
+            shuffle=shuffle,
+            num_workers=config.num_workers,
+            worker_init_fn=worker_init if config.num_workers > 0 else None,
+            generator=torch.Generator().manual_seed(config.seed),
+            pin_memory=device.type == "cuda",
+            persistent_workers=config.num_workers > 0,
         )
 
     return (
-        DataLoader(
-            train_subset,
-            batch_size=config.batch_size,
-            shuffle=True,
-            num_workers=config.num_workers,
-        ),
-        DataLoader(
-            val_subset,
-            batch_size=config.batch_size,
-            shuffle=False,
-            num_workers=config.num_workers,
-        ),
-        DataLoader(
-            test_subset,
-            batch_size=config.batch_size,
-            shuffle=False,
-            num_workers=config.num_workers,
-        ),
+        _make_loader(train_ds, shuffle=True),
+        _make_loader(val_ds, shuffle=False),
+        _make_loader(test_ds, shuffle=False),
     )
-
-
-def estimate_positive_pixel_fraction(config: TrainingConfig) -> float:
-    """Estimate the positive pixel fraction without building a full patch DataFrame."""
-    dataset_config = PatchDatasetConfig(
-        root_dir=config.data_root,
-        patch_size=config.patch_size,
-        stride=config.stride,
-    )
-    positive_pixels = 0
-    total_pixels = 0
-
-    for pair in discover_image_mask_pairs(dataset_config):
-        with Image.open(pair.mask_path) as mask_image:
-            mask_array = np.asarray(mask_image.convert("L"), dtype=np.uint8) > 0
-
-        for y in range(
-            0,
-            pair.height - dataset_config.patch_size + 1,
-            dataset_config.resolved_stride,
-        ):
-            for x in range(
-                0,
-                pair.width - dataset_config.patch_size + 1,
-                dataset_config.resolved_stride,
-            ):
-                patch_mask = mask_array[
-                    y : y + dataset_config.patch_size,
-                    x : x + dataset_config.patch_size,
-                ]
-                positive_pixels += int(patch_mask.sum())
-                total_pixels += dataset_config.patch_size * dataset_config.patch_size
-
-    if total_pixels == 0 or positive_pixels == 0:
-        raise ValueError("Cannot infer pos_weight when no positive pixels are present")
-
-    return float(positive_pixels) / float(total_pixels)
-
-
-def infer_pos_weight(config: TrainingConfig) -> float:
-    """Estimate a positive class weight for the training split.
-
-    When ``patch_dir`` is set the manifest is read directly — this is both
-    faster and more accurate because it reflects the 1:3 pos/neg sampling
-    applied at patch-build time rather than the raw (unsampled) image set.
-    """
-    if config.patch_dir is not None:
-        manifest = pd.read_csv(Path(config.patch_dir) / "manifest.csv")
-        train_rows = manifest[manifest["split"] == "train"]
-        # Fraction of patches that contain any trail pixels (reflects 1:3 sampling).
-        # Using mean pixel density would give ~0.006, not ~0.25, producing pos_weight ~170.
-        pos_patch_frac = float((train_rows["positive_pixel_fraction"] > 0).mean())
-        if pos_patch_frac <= 0.0:
-            raise ValueError("No positive patches found in the train split manifest")
-        return (1.0 - pos_patch_frac) / pos_patch_frac
-    positive_fraction = estimate_positive_pixel_fraction(config)
-    return (1.0 - positive_fraction) / positive_fraction
 
 
 class ComboBCEDiceLoss(nn.Module):
@@ -366,8 +250,6 @@ class ComboBCEDiceLoss(nn.Module):
         self,
         bce_weight: float = 0.5,
         dice_weight: float = 0.5,
-        pos_weight: float | None = None,
-        device: torch.device | None = None,
         dice_smooth: float = 1e-4,
         dice_denominator_squared: bool = True,
     ) -> None:
@@ -376,11 +258,7 @@ class ComboBCEDiceLoss(nn.Module):
         self.dice_weight = dice_weight
         self.dice_smooth = dice_smooth
         self.dice_denominator_squared = dice_denominator_squared
-        if pos_weight is not None:
-            pw = torch.tensor([pos_weight], dtype=torch.float32, device=device)
-            self.bce = nn.BCEWithLogitsLoss(pos_weight=pw)
-        else:
-            self.bce = nn.BCEWithLogitsLoss()
+        self.bce = nn.BCEWithLogitsLoss()
 
     def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
         bce_loss = self.bce(logits, targets)
@@ -398,8 +276,6 @@ class ComboBCEDiceLoss(nn.Module):
 
 
 def build_loss_function(
-    device: torch.device,
-    pos_weight: float | None = None,
     bce_weight: float = 0.5,
     dice_weight: float = 0.5,
     dice_smooth: float = 1e-4,
@@ -409,8 +285,6 @@ def build_loss_function(
     return ComboBCEDiceLoss(
         bce_weight=bce_weight,
         dice_weight=dice_weight,
-        pos_weight=pos_weight,
-        device=device,
         dice_smooth=dice_smooth,
         dice_denominator_squared=dice_denominator_squared,
     )
@@ -634,13 +508,7 @@ def run_training(
     if amp_dtype == torch.float16:
         scaler = torch.amp.GradScaler(device=device.type, enabled=True)
 
-    pos_weight = config.pos_weight
-    if config.auto_pos_weight:
-        pos_weight = infer_pos_weight(config)
-
     criterion = build_loss_function(
-        device=device,
-        pos_weight=pos_weight,
         bce_weight=config.bce_weight,
         dice_weight=config.dice_weight,
         dice_smooth=config.dice_smooth,
@@ -655,8 +523,6 @@ def run_training(
         len(val_loader.dataset),
         len(test_loader.dataset),
     )
-    if pos_weight is not None:
-        logger.info("Using pos_weight=%.6f", pos_weight)
     logger.info(
         "Perf settings | AMP=%s (requested=%s, dtype=%s, scaler=%s) | "
         "float32_matmul_precision=%s | scheduler=%s | batch_size=%d | num_workers=%d",

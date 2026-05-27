@@ -6,8 +6,6 @@ import re
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Iterable
-
 from PIL import Image
 
 from src.config.constants import PATCH_SIZE
@@ -72,18 +70,6 @@ class ProcessedImagePair:
     height: int
 
 
-@dataclass(frozen=True)
-class PatchIndexEntry:
-    """Describe a single patch location within a paired image and mask."""
-
-    image_path: Path
-    mask_path: Path
-    y: int
-    x: int
-    grid_y: int
-    grid_x: int
-
-
 def discover_image_mask_pairs(
     config: PatchDatasetConfig,
 ) -> list[ProcessedImagePair]:
@@ -133,34 +119,3 @@ def discover_image_mask_pairs(
     return pairs
 
 
-def build_patch_index(
-    pairs: Iterable[ProcessedImagePair],
-    patch_size: int,
-    stride: int,
-) -> list[PatchIndexEntry]:
-    """Build a deterministic list of patch coordinates across image pairs."""
-    samples: list[PatchIndexEntry] = []
-
-    for pair in pairs:
-        if pair.width < patch_size or pair.height < patch_size:
-            raise ValueError(
-                f"Image is smaller than patch_size: {pair.image_path.name}"
-            )
-
-        for grid_y, y in enumerate(range(0, pair.height - patch_size + 1, stride)):
-            for grid_x, x in enumerate(range(0, pair.width - patch_size + 1, stride)):
-                samples.append(
-                    PatchIndexEntry(
-                        image_path=pair.image_path,
-                        mask_path=pair.mask_path,
-                        y=y,
-                        x=x,
-                        grid_y=grid_y,
-                        grid_x=grid_x,
-                    )
-                )
-
-    if not samples:
-        raise RuntimeError("No patches generated from the processed image pairs")
-
-    return samples

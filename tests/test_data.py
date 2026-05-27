@@ -21,8 +21,8 @@ from src.data.indexing import (
 
 torch = pytest.importorskip("torch")
 
-from src.data.dataset import SatelliteTrailPatchDataset, PatchDirectoryDataset  # noqa: E402
-from src.data.splits import create_splits, create_image_level_splits  # noqa: E402
+from src.data.dataset import PatchDirectoryDataset  # noqa: E402
+from src.data.splits import create_image_level_splits  # noqa: E402
 from src.data.transforms import (  # noqa: E402
     SignalDependentNoise,
     get_eval_transforms,
@@ -130,63 +130,6 @@ def test_csd3_patch_build_wrapper_defaults_to_active_patch_geometry() -> None:
     assert f'STRIDE="${{STRIDE:-{PATCH_SIZE}}}"' in contents
 
 
-def test_dataset_builds_deterministic_patch_index_and_bookkeeping(
-    tmp_path: Path,
-) -> None:
-    processed_dir = tmp_path / "processed"
-    processed_dir.mkdir()
-
-    image_array = np.arange(16, dtype=np.uint8).reshape(4, 4)
-    mask_array = np.array(
-        [
-            [255, 0, 0, 0],
-            [255, 0, 0, 0],
-            [0, 0, 255, 255],
-            [0, 0, 255, 255],
-        ],
-        dtype=np.uint8,
-    )
-    _write_pair(processed_dir, "A", image_array, mask_array)
-
-    dataset = SatelliteTrailPatchDataset(
-        root_dir=processed_dir,
-        patch_size=2,
-        stride=2,
-    )
-
-    assert len(dataset) == 4
-
-    records = dataset.get_patch_records()
-    assert (records[0].y, records[0].x) == (0, 0)
-    assert (records[-1].y, records[-1].x) == (2, 2)
-
-    sample = dataset[3]
-    assert tuple(sample["coords"].tolist()) == (2, 2)
-    assert np.array_equal(np.asarray(sample["image"]), image_array[2:4, 2:4])
-    assert np.array_equal(np.asarray(sample["mask"]), mask_array[2:4, 2:4])
-
-
-def test_create_splits_is_reproducible_for_a_fixed_seed() -> None:
-    dataset = list(range(20))
-
-    split_a = create_splits(dataset, train_ratio=0.6, val_ratio=0.2, seed=7)
-    split_b = create_splits(dataset, train_ratio=0.6, val_ratio=0.2, seed=7)
-
-    assert split_a[0].indices == split_b[0].indices
-    assert split_a[1].indices == split_b[1].indices
-    assert split_a[2].indices == split_b[2].indices
-
-
-def test_create_splits_rejects_invalid_ratios() -> None:
-    dataset = list(range(10))
-
-    with pytest.raises(ValueError):
-        create_splits(dataset, train_ratio=0.8, val_ratio=0.3)
-
-    with pytest.raises(ValueError):
-        create_splits(dataset, train_ratio=0.0, val_ratio=0.2)
-
-
 def _make_fake_pairs(
     tmp_path: Path, n: int
 ) -> tuple[list, list]:
@@ -271,7 +214,7 @@ def test_patch_directory_dataset_returns_correct_dict_format(tmp_path: Path) -> 
             f,
             fieldnames=[
                 "split", "source_image", "patch_path", "mask_path",
-                "positive_pixel_fraction", "pos_weight",
+                "positive_pixel_fraction",
             ],
         )
         writer.writeheader()
@@ -281,7 +224,6 @@ def test_patch_directory_dataset_returns_correct_dict_format(tmp_path: Path) -> 
             "patch_path": str(img_path),
             "mask_path": str(msk_path),
             "positive_pixel_fraction": 1.0 / 64,
-            "pos_weight": 63.0,
         })
 
     dataset = PatchDirectoryDataset(train_dir, manifest_path)
@@ -314,13 +256,13 @@ def test_patch_directory_dataset_per_image_normalisation_differs_from_fixed(
         writer = csv.DictWriter(
             f,
             fieldnames=["split", "source_image", "patch_path", "mask_path",
-                        "positive_pixel_fraction", "pos_weight"],
+                        "positive_pixel_fraction"],
         )
         writer.writeheader()
         writer.writerow({
             "split": "train", "source_image": "fake.png",
             "patch_path": str(img_path), "mask_path": str(msk_path),
-            "positive_pixel_fraction": 0.0, "pos_weight": 1.0,
+            "positive_pixel_fraction": 0.0,
         })
 
     ds_fixed = PatchDirectoryDataset(train_dir, manifest_path, normalisation="fixed")
@@ -417,13 +359,13 @@ def test_patch_directory_dataset_augmentation_active_for_train_split(tmp_path: P
         writer = csv.DictWriter(
             f,
             fieldnames=["split", "source_image", "patch_path", "mask_path",
-                        "positive_pixel_fraction", "pos_weight"],
+                        "positive_pixel_fraction"],
         )
         writer.writeheader()
         writer.writerow({
             "split": "train", "source_image": "fake.png",
             "patch_path": str(img_path), "mask_path": str(msk_path),
-            "positive_pixel_fraction": 1.0/64, "pos_weight": 63.0,
+            "positive_pixel_fraction": 1.0/64,
         })
 
     dataset = PatchDirectoryDataset(train_dir, manifest_path, normalisation="fixed")
@@ -461,13 +403,13 @@ def test_patch_directory_dataset_augment_train_false_freezes_augmentation(
         writer = csv.DictWriter(
             f,
             fieldnames=["split", "source_image", "patch_path", "mask_path",
-                        "positive_pixel_fraction", "pos_weight"],
+                        "positive_pixel_fraction"],
         )
         writer.writeheader()
         writer.writerow({
             "split": "train", "source_image": "fake.png",
             "patch_path": str(img_path), "mask_path": str(msk_path),
-            "positive_pixel_fraction": 1.0/64, "pos_weight": 63.0,
+            "positive_pixel_fraction": 1.0/64,
         })
 
     dataset = PatchDirectoryDataset(
@@ -535,14 +477,14 @@ def test_patch_directory_dataset_full_image_normalisation_uses_manifest_stats(
         writer = csv.DictWriter(
             f,
             fieldnames=["split", "source_image", "patch_path", "mask_path",
-                        "positive_pixel_fraction", "pos_weight",
+                        "positive_pixel_fraction",
                         "image_mean", "image_std"],
         )
         writer.writeheader()
         writer.writerow({
             "split": "test", "source_image": "fake.png",
             "patch_path": str(img_path), "mask_path": str(msk_path),
-            "positive_pixel_fraction": 0.0, "pos_weight": 1.0,
+            "positive_pixel_fraction": 0.0,
             "image_mean": target_mean, "image_std": target_std,
         })
 
@@ -577,7 +519,7 @@ def _write_directory_patch(
             f,
             fieldnames=[
                 "split", "source_image", "patch_path", "mask_path",
-                "positive_pixel_fraction", "pos_weight",
+                "positive_pixel_fraction",
             ],
         )
         writer.writeheader()
@@ -587,7 +529,6 @@ def _write_directory_patch(
             "patch_path": str(img_path),
             "mask_path": str(mask_path),
             "positive_pixel_fraction": float(mask_array.max() > 0),
-            "pos_weight": 1.0,
         })
     return split_dir, manifest_path, mask_path
 

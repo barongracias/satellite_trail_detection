@@ -42,10 +42,10 @@ echo "Python: $(which python)"
 python -c "import torch; print('PyTorch:', torch.__version__, '| CUDA:', torch.cuda.is_available())"
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 
-CONFIG="${CONFIG:-configs/experiments/unet_reoptuna_base.yaml}"
+CONFIG="${CONFIG:-configs/experiments/unet_paper_arch_noise_base.yaml}"
 PATCH_DIR="${PATCH_DIR:-data/patches}"
-N_TRIALS="${N_TRIALS:-40}"
-STUDY_NAME="${STUDY_NAME:-unet_sweep_paper_faithful}"
+N_TRIALS="${N_TRIALS:-45}"
+STUDY_NAME="${STUDY_NAME:-unet_paper_arch_noise_f1}"
 SKIP_RETRAIN="${SKIP_RETRAIN:-0}"
 
 echo "Config:     $CONFIG"

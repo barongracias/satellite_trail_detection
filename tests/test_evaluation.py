@@ -7,10 +7,11 @@ from pathlib import Path
 import matplotlib
 import numpy as np
 import pandas as pd
+import pytest
 from PIL import Image
 
 from src.data.catalog import SatelliteCatalog
-from src.evaluation.eda import (
+from src.evaluation.eda import (  # noqa: E402
     compute_image_summary_dataframe,
     compute_mask_component_stats,
     compute_observation_date_dataframe,
@@ -33,7 +34,12 @@ from src.evaluation.eda import (
     summarise_patch_dataframe,
     summarise_patches_by_image,
 )
-from src.evaluation.segmentation import (
+
+matplotlib.use("Agg")
+
+torch = pytest.importorskip("torch")
+
+from src.evaluation.segmentation import (  # noqa: E402
     SegmentationCounts,
     bootstrap_metrics_cluster,
     bootstrap_metrics_patch,
@@ -42,9 +48,6 @@ from src.evaluation.segmentation import (
     compute_segmentation_counts,
     compute_segmentation_metrics,
 )
-
-
-matplotlib.use("Agg")
 
 
 def _write_pair(

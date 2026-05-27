@@ -36,7 +36,7 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument(
         "--config",
-        default="configs/experiments/unet_reoptuna_base.yaml",
+        default="configs/experiments/unet_paper_arch_noise_base.yaml",
         help="Base YAML config. A nested 'sweep' block may define Optuna-only settings.",
     )
     p.add_argument("--patch_dir", default="data/patches")
@@ -91,8 +91,7 @@ def _normalisation_for_trial(
         choices = sweep_cfg["normalisation_search_space"]
         if choices:
             return str(trial.suggest_categorical("normalisation", list(choices)))
-        return str(base_cfg.get("normalisation", "fixed"))
-    return str(trial.suggest_categorical("normalisation", ["per_image", "full_image"]))
+    return str(base_cfg.get("normalisation", "fixed"))
 
 
 def _batch_size_for_trial(
@@ -126,7 +125,6 @@ def _make_trial_config(
             "epochs": int(sweep_cfg.get("trial_epochs", _SWEEP_EPOCHS)),
             "batch_size": batch_size,
             "learning_rate": trial.suggest_float("learning_rate", lr_min, lr_max, log=True),
-            "dropout_rate": trial.suggest_float("dropout_rate", 0.1, 0.7),
             "bce_weight": bce_w,
             "dice_weight": 1.0 - bce_w,
             "normalisation": _normalisation_for_trial(trial, base_cfg, sweep_cfg),
@@ -239,7 +237,7 @@ def _retrain_config(
             "epochs": int(_sweep_config(base).get("retrain_epochs", _RETRAIN_EPOCHS)),
             "batch_size": int(best.params.get("batch_size", base_cfg.get("batch_size", 16))),
             "learning_rate": best.params["learning_rate"],
-            "dropout_rate": best.params["dropout_rate"],
+            "dropout_rate": best.params.get("dropout_rate", base_cfg.get("dropout_rate", 0.5)),
             "bce_weight": bce_w,
             "dice_weight": 1.0 - bce_w,
             "normalisation": best.params.get("normalisation", base_cfg.get("normalisation", "fixed")),

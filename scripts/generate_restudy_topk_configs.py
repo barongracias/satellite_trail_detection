@@ -23,7 +23,6 @@ class TrialParams:
     number: int
     value: float
     learning_rate: float
-    dropout_rate: float
     bce_weight: float
     batch_size: int
 
@@ -67,7 +66,7 @@ def load_top_trials(db_path: Path, top_k: int) -> list[TrialParams]:
                 (trial_id,),
             ).fetchall()
         }
-        missing = {"learning_rate", "dropout_rate", "bce_weight", "batch_size"}.difference(params)
+        missing = {"learning_rate", "bce_weight", "batch_size"}.difference(params)
         if missing:
             raise SystemExit(f"trial {number} is missing expected params: {sorted(missing)}")
         trials.append(
@@ -75,7 +74,6 @@ def load_top_trials(db_path: Path, top_k: int) -> list[TrialParams]:
                 number=int(number),
                 value=float(value),
                 learning_rate=float(params["learning_rate"]),
-                dropout_rate=float(params["dropout_rate"]),
                 bce_weight=float(params["bce_weight"]),
                 batch_size=int(params["batch_size"]),
             )
@@ -89,9 +87,8 @@ def materialise_config(base: dict[str, Any], trial: TrialParams, seed: int, epoc
     cfg.pop("sweep", None)
     cfg.update(
         {
-            "experiment_name": f"unet_paper_noise_topk_t{trial.number}_s{seed}",
+            "experiment_name": f"unet_paper_arch_noise_topk_t{trial.number}_s{seed}",
             "learning_rate": trial.learning_rate,
-            "dropout_rate": trial.dropout_rate,
             "bce_weight": trial.bce_weight,
             "dice_weight": trial.dice_weight,
             "batch_size": trial.batch_size,
@@ -115,8 +112,8 @@ def parse_ints(raw: str) -> list[int]:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--db", type=Path, default=Path("results/classical/unet_paper_noise_f1.db"))
-    parser.add_argument("--base-config", type=Path, default=Path("configs/experiments/unet_paper_noise_base.yaml"))
+    parser.add_argument("--db", type=Path, default=Path("results/classical/unet_paper_arch_noise_f1.db"))
+    parser.add_argument("--base-config", type=Path, default=Path("configs/experiments/unet_paper_arch_noise_base.yaml"))
     parser.add_argument("--out-dir", type=Path, default=Path("configs/experiments/restudy_topk"))
     parser.add_argument("--top-k", type=int, default=5)
     parser.add_argument("--seeds", default="2804,1234,42,7,13")
@@ -146,7 +143,7 @@ def main() -> None:
         print(
             f"trial {trial.number:>3d}: val_f1={trial.value:.6f} "
             f"bs={trial.batch_size} lr={trial.learning_rate:.8g} "
-            f"dropout={trial.dropout_rate:.4f} bce={trial.bce_weight:.4f}"
+            f"bce={trial.bce_weight:.4f}"
         )
 
 

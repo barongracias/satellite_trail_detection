@@ -14,7 +14,7 @@ from typing import Any
 
 import numpy as np
 
-TAG_RE = re.compile(r"^unet_paper_noise_topk_t(?P<trial>\d+)_s(?P<seed>\d+)$")
+TAG_RE = re.compile(r"^unet_paper_arch_noise_topk_t(?P<trial>\d+)_s(?P<seed>\d+)$")
 TEST_KEYS = {"test_precision", "test_recall", "test_dice", "test_iou", "test_counts", "test_metrics", "test_loss"}
 
 
@@ -153,7 +153,6 @@ def params_from_items(items: list[SeedResult]) -> dict[str, Any]:
             return {
                 "batch_size": cfg.get("batch_size"),
                 "learning_rate": cfg.get("learning_rate"),
-                "dropout_rate": cfg.get("dropout_rate"),
                 "bce_weight": cfg.get("bce_weight"),
                 "dice_weight": cfg.get("dice_weight"),
                 "normalisation": cfg.get("normalisation"),
@@ -174,7 +173,6 @@ def select_trial(rows: list[dict[str, Any]], tie_delta: float) -> dict[str, Any]
         key=lambda row: (
             int(row.get("params", {}).get("batch_size") or 10**9),
             float(row.get("params", {}).get("learning_rate") or math.inf),
-            float(row.get("params", {}).get("dropout_rate") or math.inf),
             int(row["trial"]),
         ),
     )[0]
@@ -235,18 +233,18 @@ def aggregate(
 
     selected = select_trial(trial_rows, tie_delta)
     return {
-        "preregistration": "report/restudy_preregistration_2026-05-25.md",
+        "preregistration": "agents/protocols/restudy_preregistration_2026-05-26.md",
         "selection_scope": "M5.6 top-5 x five-seed validation-only restudy",
         "selection_rule": (
             "highest mean threshold-swept validation val_f1; if candidates are within "
             f"{tie_delta} val_f1, prefer lower batch_size, then lower learning_rate, "
-            "then lower dropout_rate; test metrics are inadmissible"
+            "then lower trial number; test metrics are inadmissible"
         ),
         "n_resamples": n_resamples,
         "bootstrap_seed": bootstrap_seed,
         "trials": trial_rows,
         "selected_trial": selected["trial"],
-        "selected_tag_prefix": f"unet_paper_noise_topk_t{selected['trial']}",
+        "selected_tag_prefix": f"unet_paper_arch_noise_topk_t{selected['trial']}",
         "selected_mean_val_f1": selected["val_f1_mean"],
         "selected_ci_lo": selected["val_f1_ci_lo"],
         "selected_ci_hi": selected["val_f1_ci_hi"],
@@ -255,7 +253,7 @@ def aggregate(
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--pattern", default="results/classical/threshold_sweep_unet_paper_noise_topk_t*_s*.json")
+    parser.add_argument("--pattern", default="results/classical/threshold_sweep_unet_paper_arch_noise_topk_t*_s*.json")
     parser.add_argument("--summary-dir", type=Path, default=Path("results/checkpoints"))
     parser.add_argument("--out", type=Path, default=Path("results/classical/restudy_topk_summary.json"))
     parser.add_argument("--expected-trials", default=None)

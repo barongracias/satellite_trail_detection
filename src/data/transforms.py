@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from typing import Any
 
 import pandas as pd
 import torch
-import torchvision.transforms as T
 import torchvision.transforms.functional as TF
 import torchvision.transforms.v2 as v2
 from torchvision import tv_tensors
@@ -125,13 +124,3 @@ def get_eval_transforms() -> JointTransform:
     return JointTransform(augment=False)
 
 
-def get_patch_transforms() -> tuple[Callable[[Any], Any], Callable[[Any], Any]]:
-    """Return the legacy separate image and mask transforms for SatelliteTrailPatchDataset."""
-    image_transform = T.Compose(
-        [
-            T.ToTensor(),
-            T.Normalize(mean=[0.5], std=[0.5]),
-        ]
-    )
-    mask_transform = T.ToTensor()
-    return image_transform, mask_transform

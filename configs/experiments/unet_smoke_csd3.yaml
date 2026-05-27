@@ -1,21 +1,32 @@
 # CSD3 GPU smoke test — 5 optimiser steps on the A100.
 # Run with: CONFIG=configs/experiments/unet_smoke_csd3.yaml sbatch slurm/train_unet_ampere_intr.sbatch
-# Mirrors unet_smoke.yaml but uses the CSD3 data root and GPU device.
+# Mirrors unet_paper_arch_noise_base.yaml exactly; only batch_size/epochs/max_steps/eval_max_batches differ.
 
 experiment_name: unet_smoke_csd3
 data_root: data/Processed
 patch_dir: data/patches
 batch_size: 2
-learning_rate: 1.0e-3
+learning_rate: 1.0e-4
 epochs: 1
 max_steps: 5
 eval_max_batches: 5
 base_channels: 8
-seed: 2804
-threshold: 0.5
+normalisation: full_image
+augment_train: true
+noise_augment: true
+noise_std_multiplier: 1.0
 bce_weight: 0.5
 dice_weight: 0.5
-num_workers: 4
+dice_smooth: 1.0e-4
+dice_denominator_squared: true
+use_amp: true
+amp_dtype: bf16
+float32_matmul_precision: high
+lr_scheduler: cosine
+num_workers: 8
+seed: 2804
+threshold: 0.5
 device: auto
 checkpoint_dir: results/checkpoints
 log_dir: results/logs
+skip_test_eval: true

@@ -1,0 +1,14 @@
+# Phase-A classifier training config (validation-only; no test evaluation).
+
+experiment_name: classifier_base
+patch_dir: data/patches
+batch_size: 32
+learning_rate: 1.0e-3
+epochs: 30
+num_workers: 8
+normalisation: full_image
+high_recall_target: 0.99
+seed: 2804
+device: auto
+checkpoint_dir: results/checkpoints
+log_dir: results/logs

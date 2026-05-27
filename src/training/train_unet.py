@@ -54,7 +54,6 @@ class TrainingConfig:
     float32_matmul_precision: str = "highest"
     lr_scheduler: str | None = None
     base_channels: int = 8
-    dropout_rate: float = 0.5
     normalisation: str = "fixed"
     augment_train: bool = True
     noise_augment: bool = False
@@ -494,7 +493,6 @@ def run_training(
         in_channels=1,
         out_channels=1,
         base_channels=config.base_channels,
-        dropout_rate=config.dropout_rate,
     ).to(device)
     optimiser = Adam(model.parameters(), lr=config.learning_rate)
 

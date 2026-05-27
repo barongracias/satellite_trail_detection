@@ -122,10 +122,7 @@ def main() -> None:
 
     ckpt = torch.load(args.checkpoint, map_location=device, weights_only=False)
     cfg = ckpt.get("config", {})
-    model = UNet(
-        base_channels=cfg.get("base_channels", 8),
-        dropout_rate=cfg.get("dropout_rate", 0.5),
-    ).to(device)
+    model = UNet(base_channels=cfg.get("base_channels", 8)).to(device)
     model.load_state_dict(ckpt["model_state_dict"])
     model.eval()
     normalisation = cfg.get("normalisation", "fixed")

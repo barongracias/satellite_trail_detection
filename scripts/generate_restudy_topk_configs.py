@@ -39,6 +39,24 @@ def _decode_param(value: float, distribution_json: str) -> Any:
     return float(value)
 
 
+def _load_user_attrs(cur: sqlite3.Cursor, trial_id: int) -> dict[str, Any]:
+    try:
+        rows = cur.execute(
+            """
+            select key, value_json
+            from trial_user_attributes
+            where trial_id = ?
+            """,
+            (trial_id,),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return {}
+    attrs: dict[str, Any] = {}
+    for key, value_json in rows:
+        attrs[str(key)] = json.loads(value_json)
+    return attrs
+
+
 def load_top_trials(db_path: Path, top_k: int) -> list[TrialParams]:
     con = sqlite3.connect(db_path)
     cur = con.cursor()
@@ -66,7 +84,11 @@ def load_top_trials(db_path: Path, top_k: int) -> list[TrialParams]:
                 (trial_id,),
             ).fetchall()
         }
-        missing = {"learning_rate", "bce_weight", "batch_size"}.difference(params)
+        attrs = _load_user_attrs(cur, int(trial_id))
+        batch_size = attrs.get("batch_size", params.get("batch_size"))
+        missing = {"learning_rate", "bce_weight"}.difference(params)
+        if batch_size is None:
+            missing.add("batch_size")
         if missing:
             raise SystemExit(f"trial {number} is missing expected params: {sorted(missing)}")
         trials.append(
@@ -75,7 +97,7 @@ def load_top_trials(db_path: Path, top_k: int) -> list[TrialParams]:
                 value=float(value),
                 learning_rate=float(params["learning_rate"]),
                 bce_weight=float(params["bce_weight"]),
-                batch_size=int(params["batch_size"]),
+                batch_size=int(batch_size),
             )
         )
     con.close()

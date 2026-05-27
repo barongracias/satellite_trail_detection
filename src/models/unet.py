@@ -1,4 +1,4 @@
-"""Minimal U-Net implementation for binary satellite trail segmentation."""
+"""Architecture-faithful U-Net for binary satellite trail segmentation."""
 
 from __future__ import annotations
 
@@ -7,41 +7,42 @@ import torch.nn.functional as F
 from torch import nn
 
 
+DROPOUT_RATES: tuple[float, ...] = (0.1, 0.1, 0.2, 0.2, 0.3, 0.2, 0.2, 0.1, 0.1)
+
+
 class DoubleConv(nn.Module):
-    """Two conv + LeakyReLU stages with optional spatial dropout."""
+    """Two conv + LeakyReLU stages with ASTA-style in-block dropout."""
 
     def __init__(
         self,
         in_channels: int,
         out_channels: int,
-        dropout_rate: float = 0.0,
+        dropout_rate: float,
     ) -> None:
         super().__init__()
-        layers: list[nn.Module] = [
+        self.layers = nn.Sequential(
             nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
-            nn.LeakyReLU(0.01, inplace=True),
+            nn.LeakyReLU(negative_slope=0.3, inplace=True),
+            nn.Dropout(dropout_rate),
             nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
-            nn.LeakyReLU(0.01, inplace=True),
-        ]
-        if dropout_rate > 0.0:
-            layers.append(nn.Dropout2d(dropout_rate))
-        self.layers = nn.Sequential(*layers)
+            nn.LeakyReLU(negative_slope=0.3, inplace=True),
+        )
 
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
         return self.layers(inputs)
 
 
 class DownBlock(nn.Module):
-    """Max-pool downsample followed by a double-conv block."""
+    """Average-pool downsample followed by a double-conv block."""
 
     def __init__(
         self,
         in_channels: int,
         out_channels: int,
-        dropout_rate: float = 0.0,
+        dropout_rate: float,
     ) -> None:
         super().__init__()
-        self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
+        self.pool = nn.AvgPool2d(kernel_size=2, stride=2)
         self.conv = DoubleConv(in_channels, out_channels, dropout_rate=dropout_rate)
 
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
@@ -56,7 +57,7 @@ class UpBlock(nn.Module):
         in_channels: int,
         skip_channels: int,
         out_channels: int,
-        dropout_rate: float = 0.0,
+        dropout_rate: float,
     ) -> None:
         super().__init__()
         self.up = nn.ConvTranspose2d(in_channels, out_channels, kernel_size=2, stride=2)
@@ -72,29 +73,47 @@ class UpBlock(nn.Module):
 
 
 class UNet(nn.Module):
-    """U-Net for patch-based binary segmentation."""
+    """U-Net reconstructed from the released ASTA Keras model config."""
 
     def __init__(
         self,
         in_channels: int = 1,
         out_channels: int = 1,
         base_channels: int = 8,
-        dropout_rate: float = 0.5,
     ) -> None:
         super().__init__()
         B = base_channels
-        # Encoder — no dropout (preserve gradient flow through skip connections)
-        self.stem = DoubleConv(in_channels, B)
-        self.down1 = DownBlock(B, B * 2)
-        self.down2 = DownBlock(B * 2, B * 4)
-        self.down3 = DownBlock(B * 4, B * 8)
-        # Bottleneck + decoder — dropout applied here
-        self.bottleneck = DownBlock(B * 8, B * 16, dropout_rate=dropout_rate)
-        self.up1 = UpBlock(B * 16, B * 8, B * 8, dropout_rate=dropout_rate)
-        self.up2 = UpBlock(B * 8, B * 4, B * 4, dropout_rate=dropout_rate)
-        self.up3 = UpBlock(B * 4, B * 2, B * 2, dropout_rate=dropout_rate)
-        self.up4 = UpBlock(B * 2, B, B)
+        rates = DROPOUT_RATES
+
+        self.stem = DoubleConv(in_channels, B, dropout_rate=rates[0])
+        self.down1 = DownBlock(B, B * 2, dropout_rate=rates[1])
+        self.down2 = DownBlock(B * 2, B * 4, dropout_rate=rates[2])
+        self.down3 = DownBlock(B * 4, B * 8, dropout_rate=rates[3])
+        self.bottleneck = DownBlock(B * 8, B * 16, dropout_rate=rates[4])
+        self.up1 = UpBlock(B * 16, B * 8, B * 8, dropout_rate=rates[5])
+        self.up2 = UpBlock(B * 8, B * 4, B * 4, dropout_rate=rates[6])
+        self.up3 = UpBlock(B * 4, B * 2, B * 2, dropout_rate=rates[7])
+        self.up4 = UpBlock(B * 2, B, B, dropout_rate=rates[8])
         self.head = nn.Conv2d(B, out_channels, kernel_size=1)
+
+        self._initialise_weights()
+
+    def _initialise_weights(self) -> None:
+        """Apply Keras-compatible initialisers from the recovered ASTA config."""
+        for module in self.modules():
+            if isinstance(module, nn.Conv2d):
+                if module.kernel_size == (3, 3):
+                    # Keras he_normal uses gain=sqrt(2), matching relu here even
+                    # though the actual activation is LeakyReLU(alpha=0.3).
+                    nn.init.kaiming_normal_(module.weight, mode="fan_in", nonlinearity="relu")
+                else:
+                    nn.init.xavier_uniform_(module.weight)
+                if module.bias is not None:
+                    nn.init.zeros_(module.bias)
+            elif isinstance(module, nn.ConvTranspose2d):
+                nn.init.xavier_uniform_(module.weight)
+                if module.bias is not None:
+                    nn.init.zeros_(module.bias)
 
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
         """Return per-pixel segmentation logits."""

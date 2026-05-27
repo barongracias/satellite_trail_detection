@@ -1,8 +1,7 @@
 """Optuna hyperparameter sweep for the U-Net satellite trail detector.
 
-Runs short trials with MedianPruner. The default path preserves the historical
-M5.2 Dice objective; restudy configs can opt into threshold-swept validation F1
-via a nested ``sweep`` block in the YAML.
+M5.6 uses balanced batch-size allocation from the YAML sweep block and optimises
+threshold-swept validation F1 without inspecting test metrics.
 """
 
 from __future__ import annotations
@@ -40,7 +39,7 @@ def parse_args() -> argparse.Namespace:
         help="Base YAML config. A nested 'sweep' block may define Optuna-only settings.",
     )
     p.add_argument("--patch_dir", default="data/patches")
-    p.add_argument("--n_trials", type=int, default=30)
+    p.add_argument("--n_trials", type=int, default=45)
     p.add_argument(
         "--study_name",
         default="unet_sweep",
@@ -101,8 +100,19 @@ def _batch_size_for_trial(
 ) -> int:
     choices = sweep_cfg.get("batch_size_search_space")
     if choices:
-        return int(trial.suggest_categorical("batch_size", [int(v) for v in choices]))
-    return int(base_cfg.get("batch_size", 16))
+        batch_sizes = [int(v) for v in choices]
+        batch_size = batch_sizes[trial.number % len(batch_sizes)]
+    else:
+        batch_size = int(base_cfg.get("batch_size", 16))
+    trial.set_user_attr("batch_size", batch_size)
+    return batch_size
+
+
+def _median_pruner_from_config(sweep_cfg: dict[str, Any]) -> optuna.pruners.MedianPruner:
+    return optuna.pruners.MedianPruner(
+        n_startup_trials=int(sweep_cfg.get("pruner_n_startup_trials", 5)),
+        n_warmup_steps=int(sweep_cfg.get("pruner_n_warmup_steps", 10)),
+    )
 
 
 def _make_trial_config(
@@ -116,7 +126,11 @@ def _make_trial_config(
     batch_size = _batch_size_for_trial(trial, base_cfg, sweep_cfg)
     lr_min = float(sweep_cfg.get("learning_rate_min", 1e-4))
     lr_max = _lr_max_for_batch(sweep_cfg, batch_size)
-    bce_w = trial.suggest_float("bce_weight", 0.2, 0.8)
+    bce_w = trial.suggest_float(
+        "bce_weight",
+        float(sweep_cfg.get("bce_weight_min", 0.2)),
+        float(sweep_cfg.get("bce_weight_max", 0.8)),
+    )
     return TrainingConfig(
         **{
             **base_cfg,
@@ -143,10 +157,7 @@ def _validation_f1_for_checkpoint(
     device = resolve_device(device_name)
     ckpt = torch.load(checkpoint, map_location=device, weights_only=False)
     ckpt_cfg = ckpt.get("config", {})
-    model = UNet(
-        base_channels=ckpt_cfg.get("base_channels", 8),
-        dropout_rate=ckpt_cfg.get("dropout_rate", 0.5),
-    ).to(device)
+    model = UNet(base_channels=ckpt_cfg.get("base_channels", 8)).to(device)
     model.load_state_dict(ckpt["model_state_dict"])
     normalisation = ckpt_cfg.get("normalisation", "fixed")
     val_ds = PatchDirectoryDataset(patch_dir / "val", patch_dir / "manifest.csv", normalisation)
@@ -235,9 +246,13 @@ def _retrain_config(
             "patch_dir": patch_dir,
             "experiment_name": study_name,
             "epochs": int(_sweep_config(base).get("retrain_epochs", _RETRAIN_EPOCHS)),
-            "batch_size": int(best.params.get("batch_size", base_cfg.get("batch_size", 16))),
+            "batch_size": int(
+                best.user_attrs.get(
+                    "batch_size",
+                    best.params.get("batch_size", base_cfg.get("batch_size", 16)),
+                )
+            ),
             "learning_rate": best.params["learning_rate"],
-            "dropout_rate": best.params.get("dropout_rate", base_cfg.get("dropout_rate", 0.5)),
             "bce_weight": bce_w,
             "dice_weight": 1.0 - bce_w,
             "normalisation": best.params.get("normalisation", base_cfg.get("normalisation", "fixed")),
@@ -264,7 +279,7 @@ def main() -> None:
         storage=storage,
         direction="maximize",
         sampler=optuna.samplers.TPESampler(seed=GLOBAL_SEED),
-        pruner=optuna.pruners.MedianPruner(n_startup_trials=5, n_warmup_steps=10),
+        pruner=_median_pruner_from_config(sweep_cfg),
         load_if_exists=True,
     )
     study.optimize(

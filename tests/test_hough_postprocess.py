@@ -39,7 +39,7 @@ def _make_patch_files(tmp_path: Path, n: int, value: int = 128) -> list[Path]:
 def _build_tiny_unet() -> UNet:
     """A 1×16×16 UNet that's small enough to forward on CPU."""
     torch.manual_seed(0)
-    return UNet(base_channels=4, dropout_rate=0.0).eval()
+    return UNet(base_channels=4).eval()
 
 
 def test_batched_hough_matches_single_patch_inference(tmp_path: Path) -> None:

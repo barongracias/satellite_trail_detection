@@ -153,6 +153,11 @@ def build(
     )
 
     eval_transform = get_eval_transforms()
+    # Shared across splits: train negatives are sampled first, then val, then
+    # test. A standalone test-only build (uncommon: parity-test uses
+    # --no-neg-sampling and is unaffected) would consume the RNG in a
+    # different order and therefore pick a different test-negative subset.
+    # The preregistered workflow builds all three together so this is stable.
     rng = random.Random(seed)
     manifest_rows: list = []
 

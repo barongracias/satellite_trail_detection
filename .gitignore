@@ -54,12 +54,4 @@ agents/
 asta_proj_env.sh
 
 # Report — track .bib, .cls, assets; ignore AI-assisted source and build artefacts
-report/thesis.tex
-report/thesis.pdf
-report/thesis.aux
-report/thesis.bbl
-report/thesis.blg
-report/thesis.log
-report/thesis.out
-report/thesis.toc
-report/thesis.idx
+report/

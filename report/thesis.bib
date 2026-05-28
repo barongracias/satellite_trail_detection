@@ -7,7 +7,7 @@
   volume    = {692},
   pages     = {A199},
   year      = {2024},
-  doi       = {10.1051/0004-6361/202451461},
+  doi       = {10.1051/0004-6361/202451663},
   note      = {arXiv:2407.19461}
 }
 
@@ -31,14 +31,15 @@
 }
 
 % MeerLICHT telescope
-@article{bloemen2016,
-  author  = {Bloemen, S. and others},
-  title   = {{MeerLICHT}: a dedicated optical telescope for monitoring the radio sky},
-  journal = {Proceedings of the SPIE},
-  volume  = {9906},
-  pages   = {990664},
-  year    = {2016},
-  doi     = {10.1117/12.2232153}
+@inproceedings{bloemen2016,
+  author    = {Bloemen, S. and Groot, P. and Woudt, P. and others},
+  title     = {{MeerLICHT} and {BlackGEM}: custom-built telescopes to detect
+               faint optical transients},
+  booktitle = {Ground-based and Airborne Telescopes VI, Proceedings of the SPIE},
+  volume    = {9906},
+  pages     = {990664},
+  year      = {2016},
+  doi       = {10.1117/12.2232522}
 }
 
 % Dice loss / combo loss
@@ -73,12 +74,14 @@
 % Satellite trail review / context
 @article{tyson2020,
   author  = {Tyson, J. A. and others},
-  title   = {Mitigation of satellite constellation interference with {Rubin Observatory LSST}},
-  journal = {Astronomical Journal Letters},
+  title   = {Mitigation of {LEO} satellite brightness and trail effects on the
+             {Rubin Observatory LSST}},
+  journal = {The Astronomical Journal},
   volume  = {160},
-  pages   = {L1},
+  pages   = {226},
   year    = {2020},
-  doi     = {10.3847/2041-8213/ab9f0f}
+  doi     = {10.3847/1538-3881/abba3e},
+  note    = {arXiv:2006.12417; DOI [VERIFY] against ADS}
 }
 
 % Optuna hyperparameter optimisation
@@ -89,4 +92,320 @@
   year      = {2019},
   pages     = {2623--2631},
   doi       = {10.1145/3292500.3330701}
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Added 2026-05-28 from agents/research/research.md (confirmed citations).
+%% Entries flagged [VERIFY] still need final venue/DOI confirmation at ADS.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% --- Hough transform lineage ---
+@article{duda1972,
+  author  = {Duda, R. O. and Hart, P. E.},
+  title   = {Use of the {H}ough transformation to detect lines and curves in pictures},
+  journal = {Communications of the ACM},
+  volume  = {15},
+  number  = {1},
+  pages   = {11--15},
+  year    = {1972},
+  doi     = {10.1145/361237.361242}
+}
+
+@article{matas2000,
+  author  = {Matas, J. and Galambos, C. and Kittler, J.},
+  title   = {Robust detection of lines using the progressive probabilistic
+             {H}ough transform},
+  journal = {Computer Vision and Image Understanding},
+  volume  = {78},
+  number  = {1},
+  pages   = {119--137},
+  year    = {2000},
+  doi     = {10.1006/cviu.1999.0831}
+}
+
+% --- Classical streak / trail detection ---
+@article{storkey2004,
+  author  = {Storkey, A. J. and Hambly, N. C. and Williams, C. K. I. and Mann, R. G.},
+  title   = {Cleaning sky survey databases using {H}ough transform and renewal
+             string approaches},
+  journal = {Monthly Notices of the Royal Astronomical Society},
+  volume  = {347},
+  number  = {1},
+  pages   = {36--51},
+  year    = {2004},
+  doi     = {10.1111/j.1365-2966.2004.07211.x}
+}
+
+@article{bektesevic2017,
+  author  = {Bekte{\v{s}}evi{\'c}, D. and Vinkovi{\'c}, D.},
+  title   = {Linear feature detection algorithm for astronomical surveys -- I.
+             Algorithm description},
+  journal = {Monthly Notices of the Royal Astronomical Society},
+  volume  = {471},
+  number  = {3},
+  pages   = {2626--2641},
+  year    = {2017},
+  doi     = {10.1093/mnras/stx1565}
+}
+
+@article{nir2018,
+  author  = {Nir, G. and Zackay, B. and Ofek, E. O.},
+  title   = {Optimal and efficient streak detection in astronomical images},
+  journal = {The Astronomical Journal},
+  volume  = {156},
+  number  = {5},
+  pages   = {229},
+  year    = {2018},
+  doi     = {10.3847/1538-3881/aaddff},
+  note    = {arXiv:1806.04204}
+}
+
+@article{virtanen2016,
+  author  = {Virtanen, J. and Poikonen, J. and S{\"a}ntti, T. and others},
+  title   = {Streak detection and analysis pipeline for space-debris optical images},
+  journal = {Advances in Space Research},
+  volume  = {57},
+  number  = {8},
+  pages   = {1607--1623},
+  year    = {2016},
+  doi     = {10.1016/j.asr.2015.09.024}
+}
+
+@article{serrano2026,
+  author  = {Serrano Mendoza, A. and Rawls, M. and Plazas Malag{\'o}n, A. A.},
+  title   = {Identifying and measuring satellite streaks in {DECam} images},
+  journal = {arXiv preprint},
+  year    = {2026},
+  note    = {arXiv:2603.10790; final venue [VERIFY]}
+}
+
+% --- Deep learning for trail / streak / artefact detection ---
+@article{paillassa2020,
+  author  = {Paillassa, M. and Bertin, E. and Bouy, H.},
+  title   = {{MaxiMask} and {MaxiTrack}: two new tools for identifying contaminants
+             in astronomical images using convolutional neural networks},
+  journal = {Astronomy \& Astrophysics},
+  volume  = {634},
+  pages   = {A48},
+  year    = {2020},
+  doi     = {10.1051/0004-6361/201936345},
+  note    = {arXiv:1907.08298}
+}
+
+@article{zhang2020,
+  author  = {Zhang, K. and Bloom, J. S.},
+  title   = {{deepCR}: Cosmic ray rejection with deep learning},
+  journal = {The Astrophysical Journal},
+  volume  = {889},
+  number  = {1},
+  pages   = {24},
+  year    = {2020},
+  doi     = {10.3847/1538-4357/ab3fa6},
+  note    = {arXiv:1907.09500}
+}
+
+@article{xu2023,
+  author  = {Xu, C. and McCully, C. and Dong, B. and Howell, D. A. and Sen, P.},
+  title   = {{Cosmic-CoNN}: A cosmic-ray detection deep-learning framework, data
+             set, and toolkit},
+  journal = {The Astrophysical Journal},
+  volume  = {942},
+  number  = {2},
+  pages   = {73},
+  year    = {2023},
+  doi     = {10.3847/1538-4357/ac9d91},
+  note    = {arXiv:2106.14922}
+}
+
+@article{hausen2020,
+  author  = {Hausen, R. and Robertson, B. E.},
+  title   = {{Morpheus}: A deep learning framework for the pixel-level analysis
+             of astronomical image data},
+  journal = {The Astrophysical Journal Supplement Series},
+  volume  = {248},
+  number  = {1},
+  pages   = {20},
+  year    = {2020},
+  doi     = {10.3847/1538-4365/ab8868}
+}
+
+@article{chen2025,
+  author  = {Chen, F. and others},
+  title   = {Artificial satellite trails detection using {U-Net} deep neural
+             network and line segment detector algorithm},
+  journal = {arXiv preprint},
+  year    = {2025},
+  note    = {arXiv:2509.16771; PASP accepted, DOI [VERIFY]}
+}
+
+@article{yu2025,
+  author  = {Yu, J. and Zheng, J. and Fang, J.},
+  title   = {Artificial satellite trail detection in multi-band photometric
+             images with an attention-augmented {U-Net}},
+  journal = {arXiv preprint},
+  year    = {2025},
+  note    = {arXiv:2509.04081; final venue [VERIFY]}
+}
+
+@article{carrillo2026,
+  author  = {Carrillo Navarro, J. and others},
+  title   = {{StreakMind}: {AI} detection and analysis of satellite streaks in
+             astronomical images with automated database integration},
+  journal = {Astronomy \& Astrophysics},
+  volume  = {708},
+  pages   = {A211},
+  year    = {2026},
+  doi     = {10.1051/0004-6361/202558754},
+  note    = {arXiv:2605.03429}
+}
+
+@article{carvajal2025,
+  author  = {Carvajal, R. and others},
+  title   = {Tuning into the spatial frequency space: satellite and space debris
+             detection in the {ZTF} alert stream},
+  journal = {Astronomy \& Astrophysics},
+  volume  = {697},
+  pages   = {A119},
+  year    = {2025},
+  doi     = {10.1051/0004-6361/202452880},
+  note    = {arXiv:2411.03258}
+}
+
+% --- Survey-impact context ---
+@article{hainaut2020,
+  author  = {Hainaut, O. R. and Williams, A. P.},
+  title   = {Impact of satellite constellations on astronomical observations with
+             {ESO} telescopes in the visible and infrared domains},
+  journal = {Astronomy \& Astrophysics},
+  volume  = {636},
+  pages   = {A121},
+  year    = {2020},
+  doi     = {10.1051/0004-6361/202037501},
+  note    = {arXiv:2003.01992}
+}
+
+@article{mroz2022,
+  author  = {Mr{\'o}z, P. and others},
+  title   = {Impact of the {SpaceX Starlink} satellites on the {Zwicky Transient
+             Facility} survey observations},
+  journal = {The Astrophysical Journal Letters},
+  volume  = {924},
+  number  = {2},
+  pages   = {L30},
+  year    = {2022},
+  doi     = {10.3847/2041-8213/ac470a},
+  note    = {arXiv:2201.05343}
+}
+
+@article{bassa2022,
+  author  = {Bassa, C. G. and Hainaut, O. R. and Galad{\'\i}-Enr{\'\i}quez, D.},
+  title   = {Analytical simulations of the effect of satellite constellations on
+             optical and near-infrared observations},
+  journal = {Astronomy \& Astrophysics},
+  volume  = {657},
+  pages   = {A75},
+  year    = {2022},
+  doi     = {10.1051/0004-6361/202142101},
+  note    = {arXiv:2108.12335}
+}
+
+@article{kruk2023,
+  author  = {Kruk, S. and others},
+  title   = {The impact of satellite trails on {Hubble Space Telescope}
+             observations},
+  journal = {Nature Astronomy},
+  volume  = {7},
+  pages   = {262--268},
+  year    = {2023},
+  doi     = {10.1038/s41550-023-01903-3}
+}
+
+@article{mallama2025,
+  author  = {Mallama, A. and Cole, R. E.},
+  title   = {Satellite constellation brightness and the magnitude-7 interference
+             threshold},
+  journal = {Monthly Notices of the Royal Astronomical Society: Letters},
+  volume  = {544},
+  pages   = {L15--L17},
+  year    = {2025},
+  doi     = {10.1093/mnrasl/slaf094},
+  note    = {first author [VERIFY]}
+}
+
+% --- Methodology citations (loss, precision, mixed-precision) ---
+@article{taghanaki2019,
+  author  = {Taghanaki, S. A. and Zheng, Y. and Zhou, S. K. and others},
+  title   = {Combo loss: handling input and output imbalance in multi-organ
+             segmentation},
+  journal = {Computerized Medical Imaging and Graphics},
+  volume  = {75},
+  pages   = {24--33},
+  year    = {2019},
+  doi     = {10.1016/j.compmedimag.2019.04.005},
+  note    = {arXiv:1805.02798}
+}
+
+@inproceedings{micikevicius2018,
+  author    = {Micikevicius, P. and Narang, S. and Alben, J. and others},
+  title     = {Mixed precision training},
+  booktitle = {International Conference on Learning Representations (ICLR)},
+  year      = {2018},
+  note      = {arXiv:1710.03740}
+}
+
+@article{kalamkar2019,
+  author  = {Kalamkar, D. and Mudigere, D. and Mellempudi, N. and others},
+  title   = {A study of {BFLOAT16} for deep learning training},
+  journal = {arXiv preprint},
+  year    = {2019},
+  note    = {arXiv:1905.12322}
+}
+
+% --- Policy / catalogue sources (non-paper; misc-type with url + urldate) ---
+@misc{celestrak2026,
+  author       = {{CelesTrak (T. S. Kelso)}},
+  title        = {{SATCAT} and active-satellite catalogue},
+  howpublished = {\url{https://celestrak.org/satcat/}},
+  year         = {2026},
+  note         = {Active-satellite element table parsed 2026-05-27}
+}
+
+@misc{rubin2026,
+  author       = {{Vera C. Rubin Observatory}},
+  title        = {Frequently asked questions: impacts from artificial satellites
+                  and debris},
+  howpublished = {\url{https://rubinobservatory.org/for-scientists/frequently-asked-questions/leo-sats}},
+  year         = {2026},
+  note         = {Accessed 2026-05-27}
+}
+
+@misc{fcc2026,
+  author       = {{Federal Communications Commission, Space Bureau}},
+  title        = {Order {DA} 26-36: {SpaceX} {Gen2} {Starlink} authorisation},
+  howpublished = {\url{https://docs.fcc.gov/public/attachments/DA-26-36A1.pdf}},
+  year         = {2026}
+}
+
+@misc{walker2020,
+  author       = {Walker, C. and Hall, J. and others},
+  title        = {{SATCON1} report: impact of satellite constellations on optical
+                  astronomy and recommendations toward mitigations},
+  howpublished = {Bulletin of the AAS, 52(2); NSF NOIRLab / AAS},
+  year         = {2020}
+}
+
+@misc{walker2021,
+  author       = {Walker, C. and others},
+  title        = {{SATCON2} working group reports},
+  howpublished = {Bulletin of the AAS; NSF NOIRLab / AAS},
+  year         = {2021}
+}
+
+@misc{iaucps2024,
+  author       = {{IAU Centre for the Protection of the Dark and Quiet Sky}},
+  title        = {Call to protect the dark and quiet sky from harmful
+                  interference by satellite constellations},
+  howpublished = {IAU CPS position paper},
+  year         = {2024},
+  note         = {arXiv:2408.16026}
 }

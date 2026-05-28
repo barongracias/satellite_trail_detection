@@ -8,7 +8,7 @@
 
 #SBATCH -J image_stats
 #SBATCH -A MPHIL-DIS-SL2-CPU
-#SBATCH -p cclake
+#SBATCH -p icelake
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
@@ -25,7 +25,7 @@ mkdir -p results/logs
 
 . /etc/profile.d/modules.sh
 module purge
-module load rhel8/default-ccl
+module load rhel8/default-icl
 
 source venv/bin/activate
 

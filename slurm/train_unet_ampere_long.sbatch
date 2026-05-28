@@ -3,7 +3,7 @@
 #!  CSD3 Ampere GPU job — standard queue (up to 12 hr)
 #!  Usage:
 #!    sbatch slurm/train_unet_ampere_long.sbatch
-#!    CONFIG=configs/experiments/unet_baseline.yaml \
+#!    CONFIG=configs/experiments/unet_paper_arch_noise_base.yaml \
 #!      sbatch slurm/train_unet_ampere_long.sbatch
 #! ==============================================================
 
@@ -39,7 +39,7 @@ echo "Python: $(which python)"
 python -c "import torch; print('PyTorch:', torch.__version__, '| CUDA:', torch.cuda.is_available())"
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 
-CONFIG="${CONFIG:-configs/experiments/unet_baseline.yaml}"
+CONFIG="${CONFIG:?CONFIG must be set; e.g. configs/experiments/unet_paper_arch_noise_base.yaml}"
 PATCH_DIR="${PATCH_DIR:-data/patches}"
 
 echo "Config:    $CONFIG"

@@ -27,6 +27,7 @@ from src.evaluation.segmentation import (
     evaluate_model_on_dataloader,
 )
 from src.models.unet import UNet
+from src.models.attention_unet import AttentionUNet
 from src.utils.logger import get_logger
 from src.utils.seed import seed_everything
 
@@ -67,6 +68,7 @@ class TrainingConfig:
     threshold: float = 0.5
     eval_max_batches: int | None = None
     skip_test_eval: bool = False
+    model_type: str = "unet"
 
     def __post_init__(self) -> None:
         """Normalise paths and validate the few settings that must be sane."""
@@ -107,6 +109,8 @@ class TrainingConfig:
             )
         if self.lr_scheduler not in (None, "cosine"):
             raise ValueError("lr_scheduler must be None or 'cosine'")
+        if self.model_type not in ("unet", "attention_unet"):
+            raise ValueError("model_type must be 'unet' or 'attention_unet'")
 
 
 def parse_args() -> TrainingConfig:
@@ -489,7 +493,8 @@ def run_training(
     if eval_max_batches is None and config.max_steps is not None:
         eval_max_batches = 10
 
-    model = UNet(
+    model_cls = AttentionUNet if config.model_type == "attention_unet" else UNet
+    model = model_cls(
         in_channels=1,
         out_channels=1,
         base_channels=config.base_channels,

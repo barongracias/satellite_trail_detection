@@ -1,0 +1,45 @@
+# Attention U-Net sweep config — byte-identical to unet_paper_arch_noise_base.yaml
+# except for experiment_name and model_type.  Config diff is the proof of matched tuning.
+
+experiment_name: attention_unet_paper_arch_noise_base
+model_type: attention_unet
+data_root: data/Processed
+patch_dir: data/patches
+batch_size: 16
+learning_rate: 1.0e-4
+epochs: 20
+base_channels: 8
+normalisation: full_image
+augment_train: true
+noise_augment: true
+noise_std_multiplier: 1.0
+bce_weight: 0.5
+dice_weight: 0.5
+dice_smooth: 1.0e-4
+dice_denominator_squared: true
+use_amp: true
+amp_dtype: bf16
+float32_matmul_precision: high
+lr_scheduler: cosine
+num_workers: 8
+seed: 2804
+threshold: 0.5
+device: auto
+checkpoint_dir: results/checkpoints
+log_dir: results/logs
+skip_test_eval: true
+
+sweep:
+  objective: val_f1
+  trial_epochs: 20
+  retrain_epochs: 75
+  batch_size_search_space: [8, 16, 32]
+  learning_rate_min: 1.0e-4
+  learning_rate_max: 1.0e-3
+  bce_weight_min: 0.2
+  bce_weight_max: 0.8
+  pruner_n_startup_trials: 15
+  pruner_n_warmup_steps: 10
+  skip_test_eval: true
+  skip_test_eval_retrain: false
+  auto_retrain: false

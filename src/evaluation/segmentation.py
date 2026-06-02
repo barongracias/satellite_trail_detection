@@ -205,6 +205,148 @@ def compute_metrics_from_counts(counts: SegmentationCounts) -> SegmentationMetri
     )
 
 
+@dataclass(frozen=True)
+class BoundaryTolerantCounts:
+    """Boundary-tolerant confusion counts; the precision and recall sides use
+    independent dilations, so tp differs between them."""
+
+    tp_precision: int   # predicted positives within tolerance of a target positive
+    false_positive: int
+    tp_recall: int      # target positives within tolerance of a prediction
+    false_negative: int
+
+    def __add__(self, other: "BoundaryTolerantCounts") -> "BoundaryTolerantCounts":
+        return BoundaryTolerantCounts(
+            self.tp_precision + other.tp_precision,
+            self.false_positive + other.false_positive,
+            self.tp_recall + other.tp_recall,
+            self.false_negative + other.false_negative,
+        )
+
+
+def _boundary_to_2d_bool(values: np.ndarray | torch.Tensor) -> np.ndarray:
+    arr = values.detach().cpu().numpy() if isinstance(values, torch.Tensor) else np.asarray(values)
+    arr = np.squeeze(arr)
+    if arr.ndim != 2:
+        raise ValueError(f"boundary metric expects a 2D patch, got shape {arr.shape}")
+    return arr.astype(bool)
+
+
+def boundary_tolerant_counts(
+    prediction: np.ndarray | torch.Tensor,
+    target: np.ndarray | torch.Tensor,
+    tolerance: int = 1,
+) -> BoundaryTolerantCounts:
+    """Boundary-tolerant counts for one 2D patch.
+
+    A predicted positive within ``tolerance`` px of any target positive counts as a
+    true positive for precision; a target positive within ``tolerance`` px of any
+    prediction counts as detected for recall. ``tolerance=0`` is exact pixel
+    matching. Motivated by the PS-0 finding that small boundary tolerances
+    materially change precision, consistent with boundary/label-thickness effects.
+    """
+    import cv2
+
+    pred = _boundary_to_2d_bool(prediction)
+    gt = _boundary_to_2d_bool(target)
+    if pred.shape != gt.shape:
+        raise ValueError(f"prediction shape {pred.shape} != target shape {gt.shape}")
+    if tolerance <= 0:
+        gt_dil, pred_dil = gt, pred
+    else:
+        # MORPH_RECT = a (2*tolerance+1)^2 box, i.e. Chebyshev (8-neighbour at
+        # tolerance=1) "within `tolerance` px in any direction" — matches the plain
+        # reading of "±tolerance px". (MORPH_ELLIPSE at radius 1 is a 4-neighbour
+        # cross / Manhattan-1, which would NOT tolerate a diagonal 1px offset.)
+        kernel = cv2.getStructuringElement(
+            cv2.MORPH_RECT, (2 * tolerance + 1, 2 * tolerance + 1)
+        )
+        gt_dil = cv2.dilate(gt.astype(np.uint8), kernel).astype(bool)
+        pred_dil = cv2.dilate(pred.astype(np.uint8), kernel).astype(bool)
+    return BoundaryTolerantCounts(
+        tp_precision=int(np.logical_and(pred, gt_dil).sum()),
+        false_positive=int(np.logical_and(pred, ~gt_dil).sum()),
+        tp_recall=int(np.logical_and(gt, pred_dil).sum()),
+        false_negative=int(np.logical_and(~pred_dil, gt).sum()),
+    )
+
+
+def boundary_tolerant_metrics(counts: BoundaryTolerantCounts) -> dict[str, float]:
+    """Precision/recall/F1 from boundary-tolerant counts (micro-averaged)."""
+    precision = _safe_divide(counts.tp_precision, counts.tp_precision + counts.false_positive)
+    recall = _safe_divide(counts.tp_recall, counts.tp_recall + counts.false_negative)
+    f1 = (2 * precision * recall / (precision + recall)) if (precision + recall) else 0.0
+    return {"precision": precision, "recall": recall, "f1": f1}
+
+
+def centerline_dice(
+    prediction: np.ndarray | torch.Tensor,
+    target: np.ndarray | torch.Tensor,
+) -> float:
+    """clDice (centerline Dice) for one 2D patch — a topology-aware overlap
+    for thin linear structures (Shit et al. 2021).
+
+    Tprec = |skeleton(pred) ∩ target| / |skeleton(pred)|  (skeleton stays on the mask)
+    Tsens = |skeleton(target) ∩ pred| / |skeleton(target)|
+    clDice = 2 * Tprec * Tsens / (Tprec + Tsens)
+
+    Returns 1.0 when both masks are empty (perfect agreement on absence) and
+    0.0 when exactly one is empty or either skeleton fails to overlap the other
+    mask. Computed per patch; aggregate by averaging over target-positive patches.
+    """
+    from skimage.morphology import skeletonize
+
+    pred = _boundary_to_2d_bool(prediction)
+    gt = _boundary_to_2d_bool(target)
+    if pred.shape != gt.shape:
+        raise ValueError(f"prediction shape {pred.shape} != target shape {gt.shape}")
+    if not pred.any() and not gt.any():
+        return 1.0
+    if not pred.any() or not gt.any():
+        return 0.0
+
+    skel_pred = skeletonize(pred)
+    skel_gt = skeletonize(gt)
+    if not skel_pred.any() or not skel_gt.any():
+        return 0.0
+
+    tprec = float(np.logical_and(skel_pred, gt).sum()) / float(skel_pred.sum())
+    tsens = float(np.logical_and(skel_gt, pred).sum()) / float(skel_gt.sum())
+    if (tprec + tsens) == 0.0:
+        return 0.0
+    return 2.0 * tprec * tsens / (tprec + tsens)
+
+
+def false_positive_distances(
+    prediction: np.ndarray | torch.Tensor,
+    target: np.ndarray | torch.Tensor,
+) -> tuple[np.ndarray, int]:
+    """Euclidean distance from each false-positive pixel to the nearest target
+    positive, for one 2D patch.
+
+    Returns ``(distances, whole_patch_fp)``. ``distances`` holds one entry per
+    FP pixel for patches that contain at least one target positive (so the
+    nearest-target distance is defined). ``whole_patch_fp`` counts FP pixels in
+    patches with NO target positive — their distance is undefined (the trail is
+    simply absent), so they are reported separately rather than as an infinite
+    distance. Aggregate ``distances`` across patches to build the FP
+    distance-to-mask histogram.
+    """
+    from scipy.ndimage import distance_transform_edt
+
+    pred = _boundary_to_2d_bool(prediction)
+    gt = _boundary_to_2d_bool(target)
+    if pred.shape != gt.shape:
+        raise ValueError(f"prediction shape {pred.shape} != target shape {gt.shape}")
+    fp = np.logical_and(pred, ~gt)
+    if not fp.any():
+        return np.empty(0, dtype=np.float64), 0
+    if not gt.any():
+        return np.empty(0, dtype=np.float64), int(fp.sum())
+    dist = distance_transform_edt(~gt)
+    return dist[fp].astype(np.float64), 0
+
+
 def compute_segmentation_metrics(
     prediction: Any,
     target: Any,

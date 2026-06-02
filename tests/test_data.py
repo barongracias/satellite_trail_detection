@@ -236,6 +236,82 @@ def test_patch_directory_dataset_returns_correct_dict_format(tmp_path: Path) -> 
     assert sample["image"].shape[1:] == sample["mask"].shape[1:]
 
 
+def _write_line_patch(split_dir: Path, split: str, manifest_rows: list, line_col: int = 3) -> None:
+    """Write one 8x8 patch with a vertical-line mask and append a manifest row."""
+    split_dir.mkdir(parents=True, exist_ok=True)
+    img = np.full((8, 8), 128, dtype=np.uint8)
+    msk = np.zeros((8, 8), dtype=np.uint8)
+    msk[:, line_col] = 255
+    img_path = split_dir / "patch0_image.png"
+    msk_path = split_dir / "patch0_mask.png"
+    Image.fromarray(img).save(img_path)
+    Image.fromarray(msk).save(msk_path)
+    manifest_rows.append({
+        "split": split, "source_image": "fake.png",
+        "patch_path": str(img_path), "mask_path": str(msk_path),
+        "positive_pixel_fraction": 8.0 / 64,
+    })
+
+
+def _write_manifest(manifest_path: Path, rows: list) -> None:
+    import csv
+    with open(manifest_path, "w", newline="") as f:
+        writer = csv.DictWriter(
+            f,
+            fieldnames=["split", "source_image", "patch_path", "mask_path", "positive_pixel_fraction"],
+        )
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def test_target_mode_hard_default_is_binary(tmp_path: Path) -> None:
+    rows: list = []
+    _write_line_patch(tmp_path / "patches" / "train", "train", rows)
+    manifest = tmp_path / "patches" / "manifest.csv"
+    _write_manifest(manifest, rows)
+    ds = PatchDirectoryDataset(tmp_path / "patches" / "train", manifest)  # default hard
+    mask = ds[0]["mask"]
+    assert set(np.unique(mask.numpy()).tolist()) == {0.0, 1.0}
+
+
+def test_target_mode_dilated_soft_adds_boundary_band_on_train(tmp_path: Path) -> None:
+    rows: list = []
+    _write_line_patch(tmp_path / "patches" / "train", "train", rows, line_col=3)
+    manifest = tmp_path / "patches" / "manifest.csv"
+    _write_manifest(manifest, rows)
+    ds = PatchDirectoryDataset(
+        tmp_path / "patches" / "train", manifest,
+        augment_train=False, target_mode="dilated_soft", soft_dilation_px=1, soft_band_value=0.5,
+    )
+    mask = ds[0]["mask"].numpy().squeeze()
+    assert set(np.unique(mask).tolist()) == {0.0, 0.5, 1.0}
+    assert np.all(mask[:, 3] == 1.0)                 # core line stays hard
+    assert np.all(mask[:, 2] == 0.5) and np.all(mask[:, 4] == 0.5)  # 1px band
+    assert np.all(mask[:, 0] == 0.0)                 # far background untouched
+
+
+def test_target_mode_dilated_soft_never_applies_to_val(tmp_path: Path) -> None:
+    rows: list = []
+    _write_line_patch(tmp_path / "patches" / "val", "val", rows)
+    manifest = tmp_path / "patches" / "manifest.csv"
+    _write_manifest(manifest, rows)
+    # Even with dilated_soft requested, the val split must stay hard.
+    ds = PatchDirectoryDataset(
+        tmp_path / "patches" / "val", manifest, target_mode="dilated_soft",
+    )
+    mask = ds[0]["mask"].numpy()
+    assert set(np.unique(mask).tolist()) == {0.0, 1.0}
+
+
+def test_target_mode_rejects_unknown_mode(tmp_path: Path) -> None:
+    rows: list = []
+    _write_line_patch(tmp_path / "patches" / "train", "train", rows)
+    manifest = tmp_path / "patches" / "manifest.csv"
+    _write_manifest(manifest, rows)
+    with pytest.raises(ValueError, match="target_mode"):
+        PatchDirectoryDataset(tmp_path / "patches" / "train", manifest, target_mode="bogus")
+
+
 def test_patch_directory_dataset_per_image_normalisation_differs_from_fixed(
     tmp_path: Path,
 ) -> None:
@@ -640,6 +716,41 @@ def test_patch_directory_dataset_noise_is_deterministic_for_fixed_seed(tmp_path:
     second = dataset[0]["image"]
 
     assert torch.allclose(first, second)
+
+
+def test_train_image_fraction_subsets_train_only_and_nests(tmp_path: Path) -> None:
+    import csv
+
+    patches = tmp_path / "patches"
+    (patches / "train").mkdir(parents=True)
+    manifest_path = patches / "manifest.csv"
+    with open(manifest_path, "w", newline="") as f:
+        w = csv.DictWriter(
+            f,
+            fieldnames=["split", "source_image", "patch_path", "mask_path",
+                        "positive_pixel_fraction"],
+        )
+        w.writeheader()
+        for i in range(10):  # 10 train images, 1 patch each (paths need not exist for __init__)
+            w.writerow({"split": "train", "source_image": f"img{i:02d}.png",
+                        "patch_path": f"/x/t{i}.png", "mask_path": f"/x/t{i}_m.png",
+                        "positive_pixel_fraction": 0.1})
+        for i in range(4):   # 4 val images
+            w.writerow({"split": "val", "source_image": f"v{i:02d}.png",
+                        "patch_path": f"/x/v{i}.png", "mask_path": f"/x/v{i}_m.png",
+                        "positive_pixel_fraction": 0.1})
+
+    def imgs(frac, split="train"):
+        ds = PatchDirectoryDataset(patches / split, manifest_path, normalisation="fixed",
+                                   train_image_fraction=frac)
+        return set(ds.records["source_image"])
+
+    full, half, third = imgs(1.0), imgs(0.5), imgs(0.3)
+    assert len(full) == 10 and len(half) == 5 and len(third) == 3   # round(frac*10)
+    assert third < half < full                                       # nested (fixed-seed prefix)
+    assert imgs(0.5) == half                                         # deterministic
+    # Fraction applies to train only — val split is never subset.
+    assert imgs(0.3, split="val") == {f"v{i:02d}.png" for i in range(4)}
 
 
 def test_signal_dependent_noise_calibration_matches_background_sigma() -> None:

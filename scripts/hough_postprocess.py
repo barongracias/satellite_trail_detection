@@ -39,8 +39,8 @@ Deviations from Stoppa et al. 2024:
   have positive_pixel_fraction > 0 in the manifest.
 
 Usage (CSD3):
-    CHECKPOINT=results/checkpoints/unet_sweep_best_best.pth \
-    THRESHOLD=0.63 \
+    CHECKPOINT=results/checkpoints/unet_paper_arch_noise_topk_t44_s2804_best.pth \
+    THRESHOLD=0.45 \
       sbatch slurm/hough_postprocess.sbatch
 """
 
@@ -63,7 +63,7 @@ from PIL import Image
 
 from src.config.constants import PAPER_FNR_POST_HOUGH, PAPER_FNR_PRE_HOUGH, PATCH_SIZE
 from src.data.transforms import normalise_tensor
-from src.models.unet import UNet
+from src.models.loading import load_segmentation_model
 from src.utils.logger import get_logger
 from src.utils.seed import seed_everything
 
@@ -103,13 +103,8 @@ def _resolve_out_path(args: argparse.Namespace) -> Path:
     return Path("results/classical") / f"hough_postprocess_{tag}.json"
 
 
-def load_model(checkpoint_path: str, device: torch.device) -> tuple[UNet, str]:
-    ckpt = torch.load(checkpoint_path, map_location=device, weights_only=False)
-    cfg = ckpt.get("config", {})
-    model = UNet(base_channels=cfg.get("base_channels", 8)).to(device)
-    model.load_state_dict(ckpt["model_state_dict"])
-    model.eval()
-    return model, cfg.get("normalisation", "fixed")
+def load_model(checkpoint_path: str, device: torch.device) -> tuple[torch.nn.Module, str]:
+    return load_segmentation_model(checkpoint_path, device)
 
 
 def _parse_yx(patch_path: str) -> tuple[int, int]:
@@ -133,7 +128,7 @@ def _load_normalised_patch(
 
 def _infer_batch(
     patches: list[torch.Tensor],
-    model: UNet,
+    model: torch.nn.Module,
     device: torch.device,
 ) -> np.ndarray:
     """Forward a stacked batch of patches; return (N, H, W) sigmoid probs."""

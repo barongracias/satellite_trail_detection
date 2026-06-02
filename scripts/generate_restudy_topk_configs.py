@@ -104,12 +104,15 @@ def load_top_trials(db_path: Path, top_k: int) -> list[TrialParams]:
     return trials
 
 
-def materialise_config(base: dict[str, Any], trial: TrialParams, seed: int, epochs: int) -> dict[str, Any]:
+def materialise_config(
+    base: dict[str, Any], trial: TrialParams, seed: int, epochs: int,
+    experiment_prefix: str = "unet_paper_arch_noise_topk",
+) -> dict[str, Any]:
     cfg = dict(base)
     cfg.pop("sweep", None)
     cfg.update(
         {
-            "experiment_name": f"unet_paper_arch_noise_topk_t{trial.number}_s{seed}",
+            "experiment_name": f"{experiment_prefix}_t{trial.number}_s{seed}",
             "learning_rate": trial.learning_rate,
             "bce_weight": trial.bce_weight,
             "dice_weight": trial.dice_weight,
@@ -140,6 +143,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--top-k", type=int, default=5)
     parser.add_argument("--seeds", default="2804,1234,42,7,13")
     parser.add_argument("--epochs", type=int, default=75)
+    parser.add_argument("--experiment-prefix", default="unet_paper_arch_noise_topk")
     return parser.parse_args()
 
 
@@ -155,7 +159,7 @@ def main() -> None:
     written: list[Path] = []
     for trial in trials:
         for seed in seeds:
-            cfg = materialise_config(base, trial, seed, args.epochs)
+            cfg = materialise_config(base, trial, seed, args.epochs, args.experiment_prefix)
             out = args.out_dir / f"topk_t{trial.number}_s{seed}.yaml"
             out.write_text(yaml.safe_dump(cfg, sort_keys=False))
             written.append(out)

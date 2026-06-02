@@ -46,7 +46,7 @@ from src.evaluation.segmentation import (
     combine_counts,
     compute_metrics_from_counts,
 )
-from src.models.unet import UNet
+from src.models.loading import load_segmentation_model
 from src.utils.logger import get_logger
 from src.utils.seed import seed_everything
 
@@ -120,12 +120,7 @@ def main() -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logger.info("Device: %s | tag: %s | threshold: %.4f", device, tag, args.threshold)
 
-    ckpt = torch.load(args.checkpoint, map_location=device, weights_only=False)
-    cfg = ckpt.get("config", {})
-    model = UNet(base_channels=cfg.get("base_channels", 8)).to(device)
-    model.load_state_dict(ckpt["model_state_dict"])
-    model.eval()
-    normalisation = cfg.get("normalisation", "fixed")
+    model, normalisation = load_segmentation_model(args.checkpoint, device)
     logger.info("Loaded checkpoint (normalisation=%s)", normalisation)
 
     dataset = PatchDirectoryDataset(

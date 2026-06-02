@@ -28,7 +28,7 @@ from src.evaluation.segmentation import (
     compute_metrics_from_counts,
     evaluate_model_on_dataloader,
 )
-from src.models.unet import UNet
+from src.models.loading import load_segmentation_model
 from src.utils.logger import get_logger
 from src.utils.seed import seed_everything
 
@@ -73,7 +73,7 @@ def _resolve_tag(args: argparse.Namespace) -> str:
 
 
 def streaming_sweep_thresholds(
-    model: UNet,
+    model: torch.nn.Module,
     loader: DataLoader,
     device: torch.device,
     thresholds: np.ndarray,
@@ -139,7 +139,7 @@ def streaming_sweep_thresholds(
 
 
 def evaluate_at_threshold(
-    model: UNet,
+    model: torch.nn.Module,
     loader: DataLoader,
     device: torch.device,
     threshold: float,
@@ -172,12 +172,7 @@ def main() -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logger.info("Device: %s", device)
 
-    ckpt = torch.load(args.checkpoint, map_location=device)
-    ckpt_cfg = ckpt.get("config", {})
-
-    model = UNet(base_channels=ckpt_cfg.get("base_channels", 8)).to(device)
-    model.load_state_dict(ckpt["model_state_dict"])
-    normalisation = ckpt_cfg.get("normalisation", "fixed")
+    model, normalisation = load_segmentation_model(args.checkpoint, device)
     logger.info("Loaded checkpoint: %s (normalisation=%s)", args.checkpoint, normalisation)
 
     def make_loader(split: str) -> DataLoader:

@@ -22,6 +22,15 @@ def create_image_level_splits(
     each group is independently shuffled and split proportionally.  This spreads
     heavy-trail and empty images evenly across the three partitions.
 
+    Note on realized fractions: ``n_train`` and ``n_val`` are floored per quartile
+    (``int(n * ratio)``) and test takes the remainder, so flooring across four
+    groups under-allocates train/val and the test set runs slightly over nominal.
+    For the 178-image MeerLICHT subset the realized split at the default 0.70/0.15
+    ratios is 122/24/32 (0.685/0.135/0.180), not an exact 70/15/15. This is
+    leakage-safe and conservative (a larger test set widens CIs); the methods
+    section should quote the realized 122/24/32 counts rather than the nominal
+    ratios.
+
     Parameters
     ----------
     image_pairs:

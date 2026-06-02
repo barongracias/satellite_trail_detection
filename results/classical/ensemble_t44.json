@@ -1,0 +1,17 @@
+{
+  "ensemble_checkpoints": [
+    "results/checkpoints/unet_paper_arch_noise_topk_t44_s2804_best.pth",
+    "results/checkpoints/unet_paper_arch_noise_topk_t44_s1234_best.pth",
+    "results/checkpoints/unet_paper_arch_noise_topk_t44_s42_best.pth",
+    "results/checkpoints/unet_paper_arch_noise_topk_t44_s7_best.pth",
+    "results/checkpoints/unet_paper_arch_noise_topk_t44_s13_best.pth"
+  ],
+  "tta": true,
+  "normalisation": "full_image",
+  "optimal_threshold": 0.44,
+  "test_precision": 0.8515141765533883,
+  "test_recall": 0.928806653503429,
+  "test_dice": 0.8884825918820934,
+  "test_iou": 0.7993420394436556,
+  "generated": "2026-05-31"
+}

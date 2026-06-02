@@ -31,9 +31,8 @@ from torch import nn
 from src.classical.hough_runner import run_hough_on_canvas
 from src.config.constants import PATCH_SIZE
 from src.data.transforms import normalise_tensor
-from src.models.attention_unet import AttentionUNet
 from src.models.classifier import PatchClassifier
-from src.models.unet import UNet
+from src.models.loading import load_segmentation_model
 
 
 _YX_RE = re.compile(r"_(\d+)_(\d+)_image$")
@@ -65,28 +64,24 @@ def _parse_yx(patch_path: str) -> tuple[int, int]:
     return int(m.group(1)), int(m.group(2))
 
 
-def _load_unet(path: Path, device: torch.device) -> nn.Module:
+def _load_unet(path: Path, device: torch.device) -> tuple[nn.Module, str]:
+    return load_segmentation_model(path, device)
+
+
+def _load_classifier(path: Path, device: torch.device) -> tuple[nn.Module, str]:
     ckpt = torch.load(path, map_location=device, weights_only=False)
     cfg = ckpt.get("config", {})
-    model_cls = AttentionUNet if cfg.get("model_type") == "attention_unet" else UNet
-    model = model_cls(in_channels=1, out_channels=1, base_channels=cfg.get("base_channels", 8))
-    model.load_state_dict(ckpt["model_state_dict"])
-    return model.eval().to(device)
-
-
-def _load_classifier(path: Path, device: torch.device) -> nn.Module:
-    ckpt = torch.load(path, map_location=device, weights_only=False)
     model = PatchClassifier()
     model.load_state_dict(ckpt["model_state_dict"])
-    return model.eval().to(device)
+    return model.eval().to(device), cfg.get("normalisation", "full_image")
 
 
-def _load_patch(row: dict[str, Any]) -> torch.Tensor:
+def _load_patch(row: dict[str, Any], normalisation: str) -> torch.Tensor:
     with Image.open(row["patch_path"]) as img:
         t = TF.pil_to_tensor(img.convert("L")).float() / 255.0
     return normalise_tensor(
         t,
-        mode="full_image",
+        mode=normalisation,
         full_image_mean=row.get("image_mean"),
         full_image_std=row.get("image_std"),
     )
@@ -97,12 +92,13 @@ def _infer_all(
     classifier: nn.Module,
     unet: nn.Module,
     device: torch.device,
+    normalisation: str,
 ) -> list[_PatchResult]:
     """Run both models on every patch and cache results for post-hoc threshold sweeps."""
     results: list[_PatchResult] = []
     with torch.no_grad():
         for row in rows:
-            x = _load_patch(row).unsqueeze(0).to(device)
+            x = _load_patch(row, normalisation).unsqueeze(0).to(device)
             clf_prob = float(torch.sigmoid(classifier(x).squeeze()))
             unet_probs = torch.sigmoid(unet(x).squeeze()).cpu().numpy().astype(np.float32)
             with Image.open(row["mask_path"]) as m:
@@ -276,12 +272,25 @@ def main() -> None:
     manifest = pd.read_csv(args.manifest)
     rows = manifest[manifest["split"] == args.split].to_dict("records")
 
-    classifier = _load_classifier(Path(args.classifier), device)
-    unet = _load_unet(Path(args.unet), device)
+    classifier, classifier_normalisation = _load_classifier(Path(args.classifier), device)
+    unet, unet_normalisation = _load_unet(Path(args.unet), device)
+    if classifier_normalisation != unet_normalisation:
+        raise ValueError(
+            "classifier and U-Net normalisation mismatch: "
+            f"{classifier_normalisation!r} != {unet_normalisation!r}"
+        )
 
-    results = _infer_all(rows, classifier, unet, device)
+    results = _infer_all(rows, classifier, unet, device, classifier_normalisation)
 
     output: dict[str, Any] = {
+        "classifier_checkpoint": str(args.classifier),
+        "unet_checkpoint": str(args.unet),
+        "clf_threshold": args.clf_threshold,
+        "unet_threshold": args.unet_threshold,
+        "split": args.split,
+        "normalisation": classifier_normalisation,
+        "classifier_normalisation": classifier_normalisation,
+        "unet_normalisation": unet_normalisation,
         **_compute_metrics(results, args.clf_threshold, args.unet_threshold),
         **_hough_pass(results, args.clf_threshold, args.unet_threshold),
     }
@@ -302,7 +311,7 @@ def main() -> None:
 
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     with open(args.out, "w") as f:
-        json.dump(output, f, indent=2)
+        json.dump(output, f, indent=2, allow_nan=False)
 
 
 if __name__ == "__main__":

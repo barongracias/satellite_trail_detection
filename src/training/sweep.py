@@ -20,7 +20,7 @@ from torch.utils.data import DataLoader
 from scripts.threshold_sweep import streaming_sweep_thresholds
 from src.config.constants import GLOBAL_SEED
 from src.data.dataset import PatchDirectoryDataset
-from src.models.unet import UNet
+from src.models.loading import load_segmentation_model
 from src.training.train_unet import TrainingConfig, resolve_device, run_training
 from src.utils.logger import get_logger
 from src.utils.seed import seed_everything
@@ -131,20 +131,18 @@ def _make_trial_config(
         float(sweep_cfg.get("bce_weight_min", 0.2)),
         float(sweep_cfg.get("bce_weight_max", 0.8)),
     )
-    return TrainingConfig(
-        **{
-            **base_cfg,
-            "patch_dir": patch_dir,
-            "experiment_name": f"{study_name}_trial_{trial.number:03d}",
-            "epochs": int(sweep_cfg.get("trial_epochs", _SWEEP_EPOCHS)),
-            "batch_size": batch_size,
-            "learning_rate": trial.suggest_float("learning_rate", lr_min, lr_max, log=True),
-            "bce_weight": bce_w,
-            "dice_weight": 1.0 - bce_w,
-            "normalisation": _normalisation_for_trial(trial, base_cfg, sweep_cfg),
-            "skip_test_eval": bool(sweep_cfg.get("skip_test_eval", False)),
-        }
-    )
+    overrides: dict[str, Any] = {
+        "patch_dir": patch_dir,
+        "experiment_name": f"{study_name}_trial_{trial.number:03d}",
+        "epochs": int(sweep_cfg.get("trial_epochs", _SWEEP_EPOCHS)),
+        "batch_size": batch_size,
+        "learning_rate": trial.suggest_float("learning_rate", lr_min, lr_max, log=True),
+        "bce_weight": bce_w,
+        "dice_weight": 1.0 - bce_w,
+        "normalisation": _normalisation_for_trial(trial, base_cfg, sweep_cfg),
+        "skip_test_eval": bool(sweep_cfg.get("skip_test_eval", False)),
+    }
+    return TrainingConfig(**{**base_cfg, **overrides})
 
 
 def _validation_f1_for_checkpoint(
@@ -155,11 +153,7 @@ def _validation_f1_for_checkpoint(
     device_name: str,
 ) -> dict[str, float]:
     device = resolve_device(device_name)
-    ckpt = torch.load(checkpoint, map_location=device, weights_only=False)
-    ckpt_cfg = ckpt.get("config", {})
-    model = UNet(base_channels=ckpt_cfg.get("base_channels", 8)).to(device)
-    model.load_state_dict(ckpt["model_state_dict"])
-    normalisation = ckpt_cfg.get("normalisation", "fixed")
+    model, normalisation = load_segmentation_model(checkpoint, device)
     val_ds = PatchDirectoryDataset(patch_dir / "val", patch_dir / "manifest.csv", normalisation)
     val_loader = DataLoader(
         val_ds,
@@ -240,25 +234,24 @@ def _retrain_config(
 ) -> TrainingConfig:
     base_cfg = _training_base(base)
     bce_w = best.params["bce_weight"]
-    return TrainingConfig(
-        **{
-            **base_cfg,
-            "patch_dir": patch_dir,
-            "experiment_name": study_name,
-            "epochs": int(_sweep_config(base).get("retrain_epochs", _RETRAIN_EPOCHS)),
-            "batch_size": int(
-                best.user_attrs.get(
-                    "batch_size",
-                    best.params.get("batch_size", base_cfg.get("batch_size", 16)),
-                )
-            ),
-            "learning_rate": best.params["learning_rate"],
-            "bce_weight": bce_w,
-            "dice_weight": 1.0 - bce_w,
-            "normalisation": best.params.get("normalisation", base_cfg.get("normalisation", "fixed")),
-            "skip_test_eval": bool(_sweep_config(base).get("skip_test_eval_retrain", False)),
-        }
-    )
+    kwargs: dict[str, Any] = {
+        **base_cfg,
+        "patch_dir": patch_dir,
+        "experiment_name": study_name,
+        "epochs": int(_sweep_config(base).get("retrain_epochs", _RETRAIN_EPOCHS)),
+        "batch_size": int(
+            best.user_attrs.get(
+                "batch_size",
+                best.params.get("batch_size", base_cfg.get("batch_size", 16)),
+            )
+        ),
+        "learning_rate": best.params["learning_rate"],
+        "bce_weight": bce_w,
+        "dice_weight": 1.0 - bce_w,
+        "normalisation": best.params.get("normalisation", base_cfg.get("normalisation", "fixed")),
+        "skip_test_eval": bool(_sweep_config(base).get("skip_test_eval_retrain", False)),
+    }
+    return TrainingConfig(**kwargs)
 
 
 def main() -> None:

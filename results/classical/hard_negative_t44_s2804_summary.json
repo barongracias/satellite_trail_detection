@@ -1,0 +1,48 @@
+{
+  "baseline": {
+    "tag": "winner_t44_s2804",
+    "checkpoint": "results/checkpoints/unet_paper_arch_noise_topk_t44_s2804_best.pth",
+    "optimal_threshold": 0.45,
+    "test_metrics": {
+      "precision": 0.8516894622584608,
+      "recall": 0.9179963335367333,
+      "f1": 0.8836006996528125,
+      "dice": 0.8836006996528126,
+      "iou": 0.7914737131938572
+    }
+  },
+  "hard_negative": {
+    "tag": "hard_negative_t44_s2804",
+    "checkpoint": "results/checkpoints/unet_hard_negative_t44_s2804_best.pth",
+    "optimal_threshold": 0.46,
+    "val_f1": 0.8571509855449773,
+    "test_metrics": {
+      "precision": 0.8585454635092274,
+      "recall": 0.9167184671218088,
+      "f1": 0.8866788398982439,
+      "dice": 0.8866788398982438,
+      "iou": 0.7964268278321437
+    }
+  },
+  "delta_hard_negative_minus_baseline": {
+    "precision": 0.006856001250766686,
+    "recall": -0.0012778664149244445,
+    "f1": 0.0030781402454314044,
+    "dice": 0.0030781402454311824,
+    "iou": 0.0049531146382865154
+  },
+  "mining": {
+    "train_manifest": "results/classical/hard_negative_train_t44_s2804.json",
+    "threshold": 0.45,
+    "selected_count": 150,
+    "candidate_empty_patches": 9894,
+    "false_positive_empty_patches": 150
+  },
+  "fp_decomposition_context": {
+    "inter_patch_fp_fraction": 0.1747,
+    "intra_patch_fp_fraction": 0.8253,
+    "interpretation": "gate-limited",
+    "limitation": "Patch-level hard-negative mining is structurally bounded because only 17.5% of false-positive pixels are inter-patch; the remaining false positives arise within trail-containing patches."
+  },
+  "generated": "2026-06-02"
+}

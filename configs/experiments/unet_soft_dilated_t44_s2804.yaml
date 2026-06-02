@@ -1,0 +1,32 @@
+experiment_name: unet_soft_dilated_t44_s2804
+data_root: data/Processed
+patch_dir: data/patches
+batch_size: 32
+learning_rate: 0.0002893140107350613
+epochs: 75
+base_channels: 8
+normalisation: full_image
+augment_train: true
+noise_augment: true
+noise_std_multiplier: 1.0
+bce_weight: 0.6553217376947582
+dice_weight: 0.3446782623052418
+dice_smooth: 0.0001
+dice_denominator_squared: true
+use_amp: true
+amp_dtype: bf16
+float32_matmul_precision: high
+lr_scheduler: cosine
+num_workers: 8
+seed: 2804
+threshold: 0.5
+device: auto
+checkpoint_dir: results/checkpoints
+log_dir: results/logs
+skip_test_eval: true
+# Soft-label pilot: dilated-soft targets (train-only; val/test stay hard).
+# Identical to the winner (trial 44, seed 2804) in every other respect, so any
+# difference is attributable to the target encoding.
+target_mode: dilated_soft
+soft_dilation_px: 1
+soft_band_value: 0.5

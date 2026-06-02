@@ -1,0 +1,56 @@
+{
+  "checkpoint": "results/checkpoints/unet_paper_arch_noise_topk_t44_s2804_best.pth",
+  "threshold": 0.45,
+  "kernels": [
+    -1,
+    0,
+    1,
+    2,
+    3
+  ],
+  "per_kernel": {
+    "-1": {
+      "precision": 0.652784,
+      "recall": 0.967633,
+      "dice": 0.779621,
+      "tp": 1603926,
+      "fp": 853128,
+      "fn": 53650
+    },
+    "0": {
+      "precision": 0.851689,
+      "recall": 0.917996,
+      "dice": 0.883601,
+      "tp": 2092647,
+      "fp": 364407,
+      "fn": 186934
+    },
+    "1": {
+      "precision": 0.936572,
+      "recall": 0.792914,
+      "dice": 0.858777,
+      "tp": 2301208,
+      "fp": 155846,
+      "fn": 601007
+    },
+    "2": {
+      "precision": 0.95677,
+      "recall": 0.645948,
+      "dice": 0.77122,
+      "tp": 2350835,
+      "fp": 106219,
+      "fn": 1288519
+    },
+    "3": {
+      "precision": 0.96057,
+      "recall": 0.553715,
+      "dice": 0.702486,
+      "tp": 2360172,
+      "fp": 96882,
+      "fn": 1902261
+    }
+  },
+  "precision_gain_dilate_1px": 0.084883,
+  "interpretation": "label-induced-FP-likely",
+  "generated": "2026-05-31"
+}

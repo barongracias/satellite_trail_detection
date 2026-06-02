@@ -14,12 +14,15 @@ from typing import Any
 
 import numpy as np
 
-TAG_RE = re.compile(r"^unet_paper_arch_noise_topk_t(?P<trial>\d+)_s(?P<seed>\d+)$")
+TAG_RE = re.compile(
+    r"^(?P<prefix>(?:attention_)?unet_paper_arch_noise_topk)_t(?P<trial>\d+)_s(?P<seed>\d+)$"
+)
 TEST_KEYS = {"test_precision", "test_recall", "test_dice", "test_iou", "test_counts", "test_metrics", "test_loss"}
 
 
 @dataclass(frozen=True)
 class SeedResult:
+    tag_prefix: str
     trial: int
     seed: int
     tag: str
@@ -40,11 +43,11 @@ def parse_ints(raw: str | None) -> set[int] | None:
     return {int(item.strip()) for item in raw.split(",") if item.strip()}
 
 
-def parse_tag(tag: str) -> tuple[int, int]:
+def parse_tag(tag: str) -> tuple[str, int, int]:
     match = TAG_RE.match(tag)
     if not match:
         raise ValueError(f"unexpected restudy tag: {tag}")
-    return int(match.group("trial")), int(match.group("seed"))
+    return match.group("prefix"), int(match.group("trial")), int(match.group("seed"))
 
 
 def count_max_consecutive_zero(history: list[dict[str, Any]]) -> int:
@@ -123,12 +126,13 @@ def load_results(pattern: str, summary_dir: Path) -> list[SeedResult]:
         tag = data.get("tag")
         if not isinstance(tag, str):
             raise SystemExit(f"{path} is missing string tag")
-        trial, seed = parse_tag(tag)
+        tag_prefix, trial, seed = parse_tag(tag)
         val_f1 = data.get("val_f1")
         threshold = data.get("optimal_threshold")
         summary_path, nan_loss, final_val_dice, max_zero, spike_count, cfg = summary_stability(tag, summary_dir)
         results.append(
             SeedResult(
+                tag_prefix=tag_prefix,
                 trial=trial,
                 seed=seed,
                 tag=tag,
@@ -186,6 +190,7 @@ def aggregate(
     bootstrap_seed: int,
     ci_level: float,
     tie_delta: float,
+    selection_scope: str,
 ) -> dict[str, Any]:
     by_trial: dict[int, list[SeedResult]] = {}
     for item in results:
@@ -203,6 +208,9 @@ def aggregate(
     trial_rows: list[dict[str, Any]] = []
     for trial in trial_order:
         items = sorted(by_trial.get(trial, []), key=lambda r: r.seed)
+        prefixes = sorted({item.tag_prefix for item in items})
+        if len(prefixes) != 1:
+            raise SystemExit(f"trial {trial} has mixed tag prefixes: {prefixes}")
         seeds_present = {item.seed for item in items}
         missing_seeds = sorted(expected_seeds.difference(seeds_present))
         values = [float(item.val_f1) for item in items if item.val_f1 is not None]
@@ -214,6 +222,7 @@ def aggregate(
         ]
         row = {
             "trial": trial,
+            "tag_prefix": prefixes[0] if prefixes else None,
             "params": params_from_items(items),
             "seeds": [item.seed for item in items],
             "missing_seeds": missing_seeds,
@@ -234,7 +243,7 @@ def aggregate(
     selected = select_trial(trial_rows, tie_delta)
     return {
         "preregistration": "agents/protocols/restudy_preregistration_2026-05-26.md",
-        "selection_scope": "M5.6 top-5 x five-seed validation-only restudy",
+        "selection_scope": selection_scope,
         "selection_rule": (
             "highest mean threshold-swept validation val_f1; if candidates are within "
             f"{tie_delta} val_f1, prefer lower batch_size, then lower learning_rate, "
@@ -244,7 +253,7 @@ def aggregate(
         "bootstrap_seed": bootstrap_seed,
         "trials": trial_rows,
         "selected_trial": selected["trial"],
-        "selected_tag_prefix": f"unet_paper_arch_noise_topk_t{selected['trial']}",
+        "selected_tag_prefix": f"{selected['tag_prefix']}_t{selected['trial']}",
         "selected_mean_val_f1": selected["val_f1_mean"],
         "selected_ci_lo": selected["val_f1_ci_lo"],
         "selected_ci_hi": selected["val_f1_ci_hi"],
@@ -262,6 +271,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--bootstrap-seed", type=int, default=2804)
     parser.add_argument("--ci-level", type=float, default=0.90)
     parser.add_argument("--tie-delta", type=float, default=0.001)
+    parser.add_argument(
+        "--selection-scope",
+        default="top-K x five-seed validation-only restudy",
+        help="Human-readable scope recorded in the summary provenance.",
+    )
     return parser.parse_args()
 
 
@@ -278,6 +292,7 @@ def main() -> None:
         bootstrap_seed=args.bootstrap_seed,
         ci_level=args.ci_level,
         tie_delta=args.tie_delta,
+        selection_scope=args.selection_scope,
     )
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(payload, indent=2, allow_nan=False))

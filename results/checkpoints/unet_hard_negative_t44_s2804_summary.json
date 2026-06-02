@@ -1,0 +1,649 @@
+{
+  "config": {
+    "data_root": "data/Processed",
+    "batch_size": 32,
+    "learning_rate": 0.0002893140107350613,
+    "epochs": 75,
+    "max_steps": null,
+    "num_workers": 8,
+    "patch_dir": "data/patches",
+    "bce_weight": 0.6553217376947582,
+    "dice_weight": 0.3446782623052418,
+    "dice_smooth": 0.0001,
+    "dice_denominator_squared": true,
+    "train_image_fraction": 1.0,
+    "use_amp": true,
+    "amp_dtype": "bfloat16",
+    "float32_matmul_precision": "high",
+    "lr_scheduler": "cosine",
+    "base_channels": 8,
+    "normalisation": "full_image",
+    "augment_train": true,
+    "noise_augment": true,
+    "noise_std_multiplier": 1.0,
+    "noise_calibration_path": "results/classical/background_noise_calibration.json",
+    "device": "auto",
+    "checkpoint_dir": "results/checkpoints",
+    "log_dir": "results/logs",
+    "experiment_name": "unet_hard_negative_t44_s2804",
+    "seed": 2804,
+    "threshold": 0.5,
+    "eval_max_batches": null,
+    "skip_test_eval": true,
+    "model_type": "unet",
+    "hard_negative_manifest": "results/classical/hard_negative_train_t44_s2804.json",
+    "hard_negative_repeat": 1
+  },
+  "smoke_run": false,
+  "effective_eval_max_batches": null,
+  "precision": {
+    "amp_requested": true,
+    "amp_enabled": true,
+    "amp_dtype": "bfloat16",
+    "float32_matmul_precision": "high"
+  },
+  "history": [
+    {
+      "epoch": 1,
+      "steps_completed": 417,
+      "train_loss": 0.32105922927673486,
+      "val_loss": 0.28572602705522016,
+      "val_dice": 0.6808600109422556,
+      "val_iou": 0.5161393154555118
+    },
+    {
+      "epoch": 2,
+      "steps_completed": 834,
+      "train_loss": 0.290937647830954,
+      "val_loss": 0.2810430155171976,
+      "val_dice": 0.7425596078132567,
+      "val_iou": 0.5905326506347656
+    },
+    {
+      "epoch": 3,
+      "steps_completed": 1251,
+      "train_loss": 0.287394242320987,
+      "val_loss": 0.27908751252409697,
+      "val_dice": 0.7457847928368535,
+      "val_iou": 0.594622668085576
+    },
+    {
+      "epoch": 4,
+      "steps_completed": 1668,
+      "train_loss": 0.28664215234257906,
+      "val_loss": 0.2782925444763976,
+      "val_dice": 0.7616029025091213,
+      "val_iou": 0.6149908652500946
+    },
+    {
+      "epoch": 5,
+      "steps_completed": 2085,
+      "train_loss": 0.2855286632510398,
+      "val_loss": 0.27602723356965303,
+      "val_dice": 0.8032358795493143,
+      "val_iou": 0.671173095703125
+    },
+    {
+      "epoch": 6,
+      "steps_completed": 2502,
+      "train_loss": 0.28473108964000676,
+      "val_loss": 0.27505753257057886,
+      "val_dice": 0.8178915933015865,
+      "val_iou": 0.6918922060506517
+    },
+    {
+      "epoch": 7,
+      "steps_completed": 2919,
+      "train_loss": 0.28435188860630245,
+      "val_loss": 0.2752912694757635,
+      "val_dice": 0.800335022904074,
+      "val_iou": 0.667132106199745
+    },
+    {
+      "epoch": 8,
+      "steps_completed": 3336,
+      "train_loss": 0.2840914463253616,
+      "val_loss": 0.27470662996366424,
+      "val_dice": 0.8334621681535425,
+      "val_iou": 0.7144750435005564
+    },
+    {
+      "epoch": 9,
+      "steps_completed": 3753,
+      "train_loss": 0.28370309733658383,
+      "val_loss": 0.27384953684621044,
+      "val_dice": 0.8336012100664545,
+      "val_iou": 0.7146794194753479
+    },
+    {
+      "epoch": 10,
+      "steps_completed": 4170,
+      "train_loss": 0.28340919183598434,
+      "val_loss": 0.27385746348987927,
+      "val_dice": 0.8372968582422918,
+      "val_iou": 0.720129522464792
+    },
+    {
+      "epoch": 11,
+      "steps_completed": 4587,
+      "train_loss": 0.2832078087529976,
+      "val_loss": 0.2744890188241934,
+      "val_dice": 0.8239097406857498,
+      "val_iou": 0.7005497530148338
+    },
+    {
+      "epoch": 12,
+      "steps_completed": 5004,
+      "train_loss": 0.2828841723984094,
+      "val_loss": 0.2734893947452694,
+      "val_dice": 0.831866835385974,
+      "val_iou": 0.712133565406337
+    },
+    {
+      "epoch": 13,
+      "steps_completed": 5421,
+      "train_loss": 0.24759615525353154,
+      "val_loss": 0.10253527257349584,
+      "val_dice": 0.6667271917729002,
+      "val_iou": 0.5000680938355527
+    },
+    {
+      "epoch": 14,
+      "steps_completed": 5838,
+      "train_loss": 0.05447799810688558,
+      "val_loss": 0.039886251672521814,
+      "val_dice": 0.8070327914477836,
+      "val_iou": 0.6764920155912733
+    },
+    {
+      "epoch": 15,
+      "steps_completed": 6255,
+      "train_loss": 0.04851630322938914,
+      "val_loss": 0.0446693061234115,
+      "val_dice": 0.7679086048807399,
+      "val_iou": 0.6232562031702285
+    },
+    {
+      "epoch": 16,
+      "steps_completed": 6672,
+      "train_loss": 0.047970087979909044,
+      "val_loss": 0.04649361697110263,
+      "val_dice": 0.810513384988608,
+      "val_iou": 0.6813976506838167
+    },
+    {
+      "epoch": 17,
+      "steps_completed": 7089,
+      "train_loss": 0.04376339169143201,
+      "val_loss": 0.031859181144020775,
+      "val_dice": 0.8269822235529004,
+      "val_iou": 0.7050039992213156
+    },
+    {
+      "epoch": 18,
+      "steps_completed": 7506,
+      "train_loss": 0.04380245803357314,
+      "val_loss": 0.042916728304578114,
+      "val_dice": 0.8257956448911222,
+      "val_iou": 0.703281027104137
+    },
+    {
+      "epoch": 19,
+      "steps_completed": 7923,
+      "train_loss": 0.04305474077769035,
+      "val_loss": 0.04336768930608576,
+      "val_dice": 0.8155801037442986,
+      "val_iou": 0.6885903439503055
+    },
+    {
+      "epoch": 20,
+      "steps_completed": 8340,
+      "train_loss": 0.04833385183942689,
+      "val_loss": 0.03572632740070293,
+      "val_dice": 0.8247290320670065,
+      "val_iou": 0.7017352207019101
+    },
+    {
+      "epoch": 21,
+      "steps_completed": 8757,
+      "train_loss": 0.04093845742497799,
+      "val_loss": 0.027980219234119762,
+      "val_dice": 0.8332052134397818,
+      "val_iou": 0.7140974771545915
+    },
+    {
+      "epoch": 22,
+      "steps_completed": 9174,
+      "train_loss": 0.040998225589450314,
+      "val_loss": 0.02815135113604657,
+      "val_dice": 0.837917335225633,
+      "val_iou": 0.7210479603775222
+    },
+    {
+      "epoch": 23,
+      "steps_completed": 9591,
+      "train_loss": 0.03831881927929336,
+      "val_loss": 0.032654700341162746,
+      "val_dice": 0.8432410178077574,
+      "val_iou": 0.7289686363270603
+    },
+    {
+      "epoch": 24,
+      "steps_completed": 10008,
+      "train_loss": 0.04009097714504178,
+      "val_loss": 0.03937825908908596,
+      "val_dice": 0.7928053670150961,
+      "val_iou": 0.6567336743825718
+    },
+    {
+      "epoch": 25,
+      "steps_completed": 10425,
+      "train_loss": 0.04157059026850785,
+      "val_loss": 0.027340396658166663,
+      "val_dice": 0.8405982112581186,
+      "val_iou": 0.7250275266267178
+    },
+    {
+      "epoch": 26,
+      "steps_completed": 10842,
+      "train_loss": 0.042372550323998615,
+      "val_loss": 0.030641106816081256,
+      "val_dice": 0.8351485727602551,
+      "val_iou": 0.7169571614289384
+    },
+    {
+      "epoch": 27,
+      "steps_completed": 11259,
+      "train_loss": 0.04051808601946568,
+      "val_loss": 0.03332498476102755,
+      "val_dice": 0.8381307563801356,
+      "val_iou": 0.72136409581589
+    },
+    {
+      "epoch": 28,
+      "steps_completed": 11676,
+      "train_loss": 0.040902240670842235,
+      "val_loss": 0.034133750122862974,
+      "val_dice": 0.8099281202746874,
+      "val_iou": 0.6805707571727782
+    },
+    {
+      "epoch": 29,
+      "steps_completed": 12093,
+      "train_loss": 0.03843000581224473,
+      "val_loss": 0.0281080301705893,
+      "val_dice": 0.8342985953841789,
+      "val_iou": 0.7157052329872913
+    },
+    {
+      "epoch": 30,
+      "steps_completed": 12510,
+      "train_loss": 0.03947158740292922,
+      "val_loss": 0.03174222289741813,
+      "val_dice": 0.8395599360329036,
+      "val_iou": 0.7234841006460708
+    },
+    {
+      "epoch": 31,
+      "steps_completed": 12927,
+      "train_loss": 0.039916763488623164,
+      "val_loss": 0.03730159610896915,
+      "val_dice": 0.8197397518773958,
+      "val_iou": 0.6945415243640758
+    },
+    {
+      "epoch": 32,
+      "steps_completed": 13344,
+      "train_loss": 0.04112702422290683,
+      "val_loss": 0.03834302704055588,
+      "val_dice": 0.7950099207783566,
+      "val_iou": 0.6597647022055889
+    },
+    {
+      "epoch": 33,
+      "steps_completed": 13761,
+      "train_loss": 0.04231262664429004,
+      "val_loss": 0.04499635448703518,
+      "val_dice": 0.783903975680007,
+      "val_iou": 0.6446069718206211
+    },
+    {
+      "epoch": 34,
+      "steps_completed": 14178,
+      "train_loss": 0.040045571270034754,
+      "val_loss": 0.025419312638121767,
+      "val_dice": 0.8473197826086273,
+      "val_iou": 0.735086600623887
+    },
+    {
+      "epoch": 35,
+      "steps_completed": 14595,
+      "train_loss": 0.04088608538218254,
+      "val_loss": 0.03241967226003672,
+      "val_dice": 0.8182395234666325,
+      "val_iou": 0.692390327578813
+    },
+    {
+      "epoch": 36,
+      "steps_completed": 15012,
+      "train_loss": 0.03743809533062027,
+      "val_loss": 0.028220659726625914,
+      "val_dice": 0.8359265572984591,
+      "val_iou": 0.7181046544266744
+    },
+    {
+      "epoch": 37,
+      "steps_completed": 15429,
+      "train_loss": 0.03597573525042271,
+      "val_loss": 0.024387658416450797,
+      "val_dice": 0.8468768764334721,
+      "val_iou": 0.7344201665249259
+    },
+    {
+      "epoch": 38,
+      "steps_completed": 15846,
+      "train_loss": 0.03569165694056083,
+      "val_loss": 0.02601948961034998,
+      "val_dice": 0.8413842015423108,
+      "val_iou": 0.7261977634538848
+    },
+    {
+      "epoch": 39,
+      "steps_completed": 16263,
+      "train_loss": 0.038721304145648325,
+      "val_loss": 0.03273684637887137,
+      "val_dice": 0.826163489826633,
+      "val_iou": 0.7038147839724416
+    },
+    {
+      "epoch": 40,
+      "steps_completed": 16680,
+      "train_loss": 0.03614445327283095,
+      "val_loss": 0.03000703105678806,
+      "val_dice": 0.8301552816467476,
+      "val_iou": 0.7096286102101882
+    },
+    {
+      "epoch": 41,
+      "steps_completed": 17097,
+      "train_loss": 0.03523000767476839,
+      "val_loss": 0.025831202407936,
+      "val_dice": 0.8403946130590985,
+      "val_iou": 0.7247246541999106
+    },
+    {
+      "epoch": 42,
+      "steps_completed": 17514,
+      "train_loss": 0.034501846459843846,
+      "val_loss": 0.02750163883357853,
+      "val_dice": 0.8407826638945386,
+      "val_iou": 0.7253020099917201
+    },
+    {
+      "epoch": 43,
+      "steps_completed": 17931,
+      "train_loss": 0.036986710070420224,
+      "val_loss": 0.0271033002184583,
+      "val_dice": 0.8386850667287217,
+      "val_iou": 0.7221857247338164
+    },
+    {
+      "epoch": 44,
+      "steps_completed": 18348,
+      "train_loss": 0.039647310471934955,
+      "val_loss": 0.02697562552117682,
+      "val_dice": 0.8355854698658994,
+      "val_iou": 0.7176013766932886
+    },
+    {
+      "epoch": 45,
+      "steps_completed": 18765,
+      "train_loss": 0.03476112466350162,
+      "val_loss": 0.02298041752406529,
+      "val_dice": 0.8461706616846051,
+      "val_iou": 0.7333585943654585
+    },
+    {
+      "epoch": 46,
+      "steps_completed": 19182,
+      "train_loss": 0.03509422000363576,
+      "val_loss": 0.022354545531334816,
+      "val_dice": 0.8502344299906377,
+      "val_iou": 0.7394850325738267
+    },
+    {
+      "epoch": 47,
+      "steps_completed": 19599,
+      "train_loss": 0.036446006463871874,
+      "val_loss": 0.0287875324100643,
+      "val_dice": 0.8259162076051135,
+      "val_iou": 0.703455931301476
+    },
+    {
+      "epoch": 48,
+      "steps_completed": 20016,
+      "train_loss": 0.035368425382984625,
+      "val_loss": 0.0268909807329054,
+      "val_dice": 0.8343534853666509,
+      "val_iou": 0.7157860250876266
+    },
+    {
+      "epoch": 49,
+      "steps_completed": 20433,
+      "train_loss": 0.03342015566013986,
+      "val_loss": 0.0243176810153119,
+      "val_dice": 0.8516734888972617,
+      "val_iou": 0.7416649190476317
+    },
+    {
+      "epoch": 50,
+      "steps_completed": 20850,
+      "train_loss": 0.03315256882628663,
+      "val_loss": 0.025803219188343395,
+      "val_dice": 0.844973000246491,
+      "val_iou": 0.7315612539159815
+    },
+    {
+      "epoch": 51,
+      "steps_completed": 21267,
+      "train_loss": 0.03375643906261709,
+      "val_loss": 0.02333535466875349,
+      "val_dice": 0.8456535979441373,
+      "val_iou": 0.7325821750196032
+    },
+    {
+      "epoch": 52,
+      "steps_completed": 21684,
+      "train_loss": 0.03426074981689453,
+      "val_loss": 0.02844276675930271,
+      "val_dice": 0.8307372734845049,
+      "val_iou": 0.7104795651531409
+    },
+    {
+      "epoch": 53,
+      "steps_completed": 22101,
+      "train_loss": 0.033575311839151724,
+      "val_loss": 0.02353487541149189,
+      "val_dice": 0.849995452949825,
+      "val_iou": 0.7391235583634085
+    },
+    {
+      "epoch": 54,
+      "steps_completed": 22518,
+      "train_loss": 0.03272151032225977,
+      "val_loss": 0.02480849972018948,
+      "val_dice": 0.8377012903199365,
+      "val_iou": 0.7207280566890791
+    },
+    {
+      "epoch": 55,
+      "steps_completed": 22935,
+      "train_loss": 0.03316602546819966,
+      "val_loss": 0.022085307480452898,
+      "val_dice": 0.8551573193765378,
+      "val_iou": 0.7469649182810283
+    },
+    {
+      "epoch": 56,
+      "steps_completed": 23352,
+      "train_loss": 0.03299025437242979,
+      "val_loss": 0.028725847021325843,
+      "val_dice": 0.8305932552279203,
+      "val_iou": 0.7102689110877369
+    },
+    {
+      "epoch": 57,
+      "steps_completed": 23769,
+      "train_loss": 0.03230509083333919,
+      "val_loss": 0.02254704221502527,
+      "val_dice": 0.8511852890286565,
+      "val_iou": 0.7409247817770058
+    },
+    {
+      "epoch": 58,
+      "steps_completed": 24186,
+      "train_loss": 0.03213769011646152,
+      "val_loss": 0.0231220598344679,
+      "val_dice": 0.8520042492334635,
+      "val_iou": 0.7421667272414255
+    },
+    {
+      "epoch": 59,
+      "steps_completed": 24603,
+      "train_loss": 0.032399012888078206,
+      "val_loss": 0.02710835345379718,
+      "val_dice": 0.832138209405365,
+      "val_iou": 0.712531410914359
+    },
+    {
+      "epoch": 60,
+      "steps_completed": 25020,
+      "train_loss": 0.03198666195217654,
+      "val_loss": 0.0227323275107842,
+      "val_dice": 0.8520148840443944,
+      "val_iou": 0.7421828664870452
+    },
+    {
+      "epoch": 61,
+      "steps_completed": 25437,
+      "train_loss": 0.03167588076145529,
+      "val_loss": 0.022355188022960316,
+      "val_dice": 0.8522764491935133,
+      "val_iou": 0.742579908371343
+    },
+    {
+      "epoch": 62,
+      "steps_completed": 25854,
+      "train_loss": 0.031283060709635414,
+      "val_loss": 0.022681468492978578,
+      "val_dice": 0.8494994118415893,
+      "val_iou": 0.7383737310394344
+    },
+    {
+      "epoch": 63,
+      "steps_completed": 26271,
+      "train_loss": 0.031478147712542856,
+      "val_loss": 0.023429087230137417,
+      "val_dice": 0.8462580402581548,
+      "val_iou": 0.7334898701677701
+    },
+    {
+      "epoch": 64,
+      "steps_completed": 26688,
+      "train_loss": 0.030974902695031475,
+      "val_loss": 0.022222710894299794,
+      "val_dice": 0.8534916118760504,
+      "val_iou": 0.7444268360501336
+    },
+    {
+      "epoch": 65,
+      "steps_completed": 27105,
+      "train_loss": 0.030499650420044825,
+      "val_loss": 0.022159183180177365,
+      "val_dice": 0.8536882225822388,
+      "val_iou": 0.7447260330041268
+    },
+    {
+      "epoch": 66,
+      "steps_completed": 27522,
+      "train_loss": 0.03095715108821146,
+      "val_loss": 0.022070994624843847,
+      "val_dice": 0.8567917249645927,
+      "val_iou": 0.74946249399573
+    },
+    {
+      "epoch": 67,
+      "steps_completed": 27939,
+      "train_loss": 0.03117138933506515,
+      "val_loss": 0.02191529490730979,
+      "val_dice": 0.8562255116695932,
+      "val_iou": 0.7485964413487178
+    },
+    {
+      "epoch": 68,
+      "steps_completed": 28356,
+      "train_loss": 0.03122861665501583,
+      "val_loss": 0.022308058552927786,
+      "val_dice": 0.8534032155775608,
+      "val_iou": 0.7442923503465387
+    },
+    {
+      "epoch": 69,
+      "steps_completed": 28773,
+      "train_loss": 0.030970783828259657,
+      "val_loss": 0.022290855259090275,
+      "val_dice": 0.8536849343407005,
+      "val_iou": 0.7447210282015322
+    },
+    {
+      "epoch": 70,
+      "steps_completed": 29190,
+      "train_loss": 0.031099831743491926,
+      "val_loss": 0.02223735660701603,
+      "val_dice": 0.8540956020999206,
+      "val_iou": 0.7453462991023411
+    },
+    {
+      "epoch": 71,
+      "steps_completed": 29607,
+      "train_loss": 0.030737131333751357,
+      "val_loss": 0.02218131275920125,
+      "val_dice": 0.8546416620797106,
+      "val_iou": 0.7461784087864988
+    },
+    {
+      "epoch": 72,
+      "steps_completed": 30024,
+      "train_loss": 0.030904904829798272,
+      "val_loss": 0.0220320936921355,
+      "val_dice": 0.8548597275189656,
+      "val_iou": 0.7465109280165706
+    },
+    {
+      "epoch": 73,
+      "steps_completed": 30441,
+      "train_loss": 0.030857870618788173,
+      "val_loss": 0.022030146091015307,
+      "val_dice": 0.854642001358377,
+      "val_iou": 0.7461789260405648
+    },
+    {
+      "epoch": 74,
+      "steps_completed": 30858,
+      "train_loss": 0.030848009123219004,
+      "val_loss": 0.022008298279403093,
+      "val_dice": 0.8545796151022488,
+      "val_iou": 0.7460838189801684
+    },
+    {
+      "epoch": 75,
+      "steps_completed": 31275,
+      "train_loss": 0.030303708083338016,
+      "val_loss": 0.02201535020555769,
+      "val_dice": 0.8545623100182616,
+      "val_iou": 0.7460574394333801
+    }
+  ],
+  "best_checkpoint": "results/checkpoints/unet_hard_negative_t44_s2804_best.pth",
+  "latest_checkpoint": "results/checkpoints/unet_hard_negative_t44_s2804_latest.pth"
+}

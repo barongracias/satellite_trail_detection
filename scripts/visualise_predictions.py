@@ -47,7 +47,7 @@ from src.config.constants import PATCH_SIZE
 from src.data.dataset import PatchDirectoryDataset
 from src.data.transforms import normalise_tensor
 from src.evaluation.segmentation import SegmentationCounts, compute_metrics_from_counts
-from src.models.unet import UNet
+from src.models.loading import load_segmentation_model
 from src.utils.logger import get_logger
 from src.utils.seed import seed_everything
 
@@ -94,13 +94,8 @@ def _resolve_tag(args: argparse.Namespace) -> str:
     return stem[:-5] if stem.endswith("_best") else stem
 
 
-def _load_model(checkpoint: str, device: torch.device) -> tuple[UNet, str]:
-    ckpt = torch.load(checkpoint, map_location=device, weights_only=False)
-    cfg = ckpt.get("config", {})
-    model = UNet(base_channels=cfg.get("base_channels", 8)).to(device)
-    model.load_state_dict(ckpt["model_state_dict"])
-    model.eval()
-    return model, cfg.get("normalisation", "fixed")
+def _load_model(checkpoint: str, device: torch.device) -> tuple[torch.nn.Module, str]:
+    return load_segmentation_model(checkpoint, device)
 
 
 def _counts(pred: torch.Tensor, target: torch.Tensor) -> SegmentationCounts:
@@ -114,7 +109,7 @@ def _counts(pred: torch.Tensor, target: torch.Tensor) -> SegmentationCounts:
 
 
 def _collect_per_patch(
-    model: UNet,
+    model: torch.nn.Module,
     loader: DataLoader,
     device: torch.device,
     threshold: float,
@@ -175,7 +170,7 @@ def _overlay_panel(ax, img: np.ndarray, mask: np.ndarray | None, title: str) -> 
 
 def _figure_overlay_grid(
     selected: list[dict],
-    model: UNet,
+    model: torch.nn.Module,
     device: torch.device,
     normalisation: str,
     threshold: float,
@@ -210,7 +205,7 @@ def _figure_overlay_grid(
 def _figure_fp_fn_gallery(
     records: list[dict],
     top_k: int,
-    model: UNet,
+    model: torch.nn.Module,
     device: torch.device,
     normalisation: str,
     threshold: float,
@@ -308,7 +303,7 @@ def _figure_per_image_fnr(hough_json: Path, out_path: Path, logger) -> bool:
 
 def _figure_full_image_heatmap(
     records: list[dict],
-    model: UNet,
+    model: torch.nn.Module,
     device: torch.device,
     normalisation: str,
     patch_dir: Path,

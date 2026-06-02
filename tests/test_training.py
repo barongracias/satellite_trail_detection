@@ -2,6 +2,7 @@ import json
 import sqlite3
 from pathlib import Path
 
+import pandas as pd
 import pytest
 import yaml
 
@@ -12,6 +13,7 @@ pytest.importorskip("torchvision")
 from src.training.train_unet import (  # noqa: E402
     ComboBCEDiceLoss,
     TrainingConfig,
+    _append_hard_negative_records,
 )
 
 
@@ -93,6 +95,66 @@ def test_training_config_validates_precision_choices(tmp_path: Path) -> None:
         TrainingConfig(data_root=tmp_path, amp_dtype="tf32")
     with pytest.raises(ValueError):
         TrainingConfig(data_root=tmp_path, float32_matmul_precision="low")
+
+
+def test_hard_negative_config_and_append_are_opt_in(tmp_path: Path) -> None:
+    manifest = tmp_path / "hard_negatives.json"
+    manifest.write_text(
+        json.dumps({"hard_negatives": [{"patch_path": "train/b_image.png"}]}),
+        encoding="utf-8",
+    )
+
+    config = TrainingConfig(
+        data_root=tmp_path,
+        hard_negative_manifest=str(manifest),
+        hard_negative_repeat=2,
+    )
+    assert config.hard_negative_manifest == manifest
+    with pytest.raises(ValueError, match="hard_negative_repeat"):
+        TrainingConfig(data_root=tmp_path, hard_negative_repeat=-1)
+
+    dataset = type("DummyDataset", (), {})()
+    dataset.records = pd.DataFrame(
+        [
+            {"patch_path": "train/a_image.png", "split": "train"},
+            {"patch_path": "train/b_image.png", "split": "train"},
+            {"patch_path": "train/c_image.png", "split": "train"},
+        ]
+    )
+    dataset._rows = dataset.records.to_dict("records")
+
+    assert _append_hard_negative_records(dataset, None, repeat=2) == 0
+    assert len(dataset.records) == 3
+
+    appended = _append_hard_negative_records(dataset, manifest, repeat=2)
+    assert appended == 2
+    assert dataset.records["patch_path"].tolist() == [
+        "train/a_image.png",
+        "train/b_image.png",
+        "train/c_image.png",
+        "train/b_image.png",
+        "train/b_image.png",
+    ]
+    assert len(dataset._rows) == 5
+
+
+def test_target_mode_config_is_opt_in_and_validated(tmp_path: Path) -> None:
+    # Default is inert hard labels.
+    default = TrainingConfig(data_root=tmp_path)
+    assert default.target_mode == "hard"
+    assert default.soft_dilation_px == 1 and default.soft_band_value == 0.5
+    # Opt-in is accepted.
+    soft = TrainingConfig(
+        data_root=tmp_path, target_mode="dilated_soft", soft_dilation_px=1, soft_band_value=0.5,
+    )
+    assert soft.target_mode == "dilated_soft"
+    # Invalid values are rejected.
+    with pytest.raises(ValueError, match="target_mode"):
+        TrainingConfig(data_root=tmp_path, target_mode="bogus")
+    with pytest.raises(ValueError, match="soft_dilation_px"):
+        TrainingConfig(data_root=tmp_path, target_mode="dilated_soft", soft_dilation_px=0)
+    with pytest.raises(ValueError, match="soft_band_value"):
+        TrainingConfig(data_root=tmp_path, target_mode="dilated_soft", soft_band_value=1.5)
 
 
 def test_amp_scaler_is_noop_when_disabled() -> None:

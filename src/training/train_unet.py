@@ -15,6 +15,7 @@ import matplotlib.pyplot as plt
 import yaml
 
 import torch
+import pandas as pd
 from PIL import Image
 from torch import nn
 from torch.optim import Adam
@@ -50,6 +51,7 @@ class TrainingConfig:
     dice_weight: float = 0.5
     dice_smooth: float = 1e-4
     dice_denominator_squared: bool = True
+    train_image_fraction: float = 1.0
     use_amp: bool = False
     amp_dtype: str = "fp16"
     float32_matmul_precision: str = "highest"
@@ -69,6 +71,11 @@ class TrainingConfig:
     eval_max_batches: int | None = None
     skip_test_eval: bool = False
     model_type: str = "unet"
+    hard_negative_manifest: str | Path | None = None
+    hard_negative_repeat: int = 0
+    target_mode: str = "hard"
+    soft_dilation_px: int = 1
+    soft_band_value: float = 0.5
 
     def __post_init__(self) -> None:
         """Normalise paths and validate the few settings that must be sane."""
@@ -78,6 +85,8 @@ class TrainingConfig:
         if self.patch_dir is not None:
             object.__setattr__(self, "patch_dir", Path(self.patch_dir))
         object.__setattr__(self, "noise_calibration_path", Path(self.noise_calibration_path))
+        if self.hard_negative_manifest is not None:
+            object.__setattr__(self, "hard_negative_manifest", Path(self.hard_negative_manifest))
         if self.amp_dtype == "bf16":
             object.__setattr__(self, "amp_dtype", "bfloat16")
         if self.amp_dtype == "float16":
@@ -93,12 +102,16 @@ class TrainingConfig:
             raise ValueError("learning_rate and base_channels must be positive")
         if self.num_workers < 0:
             raise ValueError("num_workers cannot be negative")
+        if self.hard_negative_repeat < 0:
+            raise ValueError("hard_negative_repeat cannot be negative")
         if self.threshold <= 0 or self.threshold >= 1:
             raise ValueError("threshold must lie between 0 and 1")
         if self.normalisation not in ("fixed", "per_image", "full_image"):
             raise ValueError("normalisation must be 'fixed', 'per_image', or 'full_image'")
         if self.dice_smooth <= 0:
             raise ValueError("dice_smooth must be positive")
+        if not (0.0 < self.train_image_fraction <= 1.0):
+            raise ValueError("train_image_fraction must lie in (0, 1]")
         if self.noise_std_multiplier <= 0:
             raise ValueError("noise_std_multiplier must be positive")
         if self.amp_dtype not in ("fp16", "bfloat16"):
@@ -111,6 +124,12 @@ class TrainingConfig:
             raise ValueError("lr_scheduler must be None or 'cosine'")
         if self.model_type not in ("unet", "attention_unet"):
             raise ValueError("model_type must be 'unet' or 'attention_unet'")
+        if self.target_mode not in ("hard", "dilated_soft"):
+            raise ValueError("target_mode must be 'hard' or 'dilated_soft'")
+        if self.soft_dilation_px < 1:
+            raise ValueError("soft_dilation_px must be >= 1")
+        if not (0.0 <= self.soft_band_value <= 1.0):
+            raise ValueError("soft_band_value must lie in [0, 1]")
 
 
 def parse_args() -> TrainingConfig:
@@ -145,6 +164,10 @@ def _serialise_config(config: TrainingConfig) -> dict[str, Any]:
     data["log_dir"] = str(config.log_dir)
     data["patch_dir"] = str(config.patch_dir) if config.patch_dir is not None else None
     data["noise_calibration_path"] = str(config.noise_calibration_path)
+    data["hard_negative_manifest"] = (
+        str(config.hard_negative_manifest)
+        if config.hard_negative_manifest is not None else None
+    )
     return data
 
 
@@ -184,6 +207,44 @@ def _worker_init_fn(worker_id: int, seed: int = GLOBAL_SEED) -> None:
     seed_everything(seed + worker_id)
 
 
+def _append_hard_negative_records(
+    dataset: PatchDirectoryDataset,
+    manifest_path: str | Path | None,
+    repeat: int,
+) -> int:
+    """Append train-only mined empty-mask patches to a PatchDirectoryDataset."""
+    if manifest_path is None or repeat == 0:
+        return 0
+
+    manifest = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
+    hard_negatives = manifest.get("hard_negatives", [])
+    if not isinstance(hard_negatives, list) or not hard_negatives:
+        raise ValueError(f"hard-negative manifest has no hard_negatives list: {manifest_path}")
+
+    selected_paths = {
+        str(item["patch_path"])
+        for item in hard_negatives
+        if isinstance(item, dict) and "patch_path" in item
+    }
+    if not selected_paths:
+        raise ValueError(f"hard-negative manifest contains no patch_path entries: {manifest_path}")
+
+    records = dataset.records.copy()
+    selected = records[records["patch_path"].astype(str).isin(selected_paths)]
+    missing = selected_paths - set(selected["patch_path"].astype(str))
+    if missing:
+        example = sorted(missing)[0]
+        raise ValueError(
+            f"hard-negative manifest references {len(missing)} patches outside the train split; "
+            f"first missing path: {example}"
+        )
+
+    repeated = pd.concat([selected] * repeat, ignore_index=True)
+    dataset.records = pd.concat([records, repeated], ignore_index=True)
+    dataset._rows = dataset.records.to_dict("records")
+    return len(repeated)
+
+
 def build_dataloaders(
     config: TrainingConfig,
     device: torch.device,
@@ -205,6 +266,15 @@ def build_dataloaders(
         noise_augment=config.noise_augment,
         noise_std_multiplier=config.noise_std_multiplier,
         noise_calibration_path=config.noise_calibration_path,
+        train_image_fraction=config.train_image_fraction,
+        target_mode=config.target_mode,
+        soft_dilation_px=config.soft_dilation_px,
+        soft_band_value=config.soft_band_value,
+    )
+    _append_hard_negative_records(
+        train_ds,
+        config.hard_negative_manifest,
+        config.hard_negative_repeat,
     )
     val_ds = PatchDirectoryDataset(
         config.patch_dir / "val", manifest, config.normalisation,

@@ -63,6 +63,32 @@ def test_unet_biases_initialise_to_zero() -> None:
             assert torch.count_nonzero(param).item() == 0
 
 
+def test_load_segmentation_model_dispatches_on_model_type(tmp_path) -> None:
+    # The single loader must reconstruct the right class from config.model_type
+    # (this is the regression guard for the dispatch bug once spread across loaders).
+    from src.models.attention_unet import AttentionUNet
+    from src.models.loading import load_segmentation_model
+
+    device = torch.device("cpu")
+    for model_cls, mtype, norm in [(UNet, "unet", "full_image"),
+                                   (AttentionUNet, "attention_unet", "fixed")]:
+        m = model_cls(base_channels=8)
+        ckpt = tmp_path / f"{mtype}.pth"
+        torch.save({"model_state_dict": m.state_dict(),
+                    "config": {"model_type": mtype, "base_channels": 8, "normalisation": norm}}, ckpt)
+        loaded, loaded_norm = load_segmentation_model(ckpt, device)
+        assert isinstance(loaded, model_cls)
+        assert loaded_norm == norm
+        assert not loaded.training   # eval mode
+
+    # Missing model_type defaults to UNet.
+    m = UNet(base_channels=8)
+    ckpt = tmp_path / "legacy.pth"
+    torch.save({"model_state_dict": m.state_dict(), "config": {"base_channels": 8}}, ckpt)
+    loaded, loaded_norm = load_segmentation_model(ckpt, device)
+    assert isinstance(loaded, UNet) and loaded_norm == "fixed"
+
+
 def test_unet_initialiser_calls_match_keras_reference(monkeypatch: pytest.MonkeyPatch) -> None:
     kaiming_calls = []
     xavier_calls = []

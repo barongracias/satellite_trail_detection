@@ -1,0 +1,49 @@
+{
+  "generated": "2026-06-01",
+  "split": "validation",
+  "seed_protocol": "single seed 2804 at each fraction",
+  "threshold": 0.5,
+  "metric_convention": "Best per-epoch validation Dice (= pixel F1) at the fixed training threshold 0.5. This is not directly comparable to validation-optimal threshold-swept val_f1 elsewhere.",
+  "points": [
+    {
+      "train_fraction_percent": 30,
+      "summary": "results/checkpoints/unet_data_efficiency_f30_s2804_summary.json",
+      "best_checkpoint": "results/checkpoints/unet_data_efficiency_f30_s2804_best.pth",
+      "seed": 2804,
+      "best_epoch": 60,
+      "val_dice_at_threshold_0p5": 0.842364492356038,
+      "val_f1_at_threshold_0p5": 0.842364492356038,
+      "val_iou_at_threshold_0p5": 0.7276595152738806
+    },
+    {
+      "train_fraction_percent": 50,
+      "summary": "results/checkpoints/unet_data_efficiency_f50_s2804_summary.json",
+      "best_checkpoint": "results/checkpoints/unet_data_efficiency_f50_s2804_best.pth",
+      "seed": 2804,
+      "best_epoch": 59,
+      "val_dice_at_threshold_0p5": 0.8423949326392909,
+      "val_f1_at_threshold_0p5": 0.8423949326392909,
+      "val_iou_at_threshold_0p5": 0.7277049456598492
+    },
+    {
+      "train_fraction_percent": 70,
+      "summary": "results/checkpoints/unet_data_efficiency_f70_s2804_summary.json",
+      "best_checkpoint": "results/checkpoints/unet_data_efficiency_f70_s2804_best.pth",
+      "seed": 2804,
+      "best_epoch": 60,
+      "val_dice_at_threshold_0p5": 0.8537082663103607,
+      "val_f1_at_threshold_0p5": 0.8537082663103607,
+      "val_iou_at_threshold_0p5": 0.7447565407825786
+    },
+    {
+      "train_fraction_percent": 100,
+      "summary": "results/checkpoints/unet_paper_arch_noise_topk_t44_s2804_summary.json",
+      "best_checkpoint": "results/checkpoints/unet_paper_arch_noise_topk_t44_s2804_best.pth",
+      "seed": 2804,
+      "best_epoch": 68,
+      "val_dice_at_threshold_0p5": 0.855949312550705,
+      "val_f1_at_threshold_0p5": 0.855949312550705,
+      "val_iou_at_threshold_0p5": 0.748174291524685
+    }
+  ]
+}

@@ -41,13 +41,114 @@ torch = pytest.importorskip("torch")
 
 from src.evaluation.segmentation import (  # noqa: E402
     SegmentationCounts,
+    boundary_tolerant_counts,
+    boundary_tolerant_metrics,
     bootstrap_metrics_cluster,
     bootstrap_metrics_patch,
+    centerline_dice,
     combine_counts,
     compute_metrics_from_counts,
     compute_segmentation_counts,
     compute_segmentation_metrics,
+    false_positive_distances,
 )
+
+
+def test_boundary_tolerant_tolerance_zero_matches_exact() -> None:
+    pred = np.array([[1, 1, 0], [0, 0, 0], [0, 0, 1]], dtype=np.uint8)
+    gt = np.array([[1, 0, 0], [0, 0, 0], [0, 0, 1]], dtype=np.uint8)
+    bm = boundary_tolerant_metrics(boundary_tolerant_counts(pred, gt, tolerance=0))
+    em = compute_metrics_from_counts(compute_segmentation_counts(pred, gt))
+    assert bm["precision"] == pytest.approx(em.precision)
+    assert bm["recall"] == pytest.approx(em.recall)
+
+
+def test_boundary_tolerant_recovers_one_pixel_offset_line() -> None:
+    # A prediction shifted 1px from the GT line scores 0 exactly but ~1.0 at
+    # tolerance=1 — the core PS-0 effect (thin labels, ±1px disagreement).
+    gt = np.zeros((9, 9), dtype=np.uint8)
+    gt[:, 4] = 1
+    pred = np.zeros((9, 9), dtype=np.uint8)
+    pred[:, 5] = 1
+    exact = boundary_tolerant_metrics(boundary_tolerant_counts(pred, gt, tolerance=0))
+    tol1 = boundary_tolerant_metrics(boundary_tolerant_counts(pred, gt, tolerance=1))
+    assert exact["precision"] == pytest.approx(0.0)
+    assert exact["recall"] == pytest.approx(0.0)
+    assert tol1["precision"] == pytest.approx(1.0)
+    assert tol1["recall"] == pytest.approx(1.0)
+
+
+def test_boundary_tolerant_recovers_diagonal_one_pixel_offset() -> None:
+    # A 1px DIAGONAL offset must be tolerated at tolerance=1 — this only holds for
+    # the 8-neighbour box (MORPH_RECT); a 4-neighbour cross would leave it as FP/FN.
+    gt = np.eye(9, dtype=np.uint8)                       # main diagonal
+    pred = np.zeros((9, 9), dtype=np.uint8)
+    for i in range(8):
+        pred[i + 1, i] = 1                               # diagonal shifted 1px down
+    exact = boundary_tolerant_metrics(boundary_tolerant_counts(pred, gt, tolerance=0))
+    tol1 = boundary_tolerant_metrics(boundary_tolerant_counts(pred, gt, tolerance=1))
+    assert exact["precision"] < 0.2 and exact["recall"] < 0.2
+    assert tol1["precision"] == pytest.approx(1.0)
+    assert tol1["recall"] == pytest.approx(1.0)
+
+
+def test_boundary_tolerant_precision_non_decreasing_in_tolerance() -> None:
+    rng = np.random.default_rng(0)
+    gt = (rng.random((16, 16)) > 0.8).astype(np.uint8)
+    pred = (rng.random((16, 16)) > 0.8).astype(np.uint8)
+    precs = [boundary_tolerant_metrics(boundary_tolerant_counts(pred, gt, t))["precision"]
+             for t in (0, 1, 2, 3)]
+    assert all(b >= a - 1e-9 for a, b in zip(precs, precs[1:]))
+
+
+def test_boundary_tolerant_counts_add_and_shape_guard() -> None:
+    a = boundary_tolerant_counts(np.eye(4, dtype=np.uint8), np.eye(4, dtype=np.uint8), 0)
+    combined = a + a
+    assert combined.tp_precision == 2 * a.tp_precision
+    with pytest.raises(ValueError):
+        boundary_tolerant_counts(np.zeros((2, 2)), np.zeros((3, 3)), 1)
+
+
+def test_centerline_dice_identical_and_disjoint() -> None:
+    line = np.zeros((11, 11), dtype=np.uint8)
+    line[:, 5] = 1
+    assert centerline_dice(line, line) == pytest.approx(1.0)
+    # both empty -> perfect agreement on absence
+    empty = np.zeros((11, 11), dtype=np.uint8)
+    assert centerline_dice(empty, empty) == pytest.approx(1.0)
+    # one empty -> 0
+    assert centerline_dice(line, empty) == pytest.approx(0.0)
+    # disjoint thick blocks: neither skeleton overlaps the other mask
+    pred = np.zeros((11, 11), dtype=np.uint8); pred[0:3, 0:3] = 1
+    gt = np.zeros((11, 11), dtype=np.uint8); gt[8:11, 8:11] = 1
+    assert centerline_dice(pred, gt) == pytest.approx(0.0)
+
+
+def test_centerline_dice_shape_guard() -> None:
+    with pytest.raises(ValueError):
+        centerline_dice(np.zeros((4, 4)), np.zeros((5, 5)))
+
+
+def test_false_positive_distances_adjacent_and_diagonal() -> None:
+    gt = np.zeros((5, 5), dtype=np.uint8)
+    gt[2, 2] = 1
+    pred = np.zeros((5, 5), dtype=np.uint8)
+    pred[2, 2] = 1   # TP (not an FP)
+    pred[2, 3] = 1   # FP 1px to the right -> distance 1.0
+    pred[0, 0] = 1   # FP at corner -> distance sqrt(8)
+    dists, whole = false_positive_distances(pred, gt)
+    assert whole == 0
+    assert sorted(round(float(d), 4) for d in dists) == [1.0, pytest.approx(np.sqrt(8), abs=1e-4)]
+
+
+def test_false_positive_distances_empty_gt_reported_separately() -> None:
+    gt = np.zeros((5, 5), dtype=np.uint8)
+    pred = np.zeros((5, 5), dtype=np.uint8)
+    pred[1, 1] = 1
+    pred[3, 3] = 1
+    dists, whole = false_positive_distances(pred, gt)
+    assert dists.size == 0       # distance undefined when GT is empty
+    assert whole == 2            # counted as whole-patch FP instead
 
 
 def _write_pair(
@@ -325,9 +426,8 @@ def test_segmentation_counts_rejects_shape_mismatch() -> None:
 
 
 def test_segmentation_counts_handles_mixed_numpy_torch_input() -> None:
-    """Codex device-alignment fix: prediction may be numpy, target torch, or
-    vice versa; the public function must align both to the prediction device
-    without raising."""
+    """Device-alignment: prediction may be numpy, target torch, or vice versa;
+    the public function must align both to the prediction device without raising."""
     import torch as _torch
     pred_np = np.array([[1, 0, 1, 0]], dtype=np.uint8)
     target_torch = _torch.tensor([[1, 0, 0, 0]], dtype=_torch.float32)

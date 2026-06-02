@@ -1,0 +1,31 @@
+# Data-efficiency study (M6) — train on 30% of training IMAGES (image-level,
+# nested subset via fixed GLOBAL_SEED). Reuses the M5.6 winner (trial 44 s2804)
+# hyperparameters; the 100% point is the existing trial-44 result. Single seed
+# 2804 per fraction gives the Dice/F1-vs-data curve (30/50/70/100%).
+experiment_name: unet_data_efficiency_f30_s2804
+data_root: data/Processed
+patch_dir: data/patches
+train_image_fraction: 0.30
+batch_size: 32
+learning_rate: 0.0002893140107350613
+epochs: 75
+base_channels: 8
+normalisation: full_image
+augment_train: true
+noise_augment: true
+noise_std_multiplier: 1.0
+bce_weight: 0.6553217376947582
+dice_weight: 0.3446782623052418
+dice_smooth: 1.0e-4
+dice_denominator_squared: true
+use_amp: true
+amp_dtype: bf16
+float32_matmul_precision: high
+lr_scheduler: cosine
+num_workers: 8
+seed: 2804
+threshold: 0.5
+device: auto
+checkpoint_dir: results/checkpoints
+log_dir: results/logs
+skip_test_eval: true

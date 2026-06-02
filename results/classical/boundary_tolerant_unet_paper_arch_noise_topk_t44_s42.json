@@ -1,0 +1,36 @@
+{
+  "checkpoint": "results/checkpoints/unet_paper_arch_noise_topk_t44_s42_best.pth",
+  "threshold": 0.5,
+  "tolerances": [
+    0,
+    1,
+    2,
+    3
+  ],
+  "tolerance_kernel": "cv2.MORPH_RECT",
+  "tolerance_neighbourhood": "square/Chebyshev; 8-neighbour at tolerance=1",
+  "tolerance_application": "target-side dilation for precision and prediction-side dilation for recall",
+  "per_tolerance": {
+    "0": {
+      "precision": 0.85062,
+      "recall": 0.916256,
+      "f1": 0.882219
+    },
+    "1": {
+      "precision": 0.943249,
+      "recall": 0.980024,
+      "f1": 0.961285
+    },
+    "2": {
+      "precision": 0.954048,
+      "recall": 0.982565,
+      "f1": 0.968096
+    },
+    "3": {
+      "precision": 0.957002,
+      "recall": 0.98327,
+      "f1": 0.969958
+    }
+  },
+  "generated": "2026-06-01"
+}

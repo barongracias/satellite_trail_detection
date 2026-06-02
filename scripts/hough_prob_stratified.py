@@ -194,6 +194,8 @@ def main() -> None:
         "method_note": "union of Hough over probability strata; NOT a true weighted "
                        "accumulator (cv2.HoughLinesP votes on a binary canvas)",
         "checkpoint": str(args.checkpoint),
+        "split": "test",
+        "normalisation": normalisation,
         "threshold": args.threshold,
         "strata": strata,
         "binary_input_threshold": args.binary_input_threshold,

@@ -14,14 +14,14 @@ Replication of the Stoppa et al. 2024 (A&A 692, A199) satellite trail detection 
 ├── notebooks/                # Exploratory analysis notebooks
 ├── report/                   # Dissertation LaTeX source
 ├── results/                  # Logs, figures, checkpoints, and summaries
-├── scripts/                  # CLI helpers for headless dataset inspection
+├── scripts/                  # CLI helpers: dataset build/inspection, sweep aggregation, evaluation, figures
 ├── slurm/                    # CSD3 job submission scripts
 ├── src/
 │   ├── classical/            # Hough-transform baseline
 │   ├── config/               # Project constants and path helpers
 │   ├── data/                 # Datasets, metadata, transforms, splits
 │   ├── evaluation/           # EDA and segmentation evaluation helpers
-│   ├── models/               # U-Net and future model variants
+│   ├── models/               # U-Net, Attention U-Net, patch classifier, shared loader
 │   ├── training/             # Training entry points
 │   └── utils/                # Logging, seeding, and decorators
 └── tests/                    # Unit tests
@@ -70,6 +70,17 @@ python -m src.classical.run_hough --config configs/experiments/hough_baseline.ya
 # U-Net smoke test (local, CPU, 5 steps)
 python -m src.training.train_unet --config configs/experiments/unet_smoke.yaml
 ```
+
+## Reproducibility
+
+- Global seed `2804`; multi-seed runs use `{2804, 1234, 42, 7, 13}`.
+- Image-level split stratified by trail-pixel quartile. Target 70/15/15; the realised
+  split on the 178-image subset is **122 train / 24 val / 32 test** (per-quartile
+  flooring sends the remainder to test — leakage-safe and conservative).
+- Model and threshold selection are **validation-only**; test metrics are never used
+  for selection or tie-breaking.
+- `results/` and `*.pth` are gitignored; selected deliverable JSONs and figures are
+  force-added. Trained weights are kept local only.
 
 ## Author
 

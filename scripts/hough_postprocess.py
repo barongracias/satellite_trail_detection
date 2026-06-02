@@ -381,11 +381,21 @@ def main() -> None:
         "fnr_post_patch": None if fnr_post_patch is None else round(fnr_post_patch, 6),
         "pixel_recall_pre": None if pixel_recall_pre is None else round(pixel_recall_pre, 6),
         "pixel_recall_post": None if pixel_recall_post is None else round(pixel_recall_post, 6),
+        "pixel_fnr_pre": None if pixel_recall_pre is None else round(1.0 - pixel_recall_pre, 6),
+        "pixel_fnr_post": None if pixel_recall_post is None else round(1.0 - pixel_recall_post, 6),
         "total_gt_pixels": total_gt_pixels,
         "total_pixels_covered_pre": total_pixels_pre,
         "total_pixels_covered_post": total_pixels_post,
         "paper_fnr_pre_hough": PAPER_FNR_PRE_HOUGH,
         "paper_fnr_post_hough": PAPER_FNR_POST_HOUGH,
+        "fnr_metric_note": (
+            "fnr_*_hough is IMAGE-level detection FNR (fraction of positive test images "
+            "with no detected-pixel/GT overlap); it saturates at 0 once every positive "
+            "image is hit by >=1 pixel, so Hough cannot change it and it is NOT comparable "
+            "to the paper. fnr_*_patch is the analogous patch-level rate. pixel_fnr_* = "
+            "1 - pixel_recall is full-field trail-pixel completeness. The paper's reported "
+            "FNR (paper_fnr_*) is pixel completeness and is comparable ONLY to pixel_fnr_*."
+        ),
         "per_image": rows,
     }
 

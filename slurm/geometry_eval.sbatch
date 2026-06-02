@@ -45,6 +45,7 @@ CHECKPOINT="${CHECKPOINT:?must be set; e.g. results/checkpoints/unet_paper_arch_
 THRESHOLD="${THRESHOLD:?must be set; the validation-optimal threshold for the checkpoint}"
 PATCH_DIR="${PATCH_DIR:-data/patches}"
 TAG="${TAG:-}"
+THRESHOLD_SOURCE="${THRESHOLD_SOURCE:-}"
 
 if [ ! -f "$CHECKPOINT" ]; then
     echo "ERROR: checkpoint not found: $CHECKPOINT" >&2
@@ -52,16 +53,20 @@ if [ ! -f "$CHECKPOINT" ]; then
 fi
 
 echo "Checkpoint: $CHECKPOINT  (threshold=$THRESHOLD, tag=${TAG:-<from stem>})"
+echo "Threshold source: ${THRESHOLD_SOURCE:-<none>}"
 
-TAG_ARG=()
+EXTRA_ARGS=()
 if [ -n "$TAG" ]; then
-    TAG_ARG=(--tag "$TAG")
+    EXTRA_ARGS+=(--tag "$TAG")
+fi
+if [ -n "$THRESHOLD_SOURCE" ]; then
+    EXTRA_ARGS+=(--threshold-source "$THRESHOLD_SOURCE")
 fi
 
 python scripts/geometry_eval.py \
     --checkpoint "$CHECKPOINT" \
     --patch_dir "$PATCH_DIR" \
     --threshold "$THRESHOLD" \
-    "${TAG_ARG[@]}"
+    "${EXTRA_ARGS[@]}"
 
 echo "Job finished."

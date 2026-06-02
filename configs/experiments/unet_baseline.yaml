@@ -1,4 +1,7 @@
-# Full U-Net baseline training run — paper-faithful settings.
+# Initial U-Net baseline training run (M4-era; fixed normalisation, base config).
+# NOT the paper-architecture restudy config — that is the recovered .h5 architecture
+# with full_image normalisation under configs/experiments/restudy_topk/ and
+# unet_paper_arch_noise_*. Retained as the pre-restudy baseline comparison point.
 # Run on CSD3 with: python -m src.training.train_unet --config configs/experiments/unet_baseline.yaml
 
 experiment_name: unet_baseline

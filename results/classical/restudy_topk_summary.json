@@ -1,5 +1,5 @@
 {
-  "preregistration": "agents/protocols/restudy_preregistration_2026-05-26.md",
+  "preregistration": "docs/restudy_preregistration_2026-05-26.md",
   "selection_scope": "M5.6 U-Net top-5 x five-seed validation-only restudy",
   "selection_rule": "highest mean threshold-swept validation val_f1; if candidates are within 0.001 val_f1, prefer lower batch_size, then lower learning_rate, then lower trial number; test metrics are inadmissible",
   "n_resamples": 10000,

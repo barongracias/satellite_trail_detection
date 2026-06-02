@@ -242,7 +242,7 @@ def aggregate(
 
     selected = select_trial(trial_rows, tie_delta)
     return {
-        "preregistration": "agents/protocols/restudy_preregistration_2026-05-26.md",
+        "preregistration": "docs/restudy_preregistration_2026-05-26.md",
         "selection_scope": selection_scope,
         "selection_rule": (
             "highest mean threshold-swept validation val_f1; if candidates are within "

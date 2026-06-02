@@ -41,6 +41,8 @@ BASE = CLASSICAL / "geometry_eval_t44_s2804.json"
 ATTN = CLASSICAL / "geometry_eval_attn_t7_s2804.json"
 HOUGH = CLASSICAL / "hough_prob_stratified_t44_s2804.json"
 SOFT = CLASSICAL / "geometry_eval_soft_dilated_t44_s2804.json"
+BASE_BND = CLASSICAL / "boundary_tolerant_unet_paper_arch_noise_topk_t44_s2804.json"
+SOFT_BND = CLASSICAL / "boundary_tolerant_soft_dilated_t44_s2804.json"
 
 
 def fig_fp_distance_histogram() -> None:
@@ -54,7 +56,7 @@ def fig_fp_distance_histogram() -> None:
     frac = counts / total if total else counts
     centres = (edges[:-1] + edges[1:]) / 2.0
 
-    fig, ax = plt.subplots(figsize=(4.2, 2.8))
+    fig, ax = plt.subplots(figsize=(4.2, 2.9))
     xmax = 20
     keep = centres <= xmax
     ax.bar(centres[keep], frac[keep], width=0.9, color=COLORS["blue"], align="center")
@@ -64,11 +66,22 @@ def fig_fp_distance_histogram() -> None:
         ax.text(px + 0.15, ax.get_ylim()[1] * (0.95 - 0.12 * px), f"{label}: {f:.2f}",
                 fontsize=6, color=COLORS["red"])
     ax.set_xlabel("Distance from false-positive pixel to nearest GT trail (px)")
-    ax.set_ylabel("Fraction of FP pixels")
+    ax.set_ylabel("Fraction of distance-defined FP pixels")
     med = d.get("median_px_approx")
-    ax.set_title(f"FP distance-to-mask  (median ≈ {med:.1f}px, "
-                 f"{d['whole_patch_fp_pixels']:,} whole-patch FP excluded)")
+    # Global (all-FP) fraction: whole-patch FP counted as non-boundary-adjacent.
+    g1 = d.get("fraction_within_1px_all_fp")
+    if g1 is None:
+        tot = d["n_fp_pixels_with_gt"] + d["whole_patch_fp_pixels"]
+        g1 = d["fraction_within_1px"] * d["n_fp_pixels_with_gt"] / tot if tot else 0.0
+    ax.set_title(f"FP distance-to-mask  (median ≈ {med:.1f}px; "
+                 f"≤1px = {d['fraction_within_1px']:.2f} of distance-defined, "
+                 f"{g1:.2f} of all FP)")
     ax.set_xlim(0, xmax)
+    fig.text(0.5, -0.02,
+             f"Histogram over distance-defined FP only; {d['whole_patch_fp_pixels']:,} "
+             "whole-patch FP (no GT in patch) excluded from the histogram and counted as "
+             "non-boundary-adjacent in the all-FP fraction.",
+             ha="center", fontsize=5.5, color="#555555")
     save_vector(fig, "ext_1_fp_distance_histogram")
     print("[ok]  ext_1_fp_distance_histogram")
 
@@ -95,6 +108,9 @@ def fig_cldice_base_vs_attention() -> None:
     ax.set_ylim(0, 1.0)
     ax.set_title("Topology (clDice) vs pixel Dice")
     ax.legend(loc="lower center")
+    fig.text(0.5, -0.02,
+             "clDice averaged over target-positive patches; exact Dice over full test pixels.",
+             ha="center", fontsize=5.5, color="#555555")
     save_vector(fig, "ext_2_cldice_base_vs_attention")
     print("[ok]  ext_2_cldice_base_vs_attention")
 
@@ -119,7 +135,12 @@ def fig_hough_prob_stratified() -> None:
     lo = min(recall) - 0.02
     ax.set_ylim(max(0.0, lo), 1.0)
     fp_b = d["hough_fp_pixels_binary"]; fp_s = d["hough_fp_pixels_stratified"]
-    ax.set_title(f"Stratified-Hough recall  (Hough FP px: {fp_b:,}→{fp_s:,})")
+    drec = d["pixel_recall_stratified_hough"] - d["pixel_recall_binary_hough"]
+    ax.set_title("Probability-stratified Hough (approx.): negligible recall gain, added FP")
+    fig.text(0.5, -0.02,
+             f"Δrecall vs binary Hough = +{drec:.4f} (patch-FNR unchanged); Hough FP px "
+             f"{fp_b:,}→{fp_s:,}. Approximate (strata union), not a true weighted accumulator.",
+             ha="center", fontsize=5.5, color="#555555")
     save_vector(fig, "ext_3_hough_prob_stratified")
     print("[ok]  ext_3_hough_prob_stratified")
 
@@ -130,13 +151,19 @@ def fig_soft_label_pilot() -> None:
               "(Phase 2 — gated on the Phase-1 story)")
         return
     base, soft = load_json(BASE), load_json(SOFT)
-    metrics = ["exact Dice", "clDice"]
-    base_vals = [base["exact_metrics"]["dice"], base["centerline_dice"]["mean"]]
-    soft_vals = [soft["exact_metrics"]["dice"], soft["centerline_dice"]["mean"]]
+    metrics = ["exact Dice", "±1px F1", "clDice"]
+    base_vals = [base["exact_metrics"]["dice"], None, base["centerline_dice"]["mean"]]
+    soft_vals = [soft["exact_metrics"]["dice"], None, soft["centerline_dice"]["mean"]]
+    if BASE_BND.exists() and SOFT_BND.exists():
+        base_vals[1] = load_json(BASE_BND)["per_tolerance"]["1"]["f1"]
+        soft_vals[1] = load_json(SOFT_BND)["per_tolerance"]["1"]["f1"]
+    else:  # boundary evals absent — drop that bar rather than fail
+        metrics = ["exact Dice", "clDice"]
+        base_vals = [base_vals[0], base_vals[2]]; soft_vals = [soft_vals[0], soft_vals[2]]
     x = np.arange(len(metrics))
     w = 0.36
 
-    fig, ax = plt.subplots(figsize=(3.6, 2.8))
+    fig, ax = plt.subplots(figsize=(4.2, 2.9))
     ax.bar(x - w / 2, base_vals, w, label="Hard labels (winner)", color=COLORS["blue"])
     ax.bar(x + w / 2, soft_vals, w, label="Dilated-soft (pilot)", color=COLORS["purple"])
     for xi, b, s in zip(x, base_vals, soft_vals):
@@ -145,8 +172,12 @@ def fig_soft_label_pilot() -> None:
     ax.set_xticks(x); ax.set_xticklabels(metrics)
     ax.set_ylabel("Score")
     ax.set_ylim(0, 1.0)
-    ax.set_title("Soft-label pilot vs hard labels (single seed 2804)")
+    ax.set_title("Soft-label pilot vs hard labels (single seed 2804): no gain")
     ax.legend(loc="lower center")
+    fig.text(0.5, -0.02,
+             "Dilated-soft targets widen predictions (recall↑, precision↓); exact Dice and "
+             "clDice both drop and ±1px F1 is tied — a tested-and-rejected protocol variant.",
+             ha="center", fontsize=5.5, color="#555555")
     save_vector(fig, "ext_4_soft_label_pilot")
     print("[ok]  ext_4_soft_label_pilot")
 

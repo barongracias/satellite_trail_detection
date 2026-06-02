@@ -14,11 +14,14 @@
   "fnr_post_patch": 0.102064,
   "pixel_recall_pre": 0.931436,
   "pixel_recall_post": 0.991012,
+  "pixel_fnr_pre": 0.068564,
+  "pixel_fnr_post": 0.008988,
   "total_gt_pixels": 2279581,
   "total_pixels_covered_pre": 2123284,
   "total_pixels_covered_post": 2259093,
   "paper_fnr_pre_hough": 0.0698,
   "paper_fnr_post_hough": 0.0338,
+  "fnr_metric_note": "fnr_*_hough is IMAGE-level detection FNR (fraction of positive test images with no detected-pixel/GT overlap); it saturates at 0 once every positive image is hit by >=1 pixel, so Hough cannot change it and it is NOT comparable to the paper. fnr_*_patch is the analogous patch-level rate. pixel_fnr_* = 1 - pixel_recall is full-field trail-pixel completeness. The paper's reported FNR (paper_fnr_*) is pixel completeness and is comparable ONLY to pixel_fnr_*.",
   "per_image": [
     {
       "source_image": "data/Processed/ML1_20171023_002210_red.fits_full.png",

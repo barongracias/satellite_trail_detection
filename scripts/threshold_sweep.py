@@ -35,7 +35,7 @@ from src.utils.seed import seed_everything
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--checkpoint", default="results/checkpoints/unet_baseline_best.pth")
+    p.add_argument("--checkpoint", default="results/checkpoints/unet_paper_arch_noise_topk_t44_s2804_best.pth")
     p.add_argument("--patch_dir", default="data/patches")
     p.add_argument("--batch_size", type=int, default=16)
     p.add_argument("--num_workers", type=int, default=4)

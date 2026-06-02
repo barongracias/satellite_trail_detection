@@ -1,0 +1,41 @@
+{
+  "experiment": "dilated-soft target label pilot (single seed 2804)",
+  "config": {
+    "target_mode": "dilated_soft",
+    "soft_dilation_px": 1,
+    "soft_band_value": 0.5,
+    "note": "soft targets train-only; val/test masks hard. All other settings identical to the winner (trial 44, seed 2804)."
+  },
+  "baseline_hard": {
+    "tag": "winner_t44_s2804",
+    "checkpoint": "results/checkpoints/unet_paper_arch_noise_topk_t44_s2804_best.pth",
+    "optimal_threshold": 0.45,
+    "test_precision": 0.851689,
+    "test_recall": 0.917996,
+    "test_dice": 0.883601,
+    "test_iou": 0.791474,
+    "centerline_dice": 0.847214,
+    "tolerant_f1_1px": 0.962969
+  },
+  "soft_pilot": {
+    "tag": "soft_dilated_t44_s2804",
+    "checkpoint": "results/checkpoints/unet_soft_dilated_t44_s2804_best.pth",
+    "optimal_threshold": 0.62,
+    "test_precision": 0.829208,
+    "test_recall": 0.925515,
+    "test_dice": 0.874719,
+    "test_iou": 0.777334,
+    "centerline_dice": 0.834626,
+    "tolerant_f1_1px": 0.961699,
+    "val_f1": 0.848684590991894
+  },
+  "delta_soft_minus_hard": {
+    "test_precision": -0.022481,
+    "test_recall": 0.007519,
+    "test_dice": -0.008882,
+    "centerline_dice": -0.012588,
+    "tolerant_f1_1px": -0.00127
+  },
+  "interpretation": "negative/neutral. Dilated-soft targets widen predictions (recall +0.8pp, precision -2.3pp, optimal threshold 0.45->0.62) and do not improve any metric: exact Dice -0.009, clDice -0.013, +-1px tolerant F1 -0.001 (tied). The boundary band is absorbed into wider predictions rather than sharpening localization; reported as a tested-and-rejected single-seed protocol variant, consistent with the boundary-placement-dominated error profile.",
+  "generated": "2026-06-02"
+}

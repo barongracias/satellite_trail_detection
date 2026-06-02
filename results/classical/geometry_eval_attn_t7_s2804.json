@@ -1,6 +1,7 @@
 {
   "checkpoint": "results/checkpoints/attention_unet_paper_arch_noise_topk_t7_s2804_best.pth",
   "threshold": 0.48,
+  "threshold_source": "results/classical/threshold_sweep_attn_winner_t7_s2804.json",
   "split": "test",
   "normalisation": "full_image",
   "exact_metrics": {
@@ -18,9 +19,13 @@
   "fp_distance": {
     "n_fp_pixels_with_gt": 333025,
     "whole_patch_fp_pixels": 73955,
+    "n_fp_pixels_total": 406980,
     "fraction_within_1px": 0.66544,
     "fraction_within_2px": 0.807624,
     "fraction_within_3px": 0.852029,
+    "fraction_within_1px_all_fp": 0.544518,
+    "fraction_within_2px_all_fp": 0.660865,
+    "fraction_within_3px_all_fp": 0.697201,
     "median_px_approx": 1.619229125106868,
     "histogram_bin_edges": [
       0.0,
@@ -128,7 +133,7 @@
       22
     ],
     "overflow_gt_50px": 20131,
-    "note": "distance from each FP pixel to nearest GT positive; whole-patch FP (no GT in patch) counted separately, not in the histogram"
+    "note": "fraction_within_*px is over distance-defined FP (patches with GT); *_all_fp uses all FP (incl. whole-patch FP, which have no defined distance and are treated as non-boundary-adjacent). Histogram is over distance-defined FP only."
   },
   "generated": "2026-06-02"
 }

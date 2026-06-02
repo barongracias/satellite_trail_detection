@@ -2,6 +2,8 @@
   "method": "probability_stratified_hough_approximation",
   "method_note": "union of Hough over probability strata; NOT a true weighted accumulator (cv2.HoughLinesP votes on a binary canvas)",
   "checkpoint": "results/checkpoints/unet_paper_arch_noise_topk_t44_s2804_best.pth",
+  "split": "test",
+  "normalisation": "full_image",
   "threshold": 0.45,
   "strata": [
     0.1,

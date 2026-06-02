@@ -1,0 +1,36 @@
+{
+  "checkpoint": "results/checkpoints/unet_soft_dilated_t44_s2804_best.pth",
+  "threshold": 0.62,
+  "tolerances": [
+    0,
+    1,
+    2,
+    3
+  ],
+  "tolerance_kernel": "cv2.MORPH_RECT",
+  "tolerance_neighbourhood": "square/Chebyshev; 8-neighbour at tolerance=1",
+  "tolerance_application": "target-side dilation for precision and prediction-side dilation for recall",
+  "per_tolerance": {
+    "0": {
+      "precision": 0.829208,
+      "recall": 0.925515,
+      "f1": 0.874719
+    },
+    "1": {
+      "precision": 0.951878,
+      "recall": 0.971724,
+      "f1": 0.961699
+    },
+    "2": {
+      "precision": 0.966306,
+      "recall": 0.973899,
+      "f1": 0.970087
+    },
+    "3": {
+      "precision": 0.969357,
+      "recall": 0.974824,
+      "f1": 0.972083
+    }
+  },
+  "generated": "2026-06-02"
+}

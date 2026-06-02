@@ -60,6 +60,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--checkpoint", required=True)
     p.add_argument("--patch_dir", default="data/patches")
     p.add_argument("--threshold", type=float, required=True)
+    p.add_argument("--threshold-source", default=None,
+                   help="Path/description of the validation threshold-sweep that "
+                        "selected --threshold (recorded as provenance in the output).")
     p.add_argument("--tag", default=None, help="Short tag for the output filename.")
     p.add_argument("--out", default=None)
     p.add_argument("--batch_size", type=int, default=32)
@@ -138,10 +141,15 @@ def main() -> None:
                     overflow += int((dists > _HIST_EDGES[-1]).sum())
 
     metrics = compute_metrics_from_counts(counts)
+    n_fp_total = n_fp_with_gt + whole_patch_fp
+    # Two denominators: distance-defined FP (patches with GT) vs ALL FP (whole-patch
+    # FP have no defined distance and are reported as non-boundary-adjacent).
     frac = lambda n: (round(n / n_fp_with_gt, 6) if n_fp_with_gt else None)
+    frac_all = lambda n: (round(n / n_fp_total, 6) if n_fp_total else None)
     out = {
         "checkpoint": str(args.checkpoint),
         "threshold": args.threshold,
+        "threshold_source": args.threshold_source,
         "split": "test",
         "normalisation": normalisation,
         "exact_metrics": {
@@ -159,15 +167,21 @@ def main() -> None:
         "fp_distance": {
             "n_fp_pixels_with_gt": n_fp_with_gt,
             "whole_patch_fp_pixels": whole_patch_fp,
+            "n_fp_pixels_total": n_fp_total,
             "fraction_within_1px": frac(within_1),
             "fraction_within_2px": frac(within_2),
             "fraction_within_3px": frac(within_3),
+            "fraction_within_1px_all_fp": frac_all(within_1),
+            "fraction_within_2px_all_fp": frac_all(within_2),
+            "fraction_within_3px_all_fp": frac_all(within_3),
             "median_px_approx": _approx_median(hist_counts, _HIST_EDGES),
             "histogram_bin_edges": [float(x) for x in _HIST_EDGES],
             "histogram_counts": [int(x) for x in hist_counts],
             "overflow_gt_50px": overflow,
-            "note": "distance from each FP pixel to nearest GT positive; whole-patch "
-                    "FP (no GT in patch) counted separately, not in the histogram",
+            "note": "fraction_within_*px is over distance-defined FP (patches with GT); "
+                    "*_all_fp uses all FP (incl. whole-patch FP, which have no defined "
+                    "distance and are treated as non-boundary-adjacent). Histogram is "
+                    "over distance-defined FP only.",
         },
         "generated": str(date.today()),
     }
@@ -181,8 +195,9 @@ def main() -> None:
     print(f"Geometry eval -> {out_path}")
     print(f"  exact: P={metrics.precision:.4f} R={metrics.recall:.4f} Dice={metrics.dice:.4f}")
     print(f"  clDice(mean over {cldice_n} pos patches): {out['centerline_dice']['mean']}")
-    print(f"  FP within 1/2/3px: {frac(within_1)}/{frac(within_2)}/{frac(within_3)}  "
-          f"(whole-patch FP pixels: {whole_patch_fp})")
+    print(f"  FP within 1/2/3px (distance-defined): {frac(within_1)}/{frac(within_2)}/{frac(within_3)}")
+    print(f"  FP within 1/2/3px (all FP incl. whole-patch): {frac_all(within_1)}/{frac_all(within_2)}/{frac_all(within_3)}"
+          f"  (whole-patch FP pixels: {whole_patch_fp} of {n_fp_total})")
 
 
 if __name__ == "__main__":

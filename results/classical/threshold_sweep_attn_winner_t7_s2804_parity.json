@@ -1,0 +1,13 @@
+{
+  "tag": "attn_winner_t7_s2804_parity",
+  "checkpoint": "results/checkpoints/attention_unet_paper_arch_noise_topk_t7_s2804_best.pth",
+  "optimal_threshold": 0.48,
+  "val_f1": null,
+  "val_precision": null,
+  "val_recall": null,
+  "pr_curve": [],
+  "test_precision": 0.7630444292148245,
+  "test_recall": 0.9236017496197766,
+  "test_dice": 0.8356811033685638,
+  "test_iou": 0.717742455083676
+}

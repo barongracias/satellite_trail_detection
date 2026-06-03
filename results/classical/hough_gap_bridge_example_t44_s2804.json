@@ -1,0 +1,37 @@
+{
+  "analysis": "hough_gap_bridge_example",
+  "provenance": {
+    "checkpoint": "results/checkpoints/unet_paper_arch_noise_topk_t44_s2804_best.pth",
+    "threshold": 0.45,
+    "normalisation": "full_image",
+    "split": "sampled_test",
+    "manifest": "data/patches/manifest.csv",
+    "manifest_sha256": "e4082a0c16fd58aeaafb061baf846555fe76543700058bd7119f08063c7cf24b",
+    "git_commit": "22142f662d119a1bc550b8462d961b3ce12c3251",
+    "post_hoc_locked_winner_analysis": true,
+    "display_intensity_caveat": "Raw intensities are 8-bit display-scaled PNG values; contrast metrics are relative display-space proxies, not calibrated flux/SNR."
+  },
+  "method_note": "Candidate selected post hoc by Hough-added GT pixels and an interior-gap criterion. Qualitative mechanism illustration only; not selection evidence.",
+  "selected": {
+    "source_image": "data/Processed/ML1_20210619_171004_red.fits_full.png",
+    "is_positive": true,
+    "detected_pre_hough": true,
+    "detected_post_hough": true,
+    "n_positive_patches": 48,
+    "n_fn_pre_patch": 2,
+    "n_fn_post_patch": 0,
+    "gt_pixels": 164773,
+    "pixels_covered_pre": 126505,
+    "pixels_covered_post": 164707,
+    "hough_recovered_gt_px": 38202,
+    "rank_by_hough_recovered_gt_px": 1,
+    "criterion": "interior_gap",
+    "recovered_gt_px": 24169,
+    "interior_fraction": 0.6845959700442716,
+    "component_gt_px": 105141,
+    "crop_y0": 3752,
+    "crop_y1": 10560,
+    "crop_x0": 1401,
+    "crop_x1": 10560
+  }
+}

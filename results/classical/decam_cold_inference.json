@@ -1,0 +1,715 @@
+{
+  "analysis": "m61b_qualitative_cold_decam_locked_winner",
+  "benchmark": false,
+  "images": [
+    {
+      "cleaned_nonfinite_pixels": 0,
+      "detector": 5,
+      "expected_visual_class": "streak",
+      "expnum": 1134933,
+      "full_image_mean": 0.5025824308395386,
+      "full_image_std": 0.1024666428565979,
+      "hough_params": {
+        "hough_input_threshold": 0.1,
+        "hough_threshold": 50,
+        "line_thickness": 3,
+        "max_line_gap": 250,
+        "min_line_length": 100
+      },
+      "hough_pixel_count": 22295,
+      "human_review_notes": null,
+      "human_review_status": null,
+      "image_hdu_index": 1,
+      "in_reca_measured_streak_sample": true,
+      "n_patches": 8,
+      "nonfinite_fill_value": 1224.2275390625,
+      "norad_id": 39741,
+      "normalisation": "full_image",
+      "notes": "table SNR 4509.6",
+      "object_name": "NAVSTAR-70",
+      "pad_shape": {
+        "bottom": 186,
+        "right": 94
+      },
+      "padded_shape": [
+        2112,
+        1056
+      ],
+      "pixscale_header_arcsec": 0.26230670752343754,
+      "predicted_pixel_count": 13113,
+      "predicted_pixel_fraction": 0.00707735053529446,
+      "probability_max": 0.9994823932647705,
+      "probability_mean": 0.00685742637142539,
+      "proc_type": "instcal",
+      "raw_fits_bytes": 5238720,
+      "raw_fits_path": "data/external/decam/raw/decam_exp1134933_det5_instcal.fits",
+      "raw_shape": [
+        4094,
+        2046
+      ],
+      "resample_factor": 0.47035714285714286,
+      "resampled_shape": [
+        1926,
+        962
+      ],
+      "resampling_note": "linear area downsampling with cv2.INTER_AREA; not integrated-flux preserving",
+      "source_notebook_or_list": "RECA notebooks/paper_notebooks/DECam_streaks_photometry-V2.ipynb cell 2 table",
+      "stretch_recipe": {
+        "fallback_percentile_used": false,
+        "implementation": "astropy.visualization.ZScaleInterval",
+        "name": "zscale",
+        "vmax": 1272.4468352456458,
+        "vmin": 1176.4610392940924
+      },
+      "threshold": 0.45,
+      "visual_fp_clean": null,
+      "visual_hit_hough": null,
+      "visual_hit_unet_binary": null,
+      "visual_hit_unet_prob": null
+    },
+    {
+      "cleaned_nonfinite_pixels": 0,
+      "detector": 23,
+      "expected_visual_class": "streak",
+      "expnum": 1138498,
+      "full_image_mean": 0.5011298060417175,
+      "full_image_std": 0.10302375257015228,
+      "hough_params": {
+        "hough_input_threshold": 0.1,
+        "hough_threshold": 50,
+        "line_thickness": 3,
+        "max_line_gap": 250,
+        "min_line_length": 100
+      },
+      "hough_pixel_count": 19736,
+      "human_review_notes": null,
+      "human_review_status": null,
+      "image_hdu_index": 1,
+      "in_reca_measured_streak_sample": true,
+      "n_patches": 8,
+      "nonfinite_fill_value": 3222.52978515625,
+      "norad_id": 48387,
+      "normalisation": "full_image",
+      "notes": "table SNR 301.9",
+      "object_name": "STARLINK-2600",
+      "pad_shape": {
+        "bottom": 186,
+        "right": 94
+      },
+      "padded_shape": [
+        2112,
+        1056
+      ],
+      "pixscale_header_arcsec": 0.26227583653750325,
+      "predicted_pixel_count": 13200,
+      "predicted_pixel_fraction": 0.00712430618972675,
+      "probability_max": 0.9993846416473389,
+      "probability_mean": 0.006548735313117504,
+      "proc_type": "instcal",
+      "raw_fits_bytes": 5230080,
+      "raw_fits_path": "data/external/decam/raw/decam_exp1138498_det23_instcal.fits",
+      "raw_shape": [
+        4094,
+        2046
+      ],
+      "resample_factor": 0.47035714285714286,
+      "resampled_shape": [
+        1926,
+        962
+      ],
+      "resampling_note": "linear area downsampling with cv2.INTER_AREA; not integrated-flux preserving",
+      "source_notebook_or_list": "RECA notebooks/paper_notebooks/DECam_streaks_photometry-V2.ipynb cell 2 table",
+      "stretch_recipe": {
+        "fallback_percentile_used": false,
+        "implementation": "astropy.visualization.ZScaleInterval",
+        "name": "zscale",
+        "vmax": 3299.032928599091,
+        "vmin": 3146.9725373375054
+      },
+      "threshold": 0.45,
+      "visual_fp_clean": null,
+      "visual_hit_hough": null,
+      "visual_hit_unet_binary": null,
+      "visual_hit_unet_prob": null
+    },
+    {
+      "cleaned_nonfinite_pixels": 0,
+      "detector": 17,
+      "expected_visual_class": "streak",
+      "expnum": 1033925,
+      "full_image_mean": 0.49444669485092163,
+      "full_image_std": 0.0933409184217453,
+      "hough_params": {
+        "hough_input_threshold": 0.1,
+        "hough_threshold": 50,
+        "line_thickness": 3,
+        "max_line_gap": 250,
+        "min_line_length": 100
+      },
+      "hough_pixel_count": 15976,
+      "human_review_notes": null,
+      "human_review_status": null,
+      "image_hdu_index": 1,
+      "in_reca_measured_streak_sample": true,
+      "n_patches": 8,
+      "nonfinite_fill_value": 852.2103881835938,
+      "norad_id": 48298,
+      "normalisation": "full_image",
+      "notes": "table SNR 39.5",
+      "object_name": "STARLINK-2559",
+      "pad_shape": {
+        "bottom": 186,
+        "right": 94
+      },
+      "padded_shape": [
+        2112,
+        1056
+      ],
+      "pixscale_header_arcsec": 0.2623347093805379,
+      "predicted_pixel_count": 6211,
+      "predicted_pixel_fraction": 0.0033522019503327916,
+      "probability_max": 0.998166561126709,
+      "probability_mean": 0.0029798061586916447,
+      "proc_type": "instcal",
+      "raw_fits_bytes": 5221440,
+      "raw_fits_path": "data/external/decam/raw/decam_exp1033925_det17_instcal.fits",
+      "raw_shape": [
+        4094,
+        2046
+      ],
+      "resample_factor": 0.47035714285714286,
+      "resampled_shape": [
+        1926,
+        962
+      ],
+      "resampling_note": "linear area downsampling with cv2.INTER_AREA; not integrated-flux preserving",
+      "source_notebook_or_list": "RECA notebooks/paper_notebooks/DECam_streaks_photometry-V2.ipynb cell 2 table",
+      "stretch_recipe": {
+        "fallback_percentile_used": false,
+        "implementation": "astropy.visualization.ZScaleInterval",
+        "name": "zscale",
+        "vmax": 890.8766429248113,
+        "vmin": 814.9049670428802
+      },
+      "threshold": 0.45,
+      "visual_fp_clean": null,
+      "visual_hit_hough": null,
+      "visual_hit_unet_binary": null,
+      "visual_hit_unet_prob": null
+    },
+    {
+      "cleaned_nonfinite_pixels": 0,
+      "detector": 4,
+      "expected_visual_class": "streak",
+      "expnum": 1103448,
+      "full_image_mean": 0.503948986530304,
+      "full_image_std": 0.10031545162200928,
+      "hough_params": {
+        "hough_input_threshold": 0.1,
+        "hough_threshold": 50,
+        "line_thickness": 3,
+        "max_line_gap": 250,
+        "min_line_length": 100
+      },
+      "hough_pixel_count": 12154,
+      "human_review_notes": null,
+      "human_review_status": null,
+      "image_hdu_index": 1,
+      "in_reca_measured_streak_sample": true,
+      "n_patches": 8,
+      "nonfinite_fill_value": 266.779296875,
+      "norad_id": 52297,
+      "normalisation": "full_image",
+      "notes": "table SNR 128.8",
+      "object_name": "STARLINK-3758",
+      "pad_shape": {
+        "bottom": 186,
+        "right": 94
+      },
+      "padded_shape": [
+        2112,
+        1056
+      ],
+      "pixscale_header_arcsec": 0.2623279861187618,
+      "predicted_pixel_count": 7112,
+      "predicted_pixel_fraction": 0.003838489819798231,
+      "probability_max": 0.9993517994880676,
+      "probability_mean": 0.003728795563802123,
+      "proc_type": "instcal",
+      "raw_fits_bytes": 5235840,
+      "raw_fits_path": "data/external/decam/raw/decam_exp1103448_det4_instcal.fits",
+      "raw_shape": [
+        4094,
+        2046
+      ],
+      "resample_factor": 0.47035714285714286,
+      "resampled_shape": [
+        1926,
+        962
+      ],
+      "resampling_note": "linear area downsampling with cv2.INTER_AREA; not integrated-flux preserving",
+      "source_notebook_or_list": "RECA notebooks/paper_notebooks/DECam_streaks_photometry-V2.ipynb cell 2 table",
+      "stretch_recipe": {
+        "fallback_percentile_used": false,
+        "implementation": "astropy.visualization.ZScaleInterval",
+        "name": "zscale",
+        "vmax": 289.49264186931055,
+        "vmin": 244.14469781084577
+      },
+      "threshold": 0.45,
+      "visual_fp_clean": null,
+      "visual_hit_hough": null,
+      "visual_hit_unet_binary": null,
+      "visual_hit_unet_prob": null
+    },
+    {
+      "cleaned_nonfinite_pixels": 0,
+      "detector": 20,
+      "expected_visual_class": "streak",
+      "expnum": 1103448,
+      "full_image_mean": 0.49861371517181396,
+      "full_image_std": 0.10388659685850143,
+      "hough_params": {
+        "hough_input_threshold": 0.1,
+        "hough_threshold": 50,
+        "line_thickness": 3,
+        "max_line_gap": 250,
+        "min_line_length": 100
+      },
+      "hough_pixel_count": 16176,
+      "human_review_notes": null,
+      "human_review_status": null,
+      "image_hdu_index": 1,
+      "in_reca_measured_streak_sample": true,
+      "n_patches": 8,
+      "nonfinite_fill_value": 266.7936096191406,
+      "norad_id": 52290,
+      "normalisation": "full_image",
+      "notes": "table SNR 295.4",
+      "object_name": "STARLINK-3772",
+      "pad_shape": {
+        "bottom": 186,
+        "right": 94
+      },
+      "padded_shape": [
+        2112,
+        1056
+      ],
+      "pixscale_header_arcsec": 0.2623279861187618,
+      "predicted_pixel_count": 9222,
+      "predicted_pixel_fraction": 0.004977299369822734,
+      "probability_max": 0.9993453621864319,
+      "probability_mean": 0.00482207490131259,
+      "proc_type": "instcal",
+      "raw_fits_bytes": 5232960,
+      "raw_fits_path": "data/external/decam/raw/decam_exp1103448_det20_instcal.fits",
+      "raw_shape": [
+        4094,
+        2046
+      ],
+      "resample_factor": 0.47035714285714286,
+      "resampled_shape": [
+        1926,
+        962
+      ],
+      "resampling_note": "linear area downsampling with cv2.INTER_AREA; not integrated-flux preserving",
+      "source_notebook_or_list": "RECA notebooks/paper_notebooks/DECam_streaks_photometry-V2.ipynb cell 2 table",
+      "stretch_recipe": {
+        "fallback_percentile_used": false,
+        "implementation": "astropy.visualization.ZScaleInterval",
+        "name": "zscale",
+        "vmax": 287.95896029303685,
+        "vmin": 246.1832733154297
+      },
+      "threshold": 0.45,
+      "visual_fp_clean": null,
+      "visual_hit_hough": null,
+      "visual_hit_unet_binary": null,
+      "visual_hit_unet_prob": null
+    },
+    {
+      "cleaned_nonfinite_pixels": 0,
+      "detector": 45,
+      "expected_visual_class": "streak",
+      "expnum": 1103448,
+      "full_image_mean": 0.5036892890930176,
+      "full_image_std": 0.10165248811244965,
+      "hough_params": {
+        "hough_input_threshold": 0.1,
+        "hough_threshold": 50,
+        "line_thickness": 3,
+        "max_line_gap": 250,
+        "min_line_length": 100
+      },
+      "hough_pixel_count": 21253,
+      "human_review_notes": null,
+      "human_review_status": null,
+      "image_hdu_index": 1,
+      "in_reca_measured_streak_sample": true,
+      "n_patches": 8,
+      "nonfinite_fill_value": 266.40350341796875,
+      "norad_id": 52293,
+      "normalisation": "full_image",
+      "notes": "table SNR 1326.5",
+      "object_name": "STARLINK-3771",
+      "pad_shape": {
+        "bottom": 186,
+        "right": 94
+      },
+      "padded_shape": [
+        2112,
+        1056
+      ],
+      "pixscale_header_arcsec": 0.2623279861187618,
+      "predicted_pixel_count": 12423,
+      "predicted_pixel_fraction": 0.006704943620831471,
+      "probability_max": 0.9996041655540466,
+      "probability_mean": 0.006502023432403803,
+      "proc_type": "instcal",
+      "raw_fits_bytes": 5218560,
+      "raw_fits_path": "data/external/decam/raw/decam_exp1103448_det45_instcal.fits",
+      "raw_shape": [
+        4094,
+        2046
+      ],
+      "resample_factor": 0.47035714285714286,
+      "resampled_shape": [
+        1926,
+        962
+      ],
+      "resampling_note": "linear area downsampling with cv2.INTER_AREA; not integrated-flux preserving",
+      "source_notebook_or_list": "RECA notebooks/paper_notebooks/DECam_streaks_photometry-V2.ipynb cell 2 table",
+      "stretch_recipe": {
+        "fallback_percentile_used": false,
+        "implementation": "astropy.visualization.ZScaleInterval",
+        "name": "zscale",
+        "vmax": 288.2259166843069,
+        "vmin": 244.71237180912456
+      },
+      "threshold": 0.45,
+      "visual_fp_clean": null,
+      "visual_hit_hough": null,
+      "visual_hit_unet_binary": null,
+      "visual_hit_unet_prob": null
+    },
+    {
+      "cleaned_nonfinite_pixels": 0,
+      "detector": 34,
+      "expected_visual_class": "streak",
+      "expnum": 1103448,
+      "full_image_mean": 0.3685835301876068,
+      "full_image_std": 0.13205555081367493,
+      "hough_params": {
+        "hough_input_threshold": 0.1,
+        "hough_threshold": 50,
+        "line_thickness": 3,
+        "max_line_gap": 250,
+        "min_line_length": 100
+      },
+      "hough_pixel_count": 21599,
+      "human_review_notes": null,
+      "human_review_status": null,
+      "image_hdu_index": 1,
+      "in_reca_measured_streak_sample": true,
+      "n_patches": 8,
+      "nonfinite_fill_value": 266.6826171875,
+      "norad_id": 52295,
+      "normalisation": "full_image",
+      "notes": "table SNR 482.0",
+      "object_name": "STARLINK-3765",
+      "pad_shape": {
+        "bottom": 186,
+        "right": 94
+      },
+      "padded_shape": [
+        2112,
+        1056
+      ],
+      "pixscale_header_arcsec": 0.2623279861187618,
+      "predicted_pixel_count": 10733,
+      "predicted_pixel_fraction": 0.005792816540480092,
+      "probability_max": 0.9992517828941345,
+      "probability_mean": 0.0055857570841908455,
+      "proc_type": "instcal",
+      "raw_fits_bytes": 5227200,
+      "raw_fits_path": "data/external/decam/raw/decam_exp1103448_det34_instcal.fits",
+      "raw_shape": [
+        4094,
+        2046
+      ],
+      "resample_factor": 0.47035714285714286,
+      "resampled_shape": [
+        1926,
+        962
+      ],
+      "resampling_note": "linear area downsampling with cv2.INTER_AREA; not integrated-flux preserving",
+      "source_notebook_or_list": "RECA notebooks/paper_notebooks/DECam_streaks_photometry-V2.ipynb cell 2 table",
+      "stretch_recipe": {
+        "fallback_percentile_used": false,
+        "implementation": "astropy.visualization.ZScaleInterval",
+        "name": "zscale",
+        "vmax": 286.74559344748474,
+        "vmin": 255.24948120117188
+      },
+      "threshold": 0.45,
+      "visual_fp_clean": null,
+      "visual_hit_hough": null,
+      "visual_hit_unet_binary": null,
+      "visual_hit_unet_prob": null
+    },
+    {
+      "cleaned_nonfinite_pixels": 0,
+      "detector": 5,
+      "expected_visual_class": "streak",
+      "expnum": 1072590,
+      "full_image_mean": 0.5005137920379639,
+      "full_image_std": 0.09753620624542236,
+      "hough_params": {
+        "hough_input_threshold": 0.1,
+        "hough_threshold": 50,
+        "line_thickness": 3,
+        "max_line_gap": 250,
+        "min_line_length": 100
+      },
+      "hough_pixel_count": 23371,
+      "human_review_notes": null,
+      "human_review_status": null,
+      "image_hdu_index": 1,
+      "in_reca_measured_streak_sample": true,
+      "n_patches": 8,
+      "nonfinite_fill_value": 2497.723876953125,
+      "norad_id": 20763,
+      "normalisation": "full_image",
+      "notes": "table SNR 1906.6",
+      "object_name": "DELTA-2 R/B",
+      "pad_shape": {
+        "bottom": 186,
+        "right": 94
+      },
+      "padded_shape": [
+        2112,
+        1056
+      ],
+      "pixscale_header_arcsec": 0.2623417042192783,
+      "predicted_pixel_count": 12931,
+      "predicted_pixel_fraction": 0.006979121465102774,
+      "probability_max": 0.9999549388885498,
+      "probability_mean": 0.00684311892837286,
+      "proc_type": "instcal",
+      "raw_fits_bytes": 5241600,
+      "raw_fits_path": "data/external/decam/raw/decam_exp1072590_det5_instcal.fits",
+      "raw_shape": [
+        4094,
+        2046
+      ],
+      "resample_factor": 0.47035714285714286,
+      "resampled_shape": [
+        1926,
+        962
+      ],
+      "resampling_note": "linear area downsampling with cv2.INTER_AREA; not integrated-flux preserving",
+      "source_notebook_or_list": "RECA notebooks/paper_notebooks/DECam_streaks_photometry-V2.ipynb cell 2 table",
+      "stretch_recipe": {
+        "fallback_percentile_used": false,
+        "implementation": "astropy.visualization.ZScaleInterval",
+        "name": "zscale",
+        "vmax": 2563.715187251034,
+        "vmin": 2432.403750762071
+      },
+      "threshold": 0.45,
+      "visual_fp_clean": null,
+      "visual_hit_hough": null,
+      "visual_hit_unet_binary": null,
+      "visual_hit_unet_prob": null
+    },
+    {
+      "cleaned_nonfinite_pixels": 0,
+      "detector": 21,
+      "expected_visual_class": "streak",
+      "expnum": 1125268,
+      "full_image_mean": 0.36509639024734497,
+      "full_image_std": 0.12191101163625717,
+      "hough_params": {
+        "hough_input_threshold": 0.1,
+        "hough_threshold": 50,
+        "line_thickness": 3,
+        "max_line_gap": 250,
+        "min_line_length": 100
+      },
+      "hough_pixel_count": 17193,
+      "human_review_notes": null,
+      "human_review_status": null,
+      "image_hdu_index": 1,
+      "in_reca_measured_streak_sample": true,
+      "n_patches": 8,
+      "nonfinite_fill_value": 65.83171844482422,
+      "norad_id": 27651,
+      "normalisation": "full_image",
+      "notes": "table SNR 35.3",
+      "object_name": "SORCE",
+      "pad_shape": {
+        "bottom": 186,
+        "right": 94
+      },
+      "padded_shape": [
+        2112,
+        1056
+      ],
+      "pixscale_header_arcsec": 0.26230197856292736,
+      "predicted_pixel_count": 7730,
+      "predicted_pixel_fraction": 0.004172036882317256,
+      "probability_max": 0.9911311268806458,
+      "probability_mean": 0.0034402632154524326,
+      "proc_type": "instcal",
+      "raw_fits_bytes": 5232960,
+      "raw_fits_path": "data/external/decam/raw/decam_exp1125268_det21_instcal.fits",
+      "raw_shape": [
+        4094,
+        2046
+      ],
+      "resample_factor": 0.47035714285714286,
+      "resampled_shape": [
+        1926,
+        962
+      ],
+      "resampling_note": "linear area downsampling with cv2.INTER_AREA; not integrated-flux preserving",
+      "source_notebook_or_list": "RECA notebooks/paper_notebooks/DECam_streaks_photometry-V2.ipynb cell 2 table",
+      "stretch_recipe": {
+        "fallback_percentile_used": false,
+        "implementation": "astropy.visualization.ZScaleInterval",
+        "name": "zscale",
+        "vmax": 76.76144133818875,
+        "vmin": 59.69660568237305
+      },
+      "threshold": 0.45,
+      "visual_fp_clean": null,
+      "visual_hit_hough": null,
+      "visual_hit_unet_binary": null,
+      "visual_hit_unet_prob": null
+    }
+  ],
+  "manifest": [
+    {
+      "detector": 5,
+      "expected_visual_class": "streak",
+      "expnum": 1134933,
+      "in_reca_measured_streak_sample": true,
+      "norad_id": 39741,
+      "notes": "table SNR 4509.6",
+      "object_name": "NAVSTAR-70",
+      "proc_type": "instcal",
+      "source_notebook_or_list": "RECA notebooks/paper_notebooks/DECam_streaks_photometry-V2.ipynb cell 2 table"
+    },
+    {
+      "detector": 23,
+      "expected_visual_class": "streak",
+      "expnum": 1138498,
+      "in_reca_measured_streak_sample": true,
+      "norad_id": 48387,
+      "notes": "table SNR 301.9",
+      "object_name": "STARLINK-2600",
+      "proc_type": "instcal",
+      "source_notebook_or_list": "RECA notebooks/paper_notebooks/DECam_streaks_photometry-V2.ipynb cell 2 table"
+    },
+    {
+      "detector": 17,
+      "expected_visual_class": "streak",
+      "expnum": 1033925,
+      "in_reca_measured_streak_sample": true,
+      "norad_id": 48298,
+      "notes": "table SNR 39.5",
+      "object_name": "STARLINK-2559",
+      "proc_type": "instcal",
+      "source_notebook_or_list": "RECA notebooks/paper_notebooks/DECam_streaks_photometry-V2.ipynb cell 2 table"
+    },
+    {
+      "detector": 4,
+      "expected_visual_class": "streak",
+      "expnum": 1103448,
+      "in_reca_measured_streak_sample": true,
+      "norad_id": 52297,
+      "notes": "table SNR 128.8",
+      "object_name": "STARLINK-3758",
+      "proc_type": "instcal",
+      "source_notebook_or_list": "RECA notebooks/paper_notebooks/DECam_streaks_photometry-V2.ipynb cell 2 table"
+    },
+    {
+      "detector": 20,
+      "expected_visual_class": "streak",
+      "expnum": 1103448,
+      "in_reca_measured_streak_sample": true,
+      "norad_id": 52290,
+      "notes": "table SNR 295.4",
+      "object_name": "STARLINK-3772",
+      "proc_type": "instcal",
+      "source_notebook_or_list": "RECA notebooks/paper_notebooks/DECam_streaks_photometry-V2.ipynb cell 2 table"
+    },
+    {
+      "detector": 45,
+      "expected_visual_class": "streak",
+      "expnum": 1103448,
+      "in_reca_measured_streak_sample": true,
+      "norad_id": 52293,
+      "notes": "table SNR 1326.5",
+      "object_name": "STARLINK-3771",
+      "proc_type": "instcal",
+      "source_notebook_or_list": "RECA notebooks/paper_notebooks/DECam_streaks_photometry-V2.ipynb cell 2 table"
+    },
+    {
+      "detector": 34,
+      "expected_visual_class": "streak",
+      "expnum": 1103448,
+      "in_reca_measured_streak_sample": true,
+      "norad_id": 52295,
+      "notes": "table SNR 482.0",
+      "object_name": "STARLINK-3765",
+      "proc_type": "instcal",
+      "source_notebook_or_list": "RECA notebooks/paper_notebooks/DECam_streaks_photometry-V2.ipynb cell 2 table"
+    },
+    {
+      "detector": 5,
+      "expected_visual_class": "streak",
+      "expnum": 1072590,
+      "in_reca_measured_streak_sample": true,
+      "norad_id": 20763,
+      "notes": "table SNR 1906.6",
+      "object_name": "DELTA-2 R/B",
+      "proc_type": "instcal",
+      "source_notebook_or_list": "RECA notebooks/paper_notebooks/DECam_streaks_photometry-V2.ipynb cell 2 table"
+    },
+    {
+      "detector": 21,
+      "expected_visual_class": "streak",
+      "expnum": 1125268,
+      "in_reca_measured_streak_sample": true,
+      "norad_id": 27651,
+      "notes": "table SNR 35.3",
+      "object_name": "SORCE",
+      "proc_type": "instcal",
+      "source_notebook_or_list": "RECA notebooks/paper_notebooks/DECam_streaks_photometry-V2.ipynb cell 2 table"
+    }
+  ],
+  "manifest_path": "results/classical/decam_cold_manifest.json",
+  "manifest_sha256": "8b6453d888e9ba4298aed9dd9da5dd0a3c36a0f9b829036a06a7669d5007f24c",
+  "manual_review_summary": null,
+  "provenance": {
+    "checkpoint": "results/checkpoints/unet_paper_arch_noise_topk_t44_s2804_best.pth",
+    "display_domain_caveat": "DECam FITS data are linearly resampled and ZScale-stretched into an 8-bit display-like domain before applying the MeerLICHT PNG-trained model; this is a qualitative visual stress test, not calibrated cross-dataset performance.",
+    "git_commit": "1ec1d32683fabce7b2a080866fb56e3ff9f5127b",
+    "montage_display_rotation_degrees": 90,
+    "noirlab_acknowledgement": "Based on observations at Cerro Tololo Inter-American Observatory, NSF's NOIRLab, managed by AURA under a cooperative agreement with the U.S. National Science Foundation.",
+    "noirlab_archive": "https://astroarchive.noirlab.edu",
+    "normalisation": "full_image",
+    "partial_run": false,
+    "predeclared_manifest_entries": 9,
+    "processed_entries": 9,
+    "reca_paper": "https://arxiv.org/abs/2603.10790",
+    "reca_repository": "https://github.com/iausathub/reca-streaks",
+    "source": "RECA notebooks/paper_notebooks/DECam_streaks_photometry-V2.ipynb cell 2 table",
+    "threshold": 0.45
+  },
+  "qualitative_only": true,
+  "reporting_rule": "After human review, report only X/N visible streak-containing images visually flagged; clean controls would be reported separately, but none are included here.",
+  "schema_version": "1.0",
+  "selection_or_threshold_tuning": false
+}

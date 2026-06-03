@@ -1,3 +1,5 @@
+astropy==7.2.0
+astropy-iers-data==0.2026.6.1.17.39.59
 anyio==4.12.1
 argon2-cffi==25.1.0
 argon2-cffi-bindings==25.1.0
@@ -96,6 +98,7 @@ psutil==7.2.2
 ptyprocess==0.7.0
 pure_eval==0.2.3
 pycparser==3.0
+pyerfa==2.0.1.5
 Pygments==2.19.2
 pytest==8.3.5
 pyparsing==3.3.2

@@ -135,7 +135,10 @@ def figure_multiseed_replication() -> None:
     ax.errorbar(x, means, yerr=[lows, highs], fmt="none", color=COLORS["black"], capsize=3, lw=0.9)
     for i, metric in enumerate(METRICS):
         jitter = np.linspace(-0.16, 0.16, len(SEEDS))
-        ax.scatter(np.full(len(SEEDS), x[i]) + jitter, series[metric], s=16, color=COLORS["black"], alpha=0.7, zorder=3)
+        ax.scatter(
+            np.full(len(SEEDS), x[i]) + jitter, series[metric],
+            s=16, color=COLORS["black"], alpha=0.7, zorder=3,
+        )
         ax.scatter(x[i] + 0.28, PAPER_VALUES[metric], marker="D", s=24, color=COLORS["orange"], zorder=4)
     ax.set_xticks(x)
     ax.set_xticklabels([METRIC_LABELS[m] for m in METRICS])
@@ -143,9 +146,8 @@ def figure_multiseed_replication() -> None:
     ax.set_ylim(0.78, 0.97)
     ax.set_title("Five-seed replication vs paper reference")
     ax.scatter([], [], marker="D", color=COLORS["orange"], label="Paper reference")
-    ax.legend(loc="lower right", frameon=False)
+    ax.legend(loc="upper right", frameon=True, framealpha=0.86, edgecolor="none")
     save_vector(fig, "thesis_1_multiseed_replication")
-
 
 def figure_boundary_tolerance() -> None:
     rows = [load_json(CLASSICAL / f"boundary_tolerant_unet_paper_arch_noise_topk_t44_s{seed}.json") for seed in SEEDS]
@@ -187,17 +189,19 @@ def figure_base_vs_attention() -> None:
             means.append(mean); lows.append(mean - lo); highs.append(hi - mean)
         ax.bar(x + dx, means, width=width, color=color, alpha=0.72, label=label)
         ax.errorbar(x + dx, means, yerr=[lows, highs], fmt="none", color=COLORS["black"], capsize=2, lw=0.8)
-    for i, metric in enumerate(METRICS):
-        for seed_idx in range(len(SEEDS)):
-            ax.plot([x[i] - width / 2, x[i] + width / 2], [base[metric][seed_idx], attn[metric][seed_idx]], color="#777777", alpha=0.45, lw=0.6)
     ax.set_xticks(x)
     ax.set_xticklabels([METRIC_LABELS[m] for m in METRICS])
     ax.set_ylabel("Test score")
     ax.set_ylim(0.78, 0.96)
-    ax.set_title("Base vs Attention U-Net, paired by seed")
-    ax.legend(frameon=False, loc="lower right")
+    ax.set_title("Base vs Attention U-Net")
+    ax.legend(frameon=True, framealpha=0.86, edgecolor="none", loc="upper right")
+    fig.text(
+        0.5, 0.01,
+        "Bars show seed means with bootstrap CIs. Per-seed pairing lines omitted because they obscured the marginal differences.",
+        ha="center", fontsize=6, color="#555555",
+    )
+    fig.subplots_adjust(bottom=0.18)
     save_vector(fig, "thesis_3_base_vs_attention")
-
 
 def build_data_efficiency_json() -> dict[str, Any]:
     specs = [
@@ -247,15 +251,23 @@ def figure_data_efficiency(payload: dict[str, Any]) -> None:
     fig, ax = plt.subplots(figsize=(4.8, 3.0))
     ax.plot(x, y, marker="o", color=COLORS["blue"], lw=1.4)
     for p in points:
-        ax.annotate(f"e{p['best_epoch']}", (p["train_fraction_percent"], p["val_dice_at_threshold_0p5"]), xytext=(0, 6), textcoords="offset points", ha="center", fontsize=7)
+        ax.annotate(
+            f"e{p['best_epoch']}",
+            (p["train_fraction_percent"], p["val_dice_at_threshold_0p5"]),
+            xytext=(0, 6), textcoords="offset points", ha="center", fontsize=7,
+        )
     ax.set_xlabel("Training images used (%)")
     ax.set_ylabel("Validation Dice (= F1) @ threshold 0.5")
     ax.set_xticks(x)
     ax.set_ylim(min(y) - 0.01, max(y) + 0.01)
     ax.set_title("Data-efficiency curve (single seed 2804)")
-    ax.text(0.02, 0.04, "Fixed-threshold history metric; not threshold-swept", transform=ax.transAxes, fontsize=7)
+    fig.subplots_adjust(bottom=0.20)
+    fig.text(
+        0.5, 0.035,
+        "Fixed-threshold history metric; not threshold-swept. Text moved outside the plotting area for readability.",
+        ha="center", fontsize=6, color="#555555",
+    )
     save_vector(fig, "thesis_4_data_efficiency")
-
 
 def figure_two_stage_pareto() -> None:
     data = load_json(CLASSICAL / "two_stage_t44_s2804.json")
@@ -280,21 +292,29 @@ def figure_fp_decomposition() -> None:
     inter = int(data["inter_patch_fp_pixels"])
     intra = int(data["intra_patch_fp_pixels"])
     total = inter + intra
-    vals = [intra / total, inter / total]
-    fig, ax = plt.subplots(figsize=(3.8, 3.0))
-    bottom = 0.0
-    for value, label, color in [(vals[0], "Intra-patch", COLORS["blue"]), (vals[1], "Inter-patch", COLORS["orange"] )]:
-        ax.bar([0], [value], bottom=bottom, width=0.5, color=color, label=label)
-        ax.text(0, bottom + value / 2, f"{100 * value:.1f}%", ha="center", va="center", color="white" if value > 0.35 else COLORS["black"], fontsize=8)
-        bottom += value
-    ax.set_xticks([0])
-    ax.set_xticklabels(["False-positive pixels"])
-    ax.set_ylabel("Fraction of FP pixels")
-    ax.set_ylim(0, 1)
-    ax.set_title("False-positive decomposition")
-    ax.legend(frameon=False, loc="upper right")
+    rows = [
+        ["Intra-patch FP", f"{intra:,}", f"{100 * intra / total:.1f}%"],
+        ["Inter-patch FP", f"{inter:,}", f"{100 * inter / total:.1f}%"],
+    ]
+    fig, ax = plt.subplots(figsize=(3.9, 1.65))
+    ax.axis("off")
+    ax.set_title("False-positive decomposition", pad=8)
+    table = ax.table(
+        cellText=rows,
+        colLabels=["Component", "Pixels", "Share"],
+        loc="center",
+        cellLoc="center",
+        colColours=["#f0f0f0"] * 3,
+    )
+    table.auto_set_font_size(False)
+    table.set_fontsize(7)
+    table.scale(1.0, 1.35)
+    fig.text(
+        0.5, 0.035,
+        "Two percentages are clearer as a table than as a stacked bar.",
+        ha="center", fontsize=6, color="#555555",
+    )
     save_vector(fig, "thesis_6_fp_decomposition")
-
 
 def load_optuna_trials() -> list[dict[str, Any]]:
     db = CLASSICAL / "unet_paper_arch_noise_f1.db"
@@ -348,9 +368,16 @@ def figure_sweep_selection() -> None:
         pruned_vals = [float(t["objective_value"]) for t in pruned if int(t["batch_size"]) == batch and t.get("objective_value") is not None]
         if pruned_vals:
             pxs = idx + rng.uniform(-0.12, 0.12, size=len(pruned_vals))
-            ax.scatter(pxs, pruned_vals, s=18, facecolors="none", edgecolors="#777777", alpha=0.8, label="Pruned" if idx == 0 else None)
+            ax.scatter(
+                pxs, pruned_vals, s=18, facecolors="none", edgecolors="#777777",
+                alpha=0.8, label="Pruned" if idx == 0 else None,
+            )
         mean, lo, hi = bootstrap_mean_ci(vals, seed=GLOBAL_SEED + batch)
-        ax.errorbar([idx], [mean], yerr=[[mean - lo], [hi - mean]], fmt="s", color=COLORS["orange"], capsize=3, lw=0.9, zorder=4, label="Completed mean" if idx == 0 else None)
+        ax.errorbar(
+            [idx], [mean], yerr=[[mean - lo], [hi - mean]], fmt="s",
+            color=COLORS["orange"], capsize=3, lw=0.9, zorder=4,
+            label="Completed mean" if idx == 0 else None,
+        )
     selected = next(t for t in trials if int(t["trial"]) == 44)
     selected_x = batches.index(int(selected["batch_size"]))
     ax.scatter([selected_x], [_trial_val_f1(selected)], marker="*", s=90, color=COLORS["red"], label="Selected trial 44", zorder=5)
@@ -359,10 +386,14 @@ def figure_sweep_selection() -> None:
     ax.set_xlabel("Batch size")
     ax.set_ylabel("Validation F1 objective")
     ax.set_title("Balanced Optuna sweep by batch size")
-    ax.text(0.02, 0.04, f"{len(complete)} completed; {len(pruned)} pruned shown hollow", transform=ax.transAxes, fontsize=7)
-    ax.legend(frameon=False, loc="lower right")
+    ax.legend(frameon=True, framealpha=0.86, edgecolor="none", loc="upper right")
+    fig.subplots_adjust(bottom=0.20)
+    fig.text(
+        0.5, 0.035,
+        f"{len(complete)} completed trials; {len(pruned)} pruned trials shown hollow. Text moved outside the data area.",
+        ha="center", fontsize=6, color="#555555",
+    )
     save_vector(fig, "thesis_7_sweep_selection")
-
 
 def main() -> None:
     configure_style()

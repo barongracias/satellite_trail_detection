@@ -445,7 +445,7 @@ def process_entry(
     )
 
 
-def resize_for_figure(arr: np.ndarray, max_dim: int = 1100, nearest: bool = False) -> np.ndarray:
+def resize_for_figure(arr: np.ndarray, max_dim: int = 1400, nearest: bool = False) -> np.ndarray:
     import cv2
 
     h, w = arr.shape
@@ -473,7 +473,7 @@ def make_montage(processed: list[ProcessedImage], pdf_path: str | Path, svg_path
     n = len(processed)
     ncols = 3
     nrows = math.ceil(n / ncols)
-    fig, axes = plt.subplots(nrows, ncols, figsize=(14.0, 2.95 * nrows), constrained_layout=False)
+    fig, axes = plt.subplots(nrows, ncols, figsize=(16.0, 2.85 * nrows), constrained_layout=False)
     axes_arr = np.atleast_1d(axes).ravel()
     for ax, item in zip(axes_arr, processed):
         image = rotate_panel_for_display(resize_for_figure(item.image_u8, nearest=False))
@@ -510,7 +510,7 @@ def make_montage(processed: list[ProcessedImage], pdf_path: str | Path, svg_path
         ax.set_yticks([])
     for ax in axes_arr[n:]:
         ax.axis("off")
-    fig.subplots_adjust(left=0.018, right=0.992, top=0.89, bottom=0.085, hspace=0.34, wspace=0.035)
+    fig.subplots_adjust(left=0.006, right=0.996, top=0.875, bottom=0.083, hspace=0.26, wspace=0.012)
     fig.suptitle(
         "Locked MeerLICHT winner on predeclared RECA/NOIRLab DECam measured-streak images\n"
         "Qualitative cold-domain illustration only: probability contours, U-Net binary, dashed Hough overlay",

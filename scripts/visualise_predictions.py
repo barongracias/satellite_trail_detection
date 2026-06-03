@@ -6,15 +6,13 @@ if it beats the winning ablation on val_f1, or the winning ablation itself.
 Decision rule lives in agents/PLAN.md M5.1; this script does not enforce it.
 
 Produces four figure types under results/figures/predictions/:
-1. Test-patch overlay grid: image / GT mask / predicted mask. N random plus
-   N worst-Dice patches.
+1. Test-patch overlay grid: a compact deterministic subset with GT and prediction
+   contours overlaid in one panel per patch.
 2. FP/FN confusion gallery: most-confident false positives, hardest false
    negatives, cleanest true positives. Top-K per category.
-3. Per-image FNR bar chart pre- and post-Hough. Reads detection flags from
-   the matching hough_postprocess_<tag>.json.
-4. Full-image probability heatmap for one illustrative positive test image
-   (reconstructs the prob canvas from sampled patches, same logic as
-   hough_postprocess.py).
+3. Per-image FNR summary: skips the bar chart when every positive image is detected.
+4. Full-image contour overview for one illustrative positive test image
+   (raw image plus probability/binary/Hough contours).
 
 Usage:
     python scripts/visualise_predictions.py \\
@@ -73,9 +71,9 @@ def parse_args() -> argparse.Namespace:
         default="results/figures/predictions",
         help="Output directory. Default: results/figures/predictions/",
     )
-    p.add_argument("--n_random", type=int, default=8, help="Random patches in overlay grid.")
-    p.add_argument("--n_worst", type=int, default=8, help="Worst-Dice patches in overlay grid.")
-    p.add_argument("--top_k", type=int, default=6, help="Top-K per FP/FN/TP gallery row.")
+    p.add_argument("--n_random", type=int, default=6, help="Random patches in overlay grid.")
+    p.add_argument("--n_worst", type=int, default=6, help="Worst-Dice patches in overlay grid.")
+    p.add_argument("--top_k", type=int, default=5, help="Top-K per FP/FN/TP gallery row.")
     p.add_argument("--batch_size", type=int, default=16)
     p.add_argument("--num_workers", type=int, default=4)
     p.add_argument(
@@ -160,12 +158,45 @@ def _load_patch_image(path: str) -> np.ndarray:
         return np.asarray(img.convert("L"), dtype=np.uint8)
 
 
-def _overlay_panel(ax, img: np.ndarray, mask: np.ndarray | None, title: str) -> None:
-    ax.imshow(img, cmap="gray", vmin=0, vmax=255)
-    if mask is not None:
-        ax.imshow(np.ma.masked_where(mask == 0, mask), cmap="autumn", alpha=0.5)
-    ax.set_title(title, fontsize=8)
-    ax.axis("off")
+def _prediction_overlay(
+    img: np.ndarray,
+    gt: np.ndarray | None = None,
+    pred: np.ndarray | None = None,
+) -> np.ndarray:
+    base = img.astype(float) / 255.0
+    rgb = np.dstack([base, base, base])
+    if gt is not None:
+        gt_mask = gt > 0
+        rgb[..., 1] = np.where(gt_mask, 0.78, rgb[..., 1])
+        rgb[..., 0] = np.where(gt_mask, 0.05, rgb[..., 0])
+        rgb[..., 2] = np.where(gt_mask, 0.18, rgb[..., 2])
+    if pred is not None:
+        pred_mask = pred > 0
+        rgb[..., 0] = np.where(pred_mask, 0.92, rgb[..., 0])
+        rgb[..., 1] = np.where(pred_mask, 0.14, rgb[..., 1])
+        rgb[..., 2] = np.where(pred_mask, 0.58, rgb[..., 2])
+    if gt is not None and pred is not None:
+        overlap = (gt > 0) & (pred > 0)
+        rgb[..., 0] = np.where(overlap, 1.0, rgb[..., 0])
+        rgb[..., 1] = np.where(overlap, 0.82, rgb[..., 1])
+        rgb[..., 2] = np.where(overlap, 0.05, rgb[..., 2])
+    return np.clip(rgb, 0.0, 1.0)
+
+
+def _infer_patch_prob(
+    img: np.ndarray,
+    rec: dict,
+    model: torch.nn.Module,
+    device: torch.device,
+    normalisation: str,
+) -> np.ndarray:
+    with torch.no_grad():
+        t = TF.pil_to_tensor(Image.fromarray(img)).float().unsqueeze(0) / 255.0
+        t = normalise_tensor(
+            t.squeeze(0), normalisation,
+            rec.get("image_mean"), rec.get("image_std"),
+        ).unsqueeze(0).to(device)
+        return torch.sigmoid(model(t)).squeeze().cpu().numpy()
 
 
 def _figure_overlay_grid(
@@ -176,29 +207,32 @@ def _figure_overlay_grid(
     threshold: float,
     out_path: Path,
 ) -> None:
-    """Image / GT mask / predicted mask, three columns per patch row."""
-    n = len(selected)
+    """Compact deterministic patch subset with GT/prediction overlay."""
+    n = min(len(selected), 12)
     if n == 0:
         return
-    fig, axes = plt.subplots(n, 3, figsize=(9, 3 * n))
-    if n == 1:
-        axes = axes[np.newaxis, :]
-    for r, rec in enumerate(selected):
+    selected = selected[:n]
+    ncols = 4 if n >= 8 else 3
+    nrows = int(np.ceil(n / ncols))
+    fig, axes = plt.subplots(nrows, ncols, figsize=(2.55 * ncols, 2.65 * nrows + 0.6))
+    axes_arr = np.atleast_1d(axes).ravel()
+    for ax, rec in zip(axes_arr, selected):
         img = _load_patch_image(rec["patch_path"])
         mask = _load_patch_image(rec["mask_path"])
-        with torch.no_grad():
-            t = TF.pil_to_tensor(Image.fromarray(img)).float().unsqueeze(0) / 255.0
-            t = normalise_tensor(
-                t.squeeze(0), normalisation,
-                rec.get("image_mean"), rec.get("image_std"),
-            ).unsqueeze(0).to(device)
-            prob = torch.sigmoid(model(t)).squeeze().cpu().numpy()
+        prob = _infer_patch_prob(img, rec, model, device, normalisation)
         pred_mask = (prob >= threshold).astype(np.uint8) * 255
-        _overlay_panel(axes[r, 0], img, None, Path(rec["patch_path"]).name)
-        _overlay_panel(axes[r, 1], img, mask, f"GT (Dice={rec['dice']:.3f})")
-        _overlay_panel(axes[r, 2], img, pred_mask, f"Pred (mean p={rec['mean_prob']:.3f})")
-    fig.tight_layout()
-    fig.savefig(out_path, dpi=150, bbox_inches="tight")
+        ax.imshow(_prediction_overlay(img, mask, pred_mask), interpolation="nearest")
+        ax.set_title(f"Dice={rec['dice']:.2f}; mean p={rec['mean_prob']:.2f}", fontsize=7)
+        ax.axis("off")
+    for ax in axes_arr[n:]:
+        ax.axis("off")
+    fig.suptitle(
+        "Prediction overlay subset: green=GT, magenta=prediction, yellow=overlap\n"
+        "Deterministic set: worst-Dice positives plus seed-random test patches",
+        fontsize=10,
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.90))
+    fig.savefig(out_path, dpi=170, bbox_inches="tight")
     plt.close(fig)
 
 
@@ -211,18 +245,19 @@ def _figure_fp_fn_gallery(
     threshold: float,
     out_path: Path,
 ) -> None:
-    """Most-confident FPs (high mean prob on empty patches), hardest FNs
-    (low mean prob on positive patches), cleanest TPs (high Dice)."""
+    """Most-confident FPs, hardest positive patches, and cleanest TPs."""
     pos = [r for r in records if r["is_positive"]]
     neg = [r for r in records if not r["is_positive"]]
     confident_fp = sorted(neg, key=lambda r: -r["mean_prob"])[:top_k]
     hardest_fn = sorted(pos, key=lambda r: r["dice"])[:top_k]
     cleanest_tp = sorted(pos, key=lambda r: -r["dice"])[:top_k]
 
-    rows = [("Confident FPs", confident_fp),
-            ("Hardest FNs", hardest_fn),
-            ("Cleanest TPs", cleanest_tp)]
-    fig, axes = plt.subplots(3, top_k, figsize=(2.5 * top_k, 8))
+    rows = [
+        ("Empty-GT patches\nhighest mean probability", confident_fp),
+        ("Positive-GT patches\nlowest Dice", hardest_fn),
+        ("Positive-GT patches\nhighest Dice", cleanest_tp),
+    ]
+    fig, axes = plt.subplots(3, top_k, figsize=(2.3 * top_k, 7.8))
     if top_k == 1:
         axes = axes[:, np.newaxis]
     for r, (label, items) in enumerate(rows):
@@ -234,64 +269,50 @@ def _figure_fp_fn_gallery(
             rec = items[c]
             img = _load_patch_image(rec["patch_path"])
             mask = _load_patch_image(rec["mask_path"])
-            with torch.no_grad():
-                t = TF.pil_to_tensor(Image.fromarray(img)).float().unsqueeze(0) / 255.0
-                t = normalise_tensor(
-                    t.squeeze(0), normalisation,
-                    rec.get("image_mean"), rec.get("image_std"),
-                ).unsqueeze(0).to(device)
-                prob = torch.sigmoid(model(t)).squeeze().cpu().numpy()
+            prob = _infer_patch_prob(img, rec, model, device, normalisation)
             pred_mask = (prob >= threshold).astype(np.uint8) * 255
-            _overlay_panel(ax, img, np.maximum(mask, pred_mask // 2), "")
+            ax.imshow(_prediction_overlay(img, mask, pred_mask), interpolation="nearest")
             if c == 0:
-                ax.set_ylabel(label, fontsize=10)
-            ax.set_title(f"D={rec['dice']:.2f} mp={rec['mean_prob']:.2f}", fontsize=7)
-    fig.tight_layout()
-    fig.savefig(out_path, dpi=150, bbox_inches="tight")
+                ax.set_ylabel(label, fontsize=8)
+            ax.set_title(f"Dice={rec['dice']:.2f}\nmean p={rec['mean_prob']:.2f}", fontsize=7)
+            ax.axis("off")
+    fig.suptitle("FP/FN/TP patch gallery: green=GT, magenta=prediction, yellow=overlap", fontsize=10)
+    fig.tight_layout(rect=(0, 0, 1, 0.94))
+    fig.savefig(out_path, dpi=170, bbox_inches="tight")
     plt.close(fig)
 
 
-_HOUGH_PRE_FIX_MAX_LINE_GAP = 50
-
-
 def _figure_per_image_fnr(hough_json: Path, out_path: Path, logger) -> bool:
-    """Bar chart of pre/post-Hough detection per positive test image.
-
-    Returns True iff a figure was written. Surfaces the Hough max_line_gap
-    used to produce the JSON in the title so dissertation figures can be
-    visually distinguished from runs produced with the pre-2026-05-21
-    default of 50 (paper-faithful default is now 250).
-    """
+    """Skip uninformative per-image bars when all positive images are detected."""
     data = json.loads(Path(hough_json).read_text())
     rows = [r for r in data["per_image"] if r["is_positive"]]
     if not rows:
-        logger.warning(
-            "%s has no positive test images; skipping per-image FNR figure", hough_json,
+        logger.warning("%s has no positive test images; skipping per-image FNR figure", hough_json)
+        return False
+    n = len(rows)
+    pre = sum(bool(r["detected_pre_hough"]) for r in rows)
+    post = sum(bool(r["detected_post_hough"]) for r in rows)
+    if pre == n and post == n:
+        logger.info(
+            "Skipping per-image FNR bar chart for %s: all %d positive images detected pre- and post-Hough; report in text/table.",
+            hough_json, n,
         )
         return False
     max_line_gap = data.get("max_line_gap")
-    if max_line_gap == _HOUGH_PRE_FIX_MAX_LINE_GAP:
-        logger.warning(
-            "%s was produced with max_line_gap=%d (pre-2026-05-21 default). "
-            "Paper-faithful default is now 250. Re-run Hough postprocess "
-            "before using this figure in the dissertation.",
-            hough_json, max_line_gap,
-        )
     labels = [Path(r["source_image"]).stem.replace("_red.fits_full", "") for r in rows]
-    pre = np.asarray([1 if r["detected_pre_hough"] else 0 for r in rows])
-    post = np.asarray([1 if r["detected_post_hough"] else 0 for r in rows])
+    pre_arr = np.asarray([1 if r["detected_pre_hough"] else 0 for r in rows])
+    post_arr = np.asarray([1 if r["detected_post_hough"] else 0 for r in rows])
     x = np.arange(len(labels))
     fig, ax = plt.subplots(figsize=(max(8, len(labels) * 0.3), 4))
-    ax.bar(x - 0.2, pre, width=0.4, label="pre-Hough")
-    ax.bar(x + 0.2, post, width=0.4, label="post-Hough")
+    ax.bar(x - 0.2, pre_arr, width=0.4, label="pre-Hough")
+    ax.bar(x + 0.2, post_arr, width=0.4, label="post-Hough")
     ax.set_xticks(x)
     ax.set_xticklabels(labels, rotation=90, fontsize=7)
     ax.set_ylabel("Detected (1) / Missed (0)")
     ax.set_ylim(0, 1.1)
     ax.set_title(
-        f"Per-image detection (pre vs post-Hough). "
-        f"FNR pre={data.get('fnr_pre_hough')} post={data.get('fnr_post_hough')} "
-        f"| max_line_gap={max_line_gap}",
+        f"Per-image detection (pre vs post-Hough). FNR pre={data.get('fnr_pre_hough')} "
+        f"post={data.get('fnr_post_hough')} | max_line_gap={max_line_gap}",
         fontsize=10,
     )
     ax.legend()
@@ -301,21 +322,32 @@ def _figure_per_image_fnr(hough_json: Path, out_path: Path, logger) -> bool:
     return True
 
 
+def _resize_for_display(arr: np.ndarray, max_dim: int = 1500, nearest: bool = False) -> np.ndarray:
+    import cv2
+    h, w = arr.shape
+    scale = min(1.0, max_dim / max(h, w))
+    if scale >= 1.0:
+        return arr
+    interpolation = cv2.INTER_NEAREST if nearest else cv2.INTER_AREA
+    return cv2.resize(arr.astype(np.float32), (int(round(w * scale)), int(round(h * scale))), interpolation=interpolation)
+
+
 def _figure_full_image_heatmap(
     records: list[dict],
     model: torch.nn.Module,
     device: torch.device,
     normalisation: str,
     patch_dir: Path,
+    threshold: float,
+    hough_json: Path | None,
     out_path: Path,
 ) -> None:
-    """Reconstruct prob canvas for one positive test image with the most
-    positive patches; save as a heatmap. Mirrors hough_postprocess.py canvas
-    reconstruction."""
+    """Full-image contour overview for one deterministic positive source image."""
+    from src.classical.hough_runner import _apply_hough
+
     pos = [r for r in records if r["is_positive"]]
     if not pos:
         return
-    # pick the source image with the most positive patches
     counts = pd.Series([r["source_image"] for r in pos]).value_counts()
     chosen_src = counts.index[0]
     manifest = pd.read_csv(patch_dir / "manifest.csv")
@@ -346,12 +378,53 @@ def _figure_full_image_heatmap(
                 prob_canvas[y : y + _PATCH_SIZE, x : x + _PATCH_SIZE], prob
             )
 
-    fig, ax = plt.subplots(figsize=(8, 8))
-    ax.imshow(prob_canvas, cmap="hot", vmin=0, vmax=1)
-    ax.set_title(f"Full-image probability heatmap: {Path(chosen_src).stem}", fontsize=10)
+    with Image.open(chosen_src) as img:
+        raw = np.asarray(img.convert("L"), dtype=np.uint8)[:canvas_h, :canvas_w]
+    hough_params = {
+        "hough_input_threshold": 0.10,
+        "hough_threshold": 50,
+        "min_line_length": 100,
+        "max_line_gap": 250,
+        "line_thickness": 3,
+    }
+    if hough_json is not None and Path(hough_json).exists():
+        hdata = json.loads(Path(hough_json).read_text())
+        for key in ("hough_input_threshold", "hough_threshold", "min_line_length", "max_line_gap", "line_thickness"):
+            if hdata.get(key) is not None:
+                hough_params[key] = hdata[key]
+    low = prob_canvas >= float(hough_params["hough_input_threshold"])
+    binary = prob_canvas >= threshold
+    hough_input = low.astype(np.uint8) * 255
+    hough = _apply_hough(
+        hough_input,
+        hough_threshold=int(hough_params["hough_threshold"]),
+        min_line_length=int(hough_params["min_line_length"]),
+        max_line_gap=int(hough_params["max_line_gap"]),
+        line_thickness=int(hough_params["line_thickness"]),
+    ) > 0
+
+    raw_d = _resize_for_display(raw, nearest=False)
+    low_d = _resize_for_display(low.astype(np.uint8), nearest=True) > 0
+    binary_d = _resize_for_display(binary.astype(np.uint8), nearest=True) > 0
+    hough_d = _resize_for_display(hough.astype(np.uint8), nearest=True) > 0
+
+    fig, ax = plt.subplots(figsize=(6.4, 6.4))
+    ax.imshow(raw_d, cmap="gray", vmin=0, vmax=255, interpolation="nearest")
+    if low_d.any():
+        ax.contour(low_d.astype(float), levels=[0.5], colors=["#ffb000"], linewidths=0.45, alpha=0.85)
+    if binary_d.any():
+        ax.contour(binary_d.astype(float), levels=[0.5], colors=["#ff2f92"], linewidths=0.7, alpha=0.95)
+    if hough_d.any():
+        ax.contour(hough_d.astype(float), levels=[0.5], colors=["#00c8ff"], linewidths=0.55, linestyles="dashed", alpha=0.9)
+    ax.set_title(f"Full-image contour overview: {Path(chosen_src).stem}", fontsize=10)
     ax.axis("off")
-    fig.tight_layout()
-    fig.savefig(out_path, dpi=150, bbox_inches="tight")
+    fig.text(
+        0.5, 0.025,
+        f"Orange prob>={hough_params['hough_input_threshold']}; magenta prob>={threshold}; cyan dashed Hough. Deterministic source: most positive test patches.",
+        ha="center", fontsize=7, color="#555555",
+    )
+    fig.tight_layout(rect=(0, 0.04, 1, 0.96))
+    fig.savefig(out_path, dpi=170, bbox_inches="tight")
     plt.close(fig)
 
 
@@ -413,9 +486,10 @@ def main() -> None:
 
     _figure_full_image_heatmap(
         records, model, device, normalisation,
-        Path(args.patch_dir), out_dir / f"full_image_heatmap_{tag}.png",
+        Path(args.patch_dir), args.threshold, Path(args.hough_json) if args.hough_json else None,
+        out_dir / f"full_image_heatmap_{tag}.png",
     )
-    logger.info("Wrote full-image probability heatmap")
+    logger.info("Wrote full-image contour overview")
 
     print(f"Figures written under {out_dir}/ with tag '{tag}'")
 

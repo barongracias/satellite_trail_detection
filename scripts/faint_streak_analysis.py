@@ -517,33 +517,31 @@ def make_contrast_figure(component_rows: list[dict[str, Any]], tier_summary: lis
     post = np.asarray([r["recall_post_hough"] for r in rows], dtype=float)
     added = np.asarray([r["hough_added_gt_fraction"] for r in rows], dtype=float)
 
-    fig, axes = plt.subplots(1, 2, figsize=(7.0, 3.1))
+    fig, axes = plt.subplots(1, 2, figsize=(7.2, 3.25), gridspec_kw={"wspace": 0.42})
     ax = axes[0]
-    ax.scatter(x, pre, s=14, alpha=0.55, color=COLORS["blue"], label="U-Net")
-    ax.scatter(x, post, s=14, alpha=0.55, color=COLORS["orange"], label="U-Net+Hough")
+    ax.scatter(x, pre, s=14, alpha=0.48, color=COLORS["blue"], label="U-Net")
+    ax.scatter(x, post, s=14, alpha=0.58, color=COLORS["orange"], label="U-Net + Hough")
     ax.set_xlabel("Relative display contrast proxy")
     ax.set_ylabel("Component GT-pixel recall")
-    ax.set_title("Locked winner: recall vs relative display contrast")
+    ax.set_title("Recall vs relative\ndisplay contrast")
     ax.set_ylim(-0.02, 1.02)
-    ax.legend(frameon=False)
+    ax.legend(frameon=True, framealpha=0.86, edgecolor="none", loc="lower right")
 
     ax = axes[1]
-    ax.scatter(x, added, s=16, alpha=0.6, color=COLORS["green"])
+    ax.scatter(x, added, s=16, alpha=0.55, color=COLORS["green"])
     ax.set_xlabel("Relative display contrast proxy")
-    ax.set_ylabel("GT pixels added by Hough / component GT")
-    ax.set_title("Hough completion is post-hoc, not selection")
+    ax.set_ylabel("Hough-added GT fraction")
+    ax.set_title("Post-hoc Hough\ncompletion")
     ax.set_ylim(-0.02, max(0.05, float(np.nanmax(added)) + 0.02))
 
-    if tier_summary:
-        for ax in axes:
-            for tier in tier_summary[:2]:
-                ax.axvline(tier["contrast_max"], color="#777777", lw=0.7, ls="--", alpha=0.6)
-    fig.text(0.5, -0.02,
-             "Contrast is a relative proxy from 8-bit display PNGs; not calibrated flux/SNR. "
-             "All metrics are locked-winner post-hoc sampled-test diagnostics.",
-             ha="center", fontsize=6, color="#555555")
+    fig.subplots_adjust(bottom=0.27, top=0.82)
+    fig.text(
+        0.5, 0.04,
+        "Two descriptive views of the same locked-winner components: recall and Hough completion.\n"
+        "Contrast is a relative 8-bit display proxy, not calibrated flux/SNR.",
+        ha="center", fontsize=6, color="#555555",
+    )
     save_vector(fig, "faint_streak_contrast_vs_recall")
-
 
 def make_profile_figure(component_rows: list[dict[str, Any]]) -> None:
     candidates = [r for r in component_rows if r.get("relative_display_contrast") is not None
@@ -552,24 +550,29 @@ def make_profile_figure(component_rows: list[dict[str, Any]]) -> None:
         return
     candidates = sorted(candidates, key=lambda r: r["relative_display_contrast"])
     chosen = [candidates[0], candidates[-1]]
-    labels = ["low contrast example", "high contrast example"]
+    labels = ["low contrast\nexample", "high contrast\nexample"]
     colours = [COLORS["blue"], COLORS["orange"]]
-    fig, ax = plt.subplots(figsize=(4.4, 3.0))
+    fig, ax = plt.subplots(figsize=(4.7, 3.1))
     for row, label, color in zip(chosen, labels, colours):
         offsets = np.asarray(row["profile_offsets"], dtype=float)
         profile = np.asarray(row["median_profile"], dtype=float)
         bg = row.get("background") or 0.0
-        ax.plot(offsets, profile - bg, color=color, lw=1.2,
-                label=f"{label} (contrast={row['relative_display_contrast']:.2f})")
+        ax.plot(
+            offsets, profile - bg, color=color, lw=1.2,
+            label=f"{label}\nC={row['relative_display_contrast']:.2f}",
+        )
     ax.axhline(0.0, color="#555555", lw=0.7)
     ax.set_xlabel("Perpendicular offset from GT component axis (px)")
     ax.set_ylabel("Display value above local background")
     ax.set_title("Example median cross-sections")
-    ax.legend(frameon=False)
-    fig.text(0.5, -0.02, "Profiles use display-space PNG values; examples are descriptive.",
-             ha="center", fontsize=6, color="#555555")
+    ax.legend(frameon=True, framealpha=0.86, edgecolor="none", loc="upper right", fontsize=6.5)
+    fig.subplots_adjust(bottom=0.22)
+    fig.text(
+        0.5, 0.035,
+        "Profiles use display-space PNG values; examples are descriptive.",
+        ha="center", fontsize=6, color="#555555",
+    )
     save_vector(fig, "faint_streak_profiles")
-
 
 def make_fp_intensity_figure(
     samples: dict[str, np.ndarray] | None,
@@ -588,7 +591,7 @@ def make_fp_intensity_figure(
         lo, hi = float(np.min(pooled)), float(np.max(pooled))
     if hi <= lo:
         hi = lo + 1.0
-    bins = np.linspace(lo, hi, 40)
+    bins = np.linspace(lo, hi, 36)
     labels = {
         "near_gt_fp": "Near-GT FP",
         "far_fp": "Far FP",
@@ -601,7 +604,7 @@ def make_fp_intensity_figure(
         "gt_trail": COLORS["green"],
         "background": COLORS["blue"],
     }
-    fig, ax = plt.subplots(figsize=(5.2, 3.1))
+    fig, ax = plt.subplots(figsize=(5.4, 3.25))
     for name in ("gt_trail", "near_gt_fp", "background", "far_fp"):
         vals = np.asarray(samples.get(name, np.array([])), dtype=float)
         if vals.size == 0:
@@ -613,20 +616,18 @@ def make_fp_intensity_figure(
     ax.set_title("FP intensity rider: support-restricted U-Net pixels")
     ks_near = rider.get("ks_d_near_fp_vs_gt_trail")
     ks_far = rider.get("ks_d_far_fp_vs_background")
-    text = []
-    if ks_near is not None:
-        text.append(f"KS-D near FP vs GT = {ks_near:.2f}")
-    if ks_far is not None:
-        text.append(f"KS-D far FP vs bg = {ks_far:.2f}")
-    if text:
-        ax.text(0.98, 0.96, "\n".join(text), ha="right", va="top",
-                transform=ax.transAxes, fontsize=7, color="#333333")
-    ax.legend(frameon=False, fontsize=7)
-    fig.text(0.5, -0.02,
-             "Display-space proxy from 8-bit PNGs; descriptive locked-winner diagnostic, no p-values.",
-             ha="center", fontsize=6, color="#555555")
+    note = "Display-space proxy from 8-bit PNGs; descriptive locked-winner diagnostic, no p-values."
+    if ks_near is not None or ks_far is not None:
+        bits = []
+        if ks_near is not None:
+            bits.append(f"KS-D near FP vs GT = {ks_near:.2f}")
+        if ks_far is not None:
+            bits.append(f"KS-D far FP vs background = {ks_far:.2f}")
+        note = " ; ".join(bits) + "\n" + note
+    ax.legend(frameon=True, framealpha=0.86, edgecolor="none", fontsize=6.7, loc="upper right")
+    fig.subplots_adjust(bottom=0.27, top=0.88)
+    fig.text(0.5, 0.035, note, ha="center", fontsize=6, color="#555555")
     save_vector(fig, "fp_intensity_rider")
-
 
 def analyse(args: argparse.Namespace) -> dict[str, Any]:
     model, normalisation, device = load_locked_model(args.checkpoint)

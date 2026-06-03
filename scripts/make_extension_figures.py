@@ -56,32 +56,42 @@ def fig_fp_distance_histogram() -> None:
     frac = counts / total if total else counts
     centres = (edges[:-1] + edges[1:]) / 2.0
 
-    fig, ax = plt.subplots(figsize=(4.2, 2.9))
+    fig, ax = plt.subplots(figsize=(4.6, 3.0))
     xmax = 20
     keep = centres <= xmax
+    ymax = max(float(frac[keep].max()) * 1.28, 0.05)
     ax.bar(centres[keep], frac[keep], width=0.9, color=COLORS["blue"], align="center")
-    for px, label in ((1, "≤1px"), (2, "≤2px"), (3, "≤3px")):
+    ax.set_ylim(0, ymax)
+    label_positions = {1: (4.0, 0.90), 2: (6.1, 0.74), 3: (8.2, 0.58)}
+    for px, label in ((1, "<=1 px"), (2, "<=2 px"), (3, "<=3 px")):
         f = d[f"fraction_within_{px}px"]
-        ax.axvline(px, color=COLORS["red"], lw=0.8, ls="--", alpha=0.7)
-        ax.text(px + 0.15, ax.get_ylim()[1] * (0.95 - 0.12 * px), f"{label}: {f:.2f}",
-                fontsize=6, color=COLORS["red"])
-    ax.set_xlabel("Distance from false-positive pixel to nearest GT trail (px)")
+        ax.axvline(px, color=COLORS["red"], lw=0.8, ls="--", alpha=0.75)
+        tx, ty_frac = label_positions[px]
+        ax.annotate(
+            f"{label}\n{f:.2f}", xy=(px, ymax * ty_frac), xytext=(tx, ymax * ty_frac),
+            arrowprops={"arrowstyle": "-", "lw": 0.6, "color": COLORS["red"], "alpha": 0.75},
+            fontsize=6, color=COLORS["red"], va="center", ha="left",
+            bbox={"boxstyle": "round,pad=0.18", "fc": "white", "ec": COLORS["red"], "lw": 0.5, "alpha": 0.9},
+        )
+    ax.set_xlabel("Distance from false-positive pixel\nto nearest GT trail (px)")
     ax.set_ylabel("Fraction of distance-defined FP pixels")
     med = d.get("median_px_approx")
-    # Global (all-FP) fraction: whole-patch FP counted as non-boundary-adjacent.
     g1 = d.get("fraction_within_1px_all_fp")
     if g1 is None:
         tot = d["n_fp_pixels_with_gt"] + d["whole_patch_fp_pixels"]
         g1 = d["fraction_within_1px"] * d["n_fp_pixels_with_gt"] / tot if tot else 0.0
-    ax.set_title(f"FP distance-to-mask  (median ≈ {med:.1f}px; "
-                 f"≤1px = {d['fraction_within_1px']:.2f} of distance-defined, "
-                 f"{g1:.2f} of all FP)")
+    ax.set_title(
+        f"FP distance-to-mask\nmedian approx. {med:.1f}px; <=1 px = "
+        f"{d['fraction_within_1px']:.2f} distance-defined / {g1:.2f} all FP"
+    )
     ax.set_xlim(0, xmax)
-    fig.text(0.5, -0.02,
-             f"Histogram over distance-defined FP only; {d['whole_patch_fp_pixels']:,} "
-             "whole-patch FP (no GT in patch) excluded from the histogram and counted as "
-             "non-boundary-adjacent in the all-FP fraction.",
-             ha="center", fontsize=5.5, color="#555555")
+    fig.subplots_adjust(bottom=0.28, top=0.80)
+    fig.text(
+        0.5, 0.03,
+        f"Histogram excludes {d['whole_patch_fp_pixels']:,} whole-patch FP with no GT in patch;\n"
+        "those pixels are counted as non-boundary-adjacent in the all-FP fraction.",
+        ha="center", fontsize=5.8, color="#555555",
+    )
     save_vector(fig, "ext_1_fp_distance_histogram")
     print("[ok]  ext_1_fp_distance_histogram")
 
@@ -91,26 +101,30 @@ def fig_cldice_base_vs_attention() -> None:
         print(f"[skip] ext_2 clDice: need {BASE.name} and {ATTN.name}")
         return
     base, attn = load_json(BASE), load_json(ATTN)
-    metrics = ["clDice", "exact Dice"]
-    base_vals = [base["centerline_dice"]["mean"], base["exact_metrics"]["dice"]]
-    attn_vals = [attn["centerline_dice"]["mean"], attn["exact_metrics"]["dice"]]
-    x = np.arange(len(metrics))
-    w = 0.36
-
-    fig, ax = plt.subplots(figsize=(3.6, 2.8))
-    ax.bar(x - w / 2, base_vals, w, label="Base U-Net (t44)", color=COLORS["blue"])
-    ax.bar(x + w / 2, attn_vals, w, label="Attention U-Net (t7)", color=COLORS["orange"])
-    for xi, b, a in zip(x, base_vals, attn_vals):
-        ax.text(xi - w / 2, b + 0.005, f"{b:.3f}", ha="center", fontsize=6)
-        ax.text(xi + w / 2, a + 0.005, f"{a:.3f}", ha="center", fontsize=6)
-    ax.set_xticks(x); ax.set_xticklabels(metrics)
-    ax.set_ylabel("Score")
-    ax.set_ylim(0, 1.0)
-    ax.set_title("Topology (clDice) vs pixel Dice")
-    ax.legend(loc="lower center")
-    fig.text(0.5, -0.02,
-             "clDice averaged over target-positive patches; exact Dice over full test pixels.",
-             ha="center", fontsize=5.5, color="#555555")
+    rows = [
+        ["clDice", f"{base['centerline_dice']['mean']:.3f}", f"{attn['centerline_dice']['mean']:.3f}",
+         f"{attn['centerline_dice']['mean'] - base['centerline_dice']['mean']:+.3f}"],
+        ["exact Dice", f"{base['exact_metrics']['dice']:.3f}", f"{attn['exact_metrics']['dice']:.3f}",
+         f"{attn['exact_metrics']['dice'] - base['exact_metrics']['dice']:+.3f}"],
+    ]
+    fig, ax = plt.subplots(figsize=(4.4, 1.75))
+    ax.axis("off")
+    ax.set_title("Topology and pixel overlap: base vs Attention U-Net", pad=8)
+    table = ax.table(
+        cellText=rows,
+        colLabels=["Metric", "Base U-Net\n(t44)", "Attention U-Net\n(t7)", "Delta\n(attn-base)"],
+        loc="center",
+        cellLoc="center",
+        colColours=["#f0f0f0"] * 4,
+    )
+    table.auto_set_font_size(False)
+    table.set_fontsize(7)
+    table.scale(1.0, 1.35)
+    fig.text(
+        0.5, 0.04,
+        "Differences are marginal; table avoids visual overstatement. clDice is patch-averaged; exact Dice is micro over test pixels.",
+        ha="center", fontsize=5.8, color="#555555",
+    )
     save_vector(fig, "ext_2_cldice_base_vs_attention")
     print("[ok]  ext_2_cldice_base_vs_attention")
 
@@ -120,14 +134,14 @@ def fig_hough_prob_stratified() -> None:
         print(f"[skip] ext_3 stratified Hough: missing {HOUGH.name}")
         return
     d = load_json(HOUGH)
-    labels = ["U-Net only", "binary Hough", "stratified Hough"]
+    labels = ["U-Net\nonly", "binary\nHough", "stratified\nHough"]
     recall = [d["pixel_recall_pre"], d["pixel_recall_binary_hough"],
               d["pixel_recall_stratified_hough"]]
-    colours = [COLORS["black"], COLORS["sky"], COLORS["green"]]
+    colours = [COLORS["blue"], COLORS["orange"], COLORS["green"]]
 
-    fig, ax = plt.subplots(figsize=(4.0, 2.8))
+    fig, ax = plt.subplots(figsize=(4.2, 2.85))
     x = np.arange(len(labels))
-    ax.bar(x, recall, 0.6, color=colours)
+    ax.bar(x, recall, 0.58, color=colours, alpha=0.82)
     for xi, r in zip(x, recall):
         ax.text(xi, r + 0.003, f"{r:.3f}", ha="center", fontsize=6)
     ax.set_xticks(x); ax.set_xticklabels(labels)
@@ -136,11 +150,14 @@ def fig_hough_prob_stratified() -> None:
     ax.set_ylim(max(0.0, lo), 1.0)
     fp_b = d["hough_fp_pixels_binary"]; fp_s = d["hough_fp_pixels_stratified"]
     drec = d["pixel_recall_stratified_hough"] - d["pixel_recall_binary_hough"]
-    ax.set_title("Probability-stratified Hough (approx.): negligible recall gain, added FP")
-    fig.text(0.5, -0.02,
-             f"Δrecall vs binary Hough = +{drec:.4f} (patch-FNR unchanged); Hough FP px "
-             f"{fp_b:,}→{fp_s:,}. Approximate (strata union), not a true weighted accumulator.",
-             ha="center", fontsize=5.5, color="#555555")
+    ax.set_title("Probability-stratified Hough\nnegligible recall gain, added FP")
+    fig.subplots_adjust(bottom=0.27, top=0.78)
+    fig.text(
+        0.5, 0.035,
+        f"Delta recall vs binary Hough = +{drec:.4f}; patch-FNR unchanged.\n"
+        f"Hough FP pixels {fp_b:,} -> {fp_s:,}; approximate strata union, not weighted accumulator.",
+        ha="center", fontsize=5.8, color="#555555",
+    )
     save_vector(fig, "ext_3_hough_prob_stratified")
     print("[ok]  ext_3_hough_prob_stratified")
 
@@ -151,36 +168,35 @@ def fig_soft_label_pilot() -> None:
               "(Phase 2 — gated on the Phase-1 story)")
         return
     base, soft = load_json(BASE), load_json(SOFT)
-    metrics = ["exact Dice", "±1px F1", "clDice"]
-    base_vals = [base["exact_metrics"]["dice"], None, base["centerline_dice"]["mean"]]
-    soft_vals = [soft["exact_metrics"]["dice"], None, soft["centerline_dice"]["mean"]]
+    rows = [
+        ["exact Dice", base["exact_metrics"]["dice"], soft["exact_metrics"]["dice"]],
+        ["clDice", base["centerline_dice"]["mean"], soft["centerline_dice"]["mean"]],
+    ]
     if BASE_BND.exists() and SOFT_BND.exists():
-        base_vals[1] = load_json(BASE_BND)["per_tolerance"]["1"]["f1"]
-        soft_vals[1] = load_json(SOFT_BND)["per_tolerance"]["1"]["f1"]
-    else:  # boundary evals absent — drop that bar rather than fail
-        metrics = ["exact Dice", "clDice"]
-        base_vals = [base_vals[0], base_vals[2]]; soft_vals = [soft_vals[0], soft_vals[2]]
-    x = np.arange(len(metrics))
-    w = 0.36
-
-    fig, ax = plt.subplots(figsize=(4.2, 2.9))
-    ax.bar(x - w / 2, base_vals, w, label="Hard labels (winner)", color=COLORS["blue"])
-    ax.bar(x + w / 2, soft_vals, w, label="Dilated-soft (pilot)", color=COLORS["purple"])
-    for xi, b, s in zip(x, base_vals, soft_vals):
-        ax.text(xi - w / 2, b + 0.005, f"{b:.3f}", ha="center", fontsize=6)
-        ax.text(xi + w / 2, s + 0.005, f"{s:.3f}", ha="center", fontsize=6)
-    ax.set_xticks(x); ax.set_xticklabels(metrics)
-    ax.set_ylabel("Score")
-    ax.set_ylim(0, 1.0)
-    ax.set_title("Soft-label pilot vs hard labels (single seed 2804): no gain")
-    ax.legend(loc="lower center")
-    fig.text(0.5, -0.02,
-             "Dilated-soft targets widen predictions (recall↑, precision↓); exact Dice and "
-             "clDice both drop and ±1px F1 is tied — a tested-and-rejected protocol variant.",
-             ha="center", fontsize=5.5, color="#555555")
+        rows.insert(1, ["+/-1 px F1", load_json(BASE_BND)["per_tolerance"]["1"]["f1"],
+                       load_json(SOFT_BND)["per_tolerance"]["1"]["f1"]])
+    table_rows = [[name, f"{base_v:.3f}", f"{soft_v:.3f}", f"{soft_v - base_v:+.3f}"]
+                  for name, base_v, soft_v in rows]
+    fig, ax = plt.subplots(figsize=(4.4, 1.95))
+    ax.axis("off")
+    ax.set_title("Soft-label pilot vs hard labels\nsingle seed 2804", pad=8)
+    table = ax.table(
+        cellText=table_rows,
+        colLabels=["Metric", "Hard labels\n(winner)", "Dilated-soft\n(pilot)", "Delta\n(soft-hard)"],
+        loc="center",
+        cellLoc="center",
+        colColours=["#f0f0f0"] * 4,
+    )
+    table.auto_set_font_size(False)
+    table.set_fontsize(7)
+    table.scale(1.0, 1.35)
+    fig.text(
+        0.5, 0.035,
+        "Single-seed protocol variant; table avoids overstating marginal/null differences.",
+        ha="center", fontsize=5.8, color="#555555",
+    )
     save_vector(fig, "ext_4_soft_label_pilot")
     print("[ok]  ext_4_soft_label_pilot")
-
 
 def main() -> None:
     configure_style()

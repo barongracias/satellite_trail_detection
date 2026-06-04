@@ -28,6 +28,7 @@ import json
 import re
 import sys
 from pathlib import Path
+from typing import Sequence
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -35,6 +36,8 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
+import cv2
+from scipy.ndimage import binary_erosion, label as ndi_label
 import pandas as pd
 import torch
 import torchvision.transforms.functional as TF
@@ -72,8 +75,8 @@ def parse_args() -> argparse.Namespace:
         default="results/figures/predictions",
         help="Output directory. Default: results/figures/predictions/",
     )
-    p.add_argument("--n_random", type=int, default=6, help="Random patches in overlay grid.")
-    p.add_argument("--n_worst", type=int, default=6, help="Worst-Dice patches in overlay grid.")
+    p.add_argument("--n_random", type=int, default=6, help="Deprecated; overlay grid now uses a deterministic balanced positive subset.")
+    p.add_argument("--n_worst", type=int, default=6, help="Deprecated; overlay grid now uses a deterministic balanced positive subset.")
     p.add_argument("--top_k", type=int, default=5, help="Top-K per FP/FN/TP gallery row.")
     p.add_argument("--batch_size", type=int, default=16)
     p.add_argument("--num_workers", type=int, default=4)
@@ -159,42 +162,30 @@ def _load_patch_image(path: str) -> np.ndarray:
         return np.asarray(img.convert("L"), dtype=np.uint8)
 
 
-def _mask_outline(mask: np.ndarray) -> np.ndarray:
-    mask = np.asarray(mask, dtype=bool)
+def _mask_outline(mask: np.ndarray, thickness: int = 2) -> np.ndarray:
+    mask = mask.astype(bool)
     if not mask.any():
         return mask
-    import cv2
+    eroded = binary_erosion(mask, structure=np.ones((3, 3), dtype=bool), border_value=0)
+    outline = mask & ~eroded
+    if thickness > 1:
+        outline = cv2.dilate(outline.astype(np.uint8), np.ones((3, 3), dtype=np.uint8), iterations=thickness - 1) > 0
+    return outline
 
-    eroded = cv2.erode(mask.astype(np.uint8), np.ones((3, 3), dtype=np.uint8), iterations=1) > 0
-    outline = np.logical_and(mask, ~eroded)
-    return outline if outline.any() else mask
 
-
-def _prediction_overlay(
-    img: np.ndarray,
-    gt: np.ndarray | None = None,
-    pred: np.ndarray | None = None,
-) -> np.ndarray:
-    base = img.astype(float) / 255.0
-    rgb = np.dstack([base, base, base])
-    gt_full = gt > 0 if gt is not None else None
-    pred_full = pred > 0 if pred is not None else None
-    if gt_full is not None:
-        gt_mask = _mask_outline(gt_full)
-        rgb[..., 1] = np.where(gt_mask, 0.78, rgb[..., 1])
-        rgb[..., 0] = np.where(gt_mask, 0.05, rgb[..., 0])
-        rgb[..., 2] = np.where(gt_mask, 0.18, rgb[..., 2])
-    if pred_full is not None:
-        pred_mask = _mask_outline(pred_full)
-        rgb[..., 0] = np.where(pred_mask, 0.92, rgb[..., 0])
-        rgb[..., 1] = np.where(pred_mask, 0.14, rgb[..., 1])
-        rgb[..., 2] = np.where(pred_mask, 0.58, rgb[..., 2])
-    if gt_full is not None and pred_full is not None:
-        overlap = _mask_outline(np.logical_and(gt_full, pred_full))
-        rgb[..., 0] = np.where(overlap, 1.0, rgb[..., 0])
-        rgb[..., 1] = np.where(overlap, 0.82, rgb[..., 1])
-        rgb[..., 2] = np.where(overlap, 0.05, rgb[..., 2])
-    return np.clip(rgb, 0.0, 1.0)
+def _prediction_overlay(raw: np.ndarray, target: np.ndarray, prob: np.ndarray, threshold: float) -> np.ndarray:
+    base = np.clip(raw.astype(np.float32) / 255.0, 0, 1)
+    rgb = np.stack([base, base, base], axis=-1)
+    pred = prob >= threshold
+    # Thick GT band underneath, thinner prediction on top. Where they overlap the
+    # magenta prediction sits inside a green halo, so a correct detection reads as
+    # "magenta within green" instead of a single ambiguous colour; GT-only stays
+    # green (missed) and prediction-only stays magenta (false positive).
+    gt_band = _mask_outline(target.astype(bool), thickness=4)
+    pred_line = _mask_outline(pred, thickness=2)
+    rgb[gt_band] = (0.0, 0.85, 0.30)
+    rgb[pred_line] = (1.0, 0.0, 0.82)
+    return rgb
 
 
 def _infer_patch_prob(
@@ -213,20 +204,53 @@ def _infer_patch_prob(
         return torch.sigmoid(model(t)).squeeze().cpu().numpy()
 
 
+# Fixed predeclared patch sets so both models (t44 and t7) render the SAME panels in the
+# SAME order; each model still shows its own segmentation. Overlay set from the t44
+# selection, gallery set from the t7 selection, including the author-picked
+# diffraction-star examples (bright-star failures and stars correctly ignored).
+OVERLAY_PATCHES = [   # 8 patches: first 4 low-Dice, last 4 high-Dice
+    "ML1_20220727_185824_red.fits_full_2640_4752_image.png",
+    "ML1_20220524_040528_red.fits_full_4224_5808_image.png",
+    "ML1_20220629_171546_red.fits_full_5280_528_image.png",
+    "ML1_20220629_171546_red.fits_full_2640_7392_image.png",
+    "ML1_20220531_190959_red.fits_full_2112_2112_image.png",
+    "ML1_20210430_173349_red.fits_full_5280_1584_image.png",
+    "ML1_20210217_185657_red.fits_full_3168_4752_image.png",
+    "ML1_20210217_185657_red.fits_full_3168_6336_image.png",
+]
+GALLERY_PATCHES = [   # 8 patches: first 4 false positives (empty GT), last 4 true positives
+    "ML1_20221127_194620_red.fits_full_0_10032_image.png",
+    "ML1_20220530_174559_red.fits_full_8976_8976_image.png",
+    "ML1_20171023_002210_red.fits_full_6864_528_image.png",
+    "ML1_20220629_171546_red.fits_full_10032_4224_image.png",
+    "ML1_20221127_194620_red.fits_full_8448_1056_image.png",
+    "ML1_20210217_185657_red.fits_full_3168_7920_image.png",
+    "ML1_20210217_185657_red.fits_full_3168_6336_image.png",
+    "ML1_20220525_200632_red.fits_full_5280_4224_image.png",
+]
+
+
+def _find_record(records: Sequence[dict], needle: str) -> dict | None:
+    for rec in records:
+        if needle in str(rec.get("patch_path", "")):
+            return rec
+    return None
+
+
 def _figure_overlay_grid(
-    selected: list[dict],
+    records: list[dict],
     model: torch.nn.Module,
     device: torch.device,
     normalisation: str,
     threshold: float,
     out_path: Path,
 ) -> None:
-    """Compact deterministic patch subset with GT/prediction overlay."""
-    n = min(len(selected), 12)
+    """Fixed 8-patch overlay grid; identical patches (and order) for both models."""
+    selected = [r for r in (_find_record(records, needle) for needle in OVERLAY_PATCHES) if r is not None]
+    n = len(selected)
     if n == 0:
         return
-    selected = selected[:n]
-    ncols = 4 if n >= 8 else 3
+    ncols = 4
     nrows = int(np.ceil(n / ncols))
     fig, axes = plt.subplots(nrows, ncols, figsize=(2.55 * ncols, 2.85 * nrows + 0.28))
     axes_arr = np.atleast_1d(axes).ravel()
@@ -234,19 +258,18 @@ def _figure_overlay_grid(
         img = _load_patch_image(rec["patch_path"])
         mask = _load_patch_image(rec["mask_path"])
         prob = _infer_patch_prob(img, rec, model, device, normalisation)
-        pred_mask = (prob >= threshold).astype(np.uint8) * 255
-        ax.imshow(_prediction_overlay(img, mask, pred_mask), interpolation="nearest")
+        ax.imshow(_prediction_overlay(img, mask, prob, threshold), interpolation="nearest")
         ax.set_title(f"Dice={rec['dice']:.2f}; mean p={rec['mean_prob']:.2f}", fontsize=7, pad=5)
         ax.axis("off")
     for ax in axes_arr[n:]:
         ax.axis("off")
     fig.suptitle(
-        "Prediction overlay subset: green=GT, magenta=prediction, yellow=overlap\n"
-        "Deterministic set: worst-Dice positives plus seed-random test patches",
+        "Prediction overlay subset: green = GT, magenta = prediction (overlap = magenta inside green)\n"
+        "Low-Dice patches (top row) and high-Dice patches (bottom row)",
         fontsize=12,
         y=0.985,
     )
-    fig.subplots_adjust(left=0.012, right=0.995, bottom=0.015, top=0.87, hspace=0.36, wspace=0.035)
+    fig.subplots_adjust(left=0.012, right=0.995, bottom=0.015, top=0.86, hspace=0.26, wspace=0.035)
     fig.savefig(out_path, dpi=170, bbox_inches="tight")
     plt.close(fig)
 
@@ -260,23 +283,18 @@ def _figure_fp_fn_gallery(
     threshold: float,
     out_path: Path,
 ) -> None:
-    """Most-confident FPs, hardest positive patches, and cleanest TPs."""
-    pos = [r for r in records if r["is_positive"]]
-    neg = [r for r in records if not r["is_positive"]]
-    confident_fp = sorted(neg, key=lambda r: -r["mean_prob"])[:top_k]
-    hardest_fn = sorted(pos, key=lambda r: r["dice"])[:top_k]
-    cleanest_tp = sorted(pos, key=lambda r: -r["dice"])[:top_k]
-
+    """Fixed 8-patch gallery (identical patches and order for both models): FPs over TPs."""
+    ncols = 4
+    confident_fp = [r for r in (_find_record(records, needle) for needle in GALLERY_PATCHES[:ncols]) if r is not None]
+    cleanest_tp = [r for r in (_find_record(records, needle) for needle in GALLERY_PATCHES[ncols:]) if r is not None]
     rows = [
-        ("Empty-GT patches\nhighest mean probability", confident_fp),
-        ("Positive-GT patches\nlowest Dice", hardest_fn),
-        ("Positive-GT patches\nhighest Dice", cleanest_tp),
+        ("False positives\n(empty-GT patches)", confident_fp),
+        ("True positives\n(high-Dice patches)", cleanest_tp),
     ]
-    fig, axes = plt.subplots(3, top_k, figsize=(2.3 * top_k, 8.55))
-    if top_k == 1:
-        axes = axes[:, np.newaxis]
+    fig, axes = plt.subplots(2, ncols, figsize=(2.3 * ncols, 5.2))
+    axes = np.atleast_2d(axes)
     for r, (label, items) in enumerate(rows):
-        for c in range(top_k):
+        for c in range(ncols):
             ax = axes[r, c]
             if c >= len(items):
                 ax.axis("off")
@@ -285,14 +303,18 @@ def _figure_fp_fn_gallery(
             img = _load_patch_image(rec["patch_path"])
             mask = _load_patch_image(rec["mask_path"])
             prob = _infer_patch_prob(img, rec, model, device, normalisation)
-            pred_mask = (prob >= threshold).astype(np.uint8) * 255
-            ax.imshow(_prediction_overlay(img, mask, pred_mask), interpolation="nearest")
+            ax.imshow(_prediction_overlay(img, mask, prob, threshold), interpolation="nearest")
+            ax.set_title(f"Dice={rec['dice']:.2f}; mean p={rec['mean_prob']:.2f}", fontsize=7, pad=4)
+            ax.set_xticks([])
+            ax.set_yticks([])
             if c == 0:
                 ax.set_ylabel(label, fontsize=8)
-            ax.set_title(f"Dice={rec['dice']:.2f}\nmean p={rec['mean_prob']:.2f}", fontsize=7, pad=5)
-            ax.axis("off")
-    fig.suptitle("FP/FN/TP patch gallery: green=GT, magenta=prediction, yellow=overlap", fontsize=12, y=0.985)
-    fig.subplots_adjust(left=0.08, right=0.995, bottom=0.015, top=0.89, hspace=0.46, wspace=0.035)
+                for spine in ax.spines.values():
+                    spine.set_visible(False)
+            else:
+                ax.axis("off")
+    fig.suptitle("FP / TP patch gallery: green = GT, magenta = prediction (overlap = magenta inside green)", fontsize=11, y=0.97)
+    fig.subplots_adjust(left=0.06, right=0.995, bottom=0.02, top=0.86, hspace=0.16, wspace=0.04)
     fig.savefig(out_path, dpi=170, bbox_inches="tight")
     plt.close(fig)
 
@@ -372,6 +394,31 @@ def _contour_if_any(ax, mask: np.ndarray, *, color: str, linewidth: float, lines
     if np.asarray(mask).any():
         ax.contour(mask.astype(float), levels=[0.5], colors=[color], linewidths=linewidth, linestyles=linestyle, alpha=alpha)
 
+
+
+def _line_inset_bbox(target_canvas: np.ndarray, binary: np.ndarray, hough: np.ndarray, *, half_h: int = 105, half_w: int = 230) -> tuple[slice, slice]:
+    shape = target_canvas.shape
+    mask = target_canvas.astype(bool) & (binary.astype(bool) | hough.astype(bool))
+    if not mask.any():
+        mask = target_canvas.astype(bool)
+    if not mask.any():
+        mask = binary.astype(bool) | hough.astype(bool)
+    if not mask.any():
+        return _largest_component_bbox(mask, margin=max(half_h, half_w), shape=shape)
+    labels, n = ndi_label(mask)
+    if n:
+        counts = np.bincount(labels.ravel())
+        counts[0] = 0
+        mask = labels == int(counts.argmax())
+    yy, xx = np.nonzero(mask)
+    # Landscape window centred on the middle of the streak.
+    cy = int(np.median(yy))
+    cx = int(np.median(xx))
+    y0 = max(0, cy - half_h)
+    y1 = min(shape[0], cy + half_h)
+    x0 = max(0, cx - half_w)
+    x1 = min(shape[1], cx + half_w)
+    return slice(y0, y1), slice(x0, x1)
 
 def _figure_full_image_heatmap(
     records: list[dict],
@@ -456,20 +503,19 @@ def _figure_full_image_heatmap(
     _contour_if_any(ax, target_d, color="#009E73", linewidth=0.55, alpha=0.88)
     _contour_if_any(ax, binary_d, color="#ff2f92", linewidth=0.72, alpha=0.95)
     _contour_if_any(ax, hough_d, color="#00c8ff", linewidth=0.58, linestyle="dashed", alpha=0.92)
-    ax.set_title(f"Full-image contour overview with inset: {Path(chosen_src).stem}", fontsize=10)
+    ax.set_title(f"Full-image contour overview: {Path(chosen_src).stem}", fontsize=10)
     ax.axis("off")
 
-    zoom_y, zoom_x = _largest_component_bbox(np.logical_or.reduce((target_canvas, binary, hough)), margin=180, shape=raw.shape)
+    zoom_y, zoom_x = _line_inset_bbox(target_canvas, binary, hough, half_h=105, half_w=230)
     sy = raw_d.shape[0] / raw.shape[0]
     sx = raw_d.shape[1] / raw.shape[1]
     ax.add_patch(Rectangle((zoom_x.start * sx, zoom_y.start * sy), (zoom_x.stop - zoom_x.start) * sx,
                            (zoom_y.stop - zoom_y.start) * sy, fill=False, edgecolor="white", lw=0.9, alpha=0.9))
-    inset = ax.inset_axes([0.56, 0.02, 0.42, 0.42])
+    inset = ax.inset_axes([0.32, 0.05, 0.66, 0.30])
     inset.imshow(raw[zoom_y, zoom_x], cmap="gray", vmin=0, vmax=255, interpolation="nearest")
     _contour_if_any(inset, target_canvas[zoom_y, zoom_x], color="#009E73", linewidth=0.75, alpha=0.92)
     _contour_if_any(inset, binary[zoom_y, zoom_x], color="#ff2f92", linewidth=0.9, alpha=0.97)
     _contour_if_any(inset, hough[zoom_y, zoom_x], color="#00c8ff", linewidth=0.75, linestyle="dashed", alpha=0.94)
-    inset.set_title("inset", fontsize=7, pad=1)
     inset.set_xticks([])
     inset.set_yticks([])
     for spine in inset.spines.values():
@@ -507,19 +553,11 @@ def main() -> None:
 
     records, _ = _collect_per_patch(model, loader, device, args.threshold)
 
-    rng = np.random.default_rng(2804)
-    pos = [r for r in records if r["is_positive"]]
-    worst = sorted(pos, key=lambda r: r["dice"])[: args.n_worst]
-    random_pick = (
-        [records[int(i)] for i in rng.choice(len(records), size=args.n_random, replace=False)]
-        if args.n_random > 0 else []
-    )
-    overlay_set = worst + random_pick
     _figure_overlay_grid(
-        overlay_set, model, device, normalisation, args.threshold,
+        records, model, device, normalisation, args.threshold,
         out_dir / f"overlay_grid_{tag}.png",
     )
-    logger.info("Wrote overlay grid (%d patches)", len(overlay_set))
+    logger.info("Wrote overlay grid (%d patches)", len(OVERLAY_PATCHES))
 
     _figure_fp_fn_gallery(
         records, args.top_k, model, device, normalisation, args.threshold,
@@ -539,7 +577,7 @@ def main() -> None:
     _figure_full_image_heatmap(
         records, model, device, normalisation,
         Path(args.patch_dir), args.threshold, Path(args.hough_json) if args.hough_json else None,
-        out_dir / f"full_image_heatmap_{tag}.png",
+        out_dir / f"full_image_contour_{tag}.png",
     )
     logger.info("Wrote full-image contour overview")
 

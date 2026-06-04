@@ -12,7 +12,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 import itertools
-from dataclasses import asdict
 
 from src.classical.hough import HoughTransformConfig, evaluate_hough_baseline
 from src.utils.logger import get_logger

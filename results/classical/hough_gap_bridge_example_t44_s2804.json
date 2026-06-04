@@ -1,5 +1,7 @@
 {
   "analysis": "hough_gap_bridge_example",
+  "selection_rule": "Two predeclared positive test images chosen by patch-FN reduction (whole trail patches the U-Net missed that the Hough stage recovered), hand-picked from an author-reviewed candidate sheet.",
+  "method_note": "Qualitative post-hoc mechanism illustration only; not selection evidence. Locked model, threshold, and Hough settings unchanged.",
   "provenance": {
     "checkpoint": "results/checkpoints/unet_paper_arch_noise_topk_t44_s2804_best.pth",
     "threshold": 0.45,
@@ -7,35 +9,22 @@
     "split": "sampled_test",
     "manifest": "data/patches/manifest.csv",
     "manifest_sha256": "e4082a0c16fd58aeaafb061baf846555fe76543700058bd7119f08063c7cf24b",
-    "git_commit": "6824deef7cd6b7b152387b9a771bc5babd5ab727",
+    "git_commit": "62078b295d9cee6cb32938ab72f2cacf544243e4",
     "post_hoc_locked_winner_analysis": true,
     "display_intensity_caveat": "Raw intensities are 8-bit display-scaled PNG values; contrast metrics are relative display-space proxies, not calibrated flux/SNR."
   },
-  "method_note": "Candidate selected post hoc by Hough-added GT pixels and an interior-gap criterion. Qualitative mechanism illustration only; not selection evidence.",
-  "selected": {
-    "source_image": "data/Processed/ML1_20210619_171004_red.fits_full.png",
-    "is_positive": true,
-    "detected_pre_hough": true,
-    "detected_post_hough": true,
-    "n_positive_patches": 48,
-    "n_fn_pre_patch": 2,
-    "n_fn_post_patch": 0,
-    "gt_pixels": 164773,
-    "pixels_covered_pre": 126505,
-    "pixels_covered_post": 164707,
-    "hough_recovered_gt_px": 38202,
-    "rank_by_hough_recovered_gt_px": 1,
-    "criterion": "interior_gap",
-    "recovered_gt_px": 24256,
-    "interior_fraction": 0.6857684696569921,
-    "component_gt_px": 105141,
-    "crop_y0": 9713,
-    "crop_y1": 10053,
-    "crop_x0": 2199,
-    "crop_x1": 2539,
-    "local_gap_y": 170,
-    "local_gap_x": 170,
-    "display_crop_half_size": 170,
-    "annotation_box_size": 70
-  }
+  "examples": [
+    {
+      "source_image": "data/Processed/ML1_20220629_171546_red.fits_full.png",
+      "stem": "ML1_20220629_171546",
+      "note": "U-Net missed 5 patches",
+      "patch_fn_pre": 5,
+      "patch_fn_post": 0,
+      "hough_recovered_gt_px": 21359,
+      "crop_y0": 9511,
+      "crop_y1": 9870,
+      "crop_x0": 6024,
+      "crop_x1": 6399
+    }
+  ]
 }

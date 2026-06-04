@@ -20,7 +20,6 @@ from src.evaluation.eda import (  # noqa: E402
     plot_image_level_summary,
     plot_mask_inspection_grid,
     plot_mask_overlay,
-    plot_mask_thickness_distribution,
     plot_metadata_missing_values,
     plot_observation_date_distribution,
     plot_patch_density_distribution,

@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from src.analysis.fp_decomposition import FpDecompositionResult, decompose_false_positives
+from src.analysis.fp_decomposition import decompose_false_positives
 
 
 def _patch(pred_ones: int, gt_ones: int, size: int = 16) -> tuple[np.ndarray, np.ndarray]:
@@ -36,7 +36,6 @@ def test_all_fp_in_positive_patches_gives_inter_fraction_zero() -> None:
 def test_fifty_fifty_split_gives_correct_fractions() -> None:
     gt_empty = np.zeros(16, dtype=bool)
     pred_fp = np.ones(16, dtype=bool)
-    gt_pos = np.ones(8, dtype=bool)
     gt_pos_full = np.zeros(16, dtype=bool)
     gt_pos_full[:8] = True
     pred_intra = np.ones(16, dtype=bool)

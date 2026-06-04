@@ -13,7 +13,6 @@ from typing import Any
 
 import numpy as np
 import optuna
-import torch
 import yaml
 from torch.utils.data import DataLoader
 

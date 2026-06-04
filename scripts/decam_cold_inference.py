@@ -598,7 +598,7 @@ def make_montage(processed: list[ProcessedImage], pdf_path: str | Path, svg_path
     n = len(processed)
     ncols = 3
     nrows = math.ceil(n / ncols)
-    fig, axes = plt.subplots(nrows, ncols, figsize=(16.5, 3.05 * nrows), constrained_layout=False)
+    fig, axes = plt.subplots(nrows, ncols, figsize=(16.0, 3.05 * nrows), constrained_layout=False)
     axes_arr = np.atleast_1d(axes).ravel()
     for ax, item in zip(axes_arr, processed):
         image = rotate_panel_for_display(resize_for_figure(item.image_u8, max_dim=1500, nearest=False))
@@ -610,19 +610,19 @@ def make_montage(processed: list[ProcessedImage], pdf_path: str | Path, svg_path
         ) > 0
         ax.imshow(image, cmap="gray", vmin=0, vmax=255, interpolation="nearest")
         if binary.any():
-            ax.contour(binary.astype(float), levels=[0.5], colors=["#ff2f92"], linewidths=0.82, alpha=0.96)
+            ax.contour(binary.astype(float), levels=[0.5], colors=["#ff2f92"], linewidths=1.5, alpha=0.96)
         if hough.any():
-            ax.contour(hough.astype(float), levels=[0.5], colors=["#00c8ff"], linewidths=0.62, linestyles="dashed", alpha=0.92)
+            ax.contour(hough.astype(float), levels=[0.5], colors=["#00c8ff"], linewidths=1.1, linestyles="dashed", alpha=0.92)
         rec = item.record
         ax.set_title(f"{rec['object_name']} | exp {rec['expnum']} det {rec['detector']}", fontsize=9.5, pad=2)
         ax.set_xticks([])
         ax.set_yticks([])
     for ax in axes_arr[n:]:
         ax.axis("off")
-    fig.subplots_adjust(left=0.004, right=0.998, top=0.86, bottom=0.02, hspace=0.13, wspace=0.004)
+    fig.subplots_adjust(left=0.001, right=0.999, top=0.90, bottom=0.01, hspace=0.09, wspace=0.0)
     fig.suptitle(
-        "Locked MeerLICHT winner on predeclared RECA/NOIRLab DECam measured-streak images\n"
-        "Qualitative cold-domain illustration only: U-Net binary and dashed Hough contours",
+        "Locked U-Net on predeclared DECam measured-streak frames\n"
+        "Qualitative cold-domain illustration only",
         fontsize=13,
         y=0.988,
     )
@@ -663,7 +663,7 @@ def make_raw_vs_overlay(processed: list[ProcessedImage], pdf_path: str | Path, s
             "detector": int(rec["detector"]),
             "selection_rule": RAW_VS_OVERLAY_SELECTION_RULE,
         })
-    fig.subplots_adjust(left=0.004, right=0.998, top=0.94, bottom=0.02, hspace=0.16, wspace=0.006)
+    fig.subplots_adjust(left=0.004, right=0.998, top=0.93, bottom=0.02, hspace=0.11, wspace=0.006)
     fig.suptitle("Raw vs locked U-Net overlay for predeclared high-SNR DECam examples", fontsize=13, y=0.992)
     _save_figure_pair(fig, pdf_path, svg_path)
     return records

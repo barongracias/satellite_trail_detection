@@ -7,8 +7,6 @@ import json
 import math
 import sqlite3
 import sys
-from datetime import date
-from glob import glob
 from pathlib import Path
 from typing import Any
 
@@ -42,13 +40,6 @@ COLORS = {
     "sky": "#56B4E9",
     "yellow": "#F0E442",
     "black": "#000000",
-}
-PASTEL_COLORS = {
-    "blue": "#8ecae6",
-    "orange": "#ffb703",
-    "green": "#95d5b2",
-    "purple": "#d0a6ca",
-    "red": "#f4a261",
 }
 PAPER_F1 = (2.0 * PAPER_PRECISION * PAPER_RECALL) / (PAPER_PRECISION + PAPER_RECALL)
 PAPER_VALUES = {
@@ -138,7 +129,7 @@ def figure_multiseed_replication() -> None:
         highs.append(hi - mean)
 
     fig, ax = plt.subplots(figsize=(4.8, 3.0))
-    ax.bar(x, means, color=COLORS["blue"], alpha=0.75, width=0.58, label="Seed mean")
+    seed_handle = ax.bar(x, means, color=COLORS["blue"], alpha=0.75, width=0.58, label="Seed mean")
     ax.errorbar(x, means, yerr=[lows, highs], fmt="none", color=COLORS["black"], capsize=3, lw=0.9)
     for i, metric in enumerate(METRICS):
         jitter = np.linspace(-0.16, 0.16, len(SEEDS))
@@ -146,14 +137,18 @@ def figure_multiseed_replication() -> None:
             np.full(len(SEEDS), x[i]) + jitter, series[metric],
             s=16, color=COLORS["black"], alpha=0.7, zorder=3,
         )
-        ax.scatter(x[i] + 0.28, PAPER_VALUES[metric], marker="D", s=24, color=COLORS["orange"], zorder=4)
+        ax.scatter(x[i], PAPER_VALUES[metric], marker="D", s=24, color=COLORS["orange"], zorder=4)
     ax.set_xticks(x)
     ax.set_xticklabels([METRIC_LABELS[m] for m in METRICS])
     ax.set_ylabel("Test score")
     ax.set_ylim(0.78, 0.97)
     ax.set_title("Five-seed replication vs paper reference")
-    ax.scatter([], [], marker="D", color=COLORS["orange"], label="Paper reference")
-    ax.legend(loc="upper right", ncol=2, frameon=True, framealpha=0.86, edgecolor="none")
+    paper_handle = ax.scatter([], [], marker="D", color=COLORS["orange"], label="Paper reference")
+    ax.legend(
+        [seed_handle, paper_handle],
+        ["Seed mean", "Paper reference"],
+        loc="upper right", ncol=2, frameon=True, framealpha=0.86, edgecolor="none",
+    )
     save_vector(fig, "thesis_1_multiseed_replication")
 
 def figure_boundary_tolerance() -> None:
@@ -170,24 +165,14 @@ def figure_boundary_tolerance() -> None:
         means_arr = np.asarray(means)
         ax.plot(tolerances, means_arr, marker="o", color=color, label=METRIC_LABELS.get(metric, "F1"))
         ax.fill_between(tolerances, los, his, color=color, alpha=0.16, linewidth=0)
-    ax.axhline(PAPER_PRECISION, color=COLORS["black"], linestyle="--", lw=0.9, label="Paper 0.94")
+    ax.axhline(PAPER_PRECISION, color=COLORS["black"], linestyle="--", lw=0.9, label="Paper precision (0.94)")
     ax.set_xlabel("Boundary tolerance (px)")
-    ax.set_ylabel("Micro score")
+    ax.set_ylabel("Micro-averaged score")
     ax.set_xticks(tolerances)
     ax.set_ylim(0.82, 1.0)
     ax.set_title("Precision/recall/F1 under boundary tolerance")
     ax.legend(loc="lower right", frameon=False)
     save_vector(fig, "thesis_2_boundary_tolerance")
-
-
-def figure_base_vs_attention() -> None:
-    base = metric_series("winner_t44")
-    attn = metric_series("attn_winner_t7")
-    print("[table-only] thesis_3_base_vs_attention")
-    for metric in METRICS:
-        base_mean = float(np.mean(base[metric]))
-        attn_mean = float(np.mean(attn[metric]))
-        print(f"  {METRIC_LABELS[metric]}: base={base_mean:.3f}, attention={attn_mean:.3f}, delta={attn_mean - base_mean:+.3f}")
 
 
 def build_data_efficiency_json() -> dict[str, Any]:
@@ -216,7 +201,6 @@ def build_data_efficiency_json() -> dict[str, Any]:
             "val_iou_at_threshold_0p5": float(best["val_iou"]),
         })
     payload = {
-        "generated": str(date.today()),
         "split": "validation",
         "seed_protocol": "single seed 2804 at each fraction",
         "threshold": 0.5,
@@ -237,17 +221,11 @@ def figure_data_efficiency(payload: dict[str, Any]) -> None:
     y = [p["val_dice_at_threshold_0p5"] for p in points]
     fig, ax = plt.subplots(figsize=(4.8, 3.0))
     ax.plot(x, y, marker="o", color=COLORS["blue"], lw=1.4)
-    for p in points:
-        ax.annotate(
-            f"e{p['best_epoch']}",
-            (p["train_fraction_percent"], p["val_dice_at_threshold_0p5"]),
-            xytext=(0, 6), textcoords="offset points", ha="center", fontsize=7,
-        )
     ax.set_xlabel("Training images used (%)")
-    ax.set_ylabel("Validation Dice (= F1) @ threshold 0.5")
+    ax.set_ylabel("Validation Dice @ 0.5")
     ax.set_xticks(x)
     ax.set_ylim(min(y) - 0.01, max(y) + 0.01)
-    ax.set_title("Data-efficiency curve (single seed 2804)")
+    ax.set_title("Data-efficiency curve")
     fig.subplots_adjust(bottom=0.16)
     save_vector(fig, "thesis_4_data_efficiency")
 
@@ -260,23 +238,22 @@ def figure_two_stage_pareto() -> None:
     ax.plot(recall, precision, color=COLORS["blue"], lw=1.1, label="Two-stage Pareto")
     ax.scatter([data["baseline_unet_recall"]], [data["baseline_unet_precision"]], marker="D", s=35, color=COLORS["orange"], label="Single-stage baseline")
     ax.scatter([data["end_to_end_recall"]], [data["end_to_end_precision"]], marker="o", s=35, color=COLORS["green"], label="Locked two-stage point")
+    dp = data["end_to_end_precision"] - data["baseline_unet_precision"]
+    dr = data["end_to_end_recall"] - data["baseline_unet_recall"]
+    ax.annotate(
+        f"gate: {dp * 100:+.1f} pp precision,\n{dr * 100:+.1f} pp recall",
+        xy=(data["end_to_end_recall"], data["end_to_end_precision"]),
+        xytext=(0.885, 0.812), textcoords="data",
+        arrowprops={"arrowstyle": "->", "lw": 0.7, "color": COLORS["black"]},
+        fontsize=6.5, ha="right", va="top",
+    )
     ax.set_xlabel("Recall")
     ax.set_ylabel("Precision")
     ax.set_xlim(0.70, 0.98)
     ax.set_ylim(0.72, 0.98)
-    ax.set_title("Classifier-gated operating characteristic (test-side, descriptive)")
-    ax.legend(frameon=False, loc="lower left")
+    ax.set_title("Classifier-gated operating characteristic")
+    ax.legend(frameon=False, loc="upper right")
     save_vector(fig, "thesis_5_two_stage_pareto")
-
-
-def figure_fp_decomposition() -> None:
-    data = load_json(CLASSICAL / "fp_decomposition_unet_paper_arch_noise_topk_t44_s2804.json")
-    inter = int(data["inter_patch_fp_pixels"])
-    intra = int(data["intra_patch_fp_pixels"])
-    total = inter + intra
-    print("[table-only] thesis_6_fp_decomposition")
-    print(f"  Intra-patch FP: {intra:,} ({100 * intra / total:.1f}%)")
-    print(f"  Inter-patch FP: {inter:,} ({100 * inter / total:.1f}%)")
 
 
 def load_optuna_trials() -> list[dict[str, Any]]:
@@ -357,11 +334,9 @@ def main() -> None:
     configure_style()
     figure_multiseed_replication()
     figure_boundary_tolerance()
-    figure_base_vs_attention()
     data_eff = build_data_efficiency_json()
     figure_data_efficiency(data_eff)
     figure_two_stage_pareto()
-    figure_fp_decomposition()
     figure_sweep_selection()
     print("Saved thesis figures to", FIGURES)
     print("Saved", CLASSICAL / "data_efficiency_curve.json")

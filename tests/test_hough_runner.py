@@ -18,7 +18,6 @@ import pytest
 
 from src.classical.hough_runner import (
     HoughCanvasResult,
-    _apply_hough,
     run_hough_on_canvas,
 )
 

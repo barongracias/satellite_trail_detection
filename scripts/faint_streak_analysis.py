@@ -9,7 +9,6 @@ contrast is a relative display-space proxy, not calibrated flux or SNR.
 from __future__ import annotations
 
 import argparse
-import json
 import math
 import sys
 from pathlib import Path
@@ -602,7 +601,7 @@ def make_fp_intensity_figure(
                 color=colours[name], label=f"{labels[name]} (n={vals.size})")
     ax.set_xlabel("Display value above per-image background median")
     ax.set_ylabel("Normalised density")
-    ax.set_title("FP intensity rider: support-restricted U-Net pixels")
+    ax.set_title("False-positive pixel intensity vs background")
     ks_near = rider.get("ks_d_near_fp_vs_gt_trail")
     ks_far = rider.get("ks_d_far_fp_vs_background")
     note = "Display-space proxy from 8-bit PNGs; descriptive locked-winner diagnostic, no p-values."
@@ -615,7 +614,7 @@ def make_fp_intensity_figure(
         note = " ; ".join(bits) + "\n" + note
     ax.legend(frameon=True, framealpha=0.86, edgecolor="none", fontsize=6.7, loc="upper left")
     fig.subplots_adjust(bottom=0.16, top=0.88)
-    save_vector(fig, "fp_intensity_rider")
+    save_vector(fig, "fp_intensity")
 
 def analyse(args: argparse.Namespace) -> dict[str, Any]:
     model, normalisation, device = load_locked_model(args.checkpoint)

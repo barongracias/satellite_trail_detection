@@ -7,7 +7,7 @@
     "split": "sampled_test",
     "manifest": "data/patches/manifest.csv",
     "manifest_sha256": "e4082a0c16fd58aeaafb061baf846555fe76543700058bd7119f08063c7cf24b",
-    "git_commit": "22142f662d119a1bc550b8462d961b3ce12c3251",
+    "git_commit": "62078b295d9cee6cb32938ab72f2cacf544243e4",
     "post_hoc_locked_winner_analysis": true,
     "display_intensity_caveat": "Raw intensities are 8-bit display-scaled PNG values; contrast metrics are relative display-space proxies, not calibrated flux/SNR."
   },

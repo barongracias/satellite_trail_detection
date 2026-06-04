@@ -33,7 +33,7 @@ from scripts.faint_streak_analysis import (  # noqa: E402
     fp_distance_strata,
     profile_metrics,
 )
-from scripts.hough_gap_figure import _local_gap_crop, rank_hough_candidates  # noqa: E402
+from scripts.hough_gap_figure import _recovered_crop  # noqa: E402
 
 
 def test_support_canvas_uses_raw_image_shape_and_patch_footprints() -> None:
@@ -108,18 +108,6 @@ def test_profile_metrics_recovers_clean_relative_contrast_and_fwhm() -> None:
     assert metrics["integrated_excess"] > 100.0
 
 
-def test_hough_gap_ranking_uses_post_minus_pre_pixels() -> None:
-    rows = [
-        {"source_image": "a.png", "is_positive": True, "pixels_covered_pre": 10, "pixels_covered_post": 30},
-        {"source_image": "b.png", "is_positive": True, "pixels_covered_pre": 100, "pixels_covered_post": 130},
-        {"source_image": "c.png", "is_positive": False, "pixels_covered_pre": 0, "pixels_covered_post": 999},
-    ]
-    ranked = rank_hough_candidates(rows)
-    assert [r["source_image"] for r in ranked] == ["b.png", "a.png"]
-    assert ranked[0]["hough_recovered_gt_px"] == 30
-    assert ranked[0]["rank_by_hough_recovered_gt_px"] == 1
-
-
 def test_provenance_marks_locked_post_hoc_context() -> None:
     p = provenance(checkpoint="ckpt.pth", threshold=LOCKED_THRESHOLD, normalisation=LOCKED_NORMALISATION)
     assert p["checkpoint"] == "ckpt.pth"
@@ -182,17 +170,16 @@ def test_fp_intensity_rider_effect_sizes_match_synthetic_categories() -> None:
     json.dumps(rider)  # summary is JSON-safe and contains no sampled arrays
 
 
-def test_hough_gap_crop_centres_largest_recovered_component() -> None:
-    gap = np.zeros((120, 140), dtype=bool)
-    fallback = np.zeros_like(gap)
-    gap[10:14, 10:14] = True
-    gap[72:82, 64:80] = True
+def test_recovered_crop_centres_on_fattest_recovered_component() -> None:
+    recovered = np.zeros((120, 140), dtype=bool)
+    fallback = np.zeros_like(recovered)
+    recovered[10, 10:40] = True       # thin 1px sliver: erodes away
+    recovered[70:82, 64:80] = True    # fat block: survives erosion
 
-    sl_y, sl_x, local = _local_gap_crop(gap, fallback, gap.shape, half_size=20)
+    sl_y, sl_x = _recovered_crop(recovered, fallback, recovered.shape, margin=8)
 
-    global_y = sl_y.start + local[0]
-    global_x = sl_x.start + local[1]
-    assert 74 <= global_y <= 79
-    assert 69 <= global_x <= 75
-    assert sl_y.start <= 72 < sl_y.stop
-    assert sl_x.start <= 64 < sl_x.stop
+    cy = (sl_y.start + sl_y.stop) // 2
+    cx = (sl_x.start + sl_x.stop) // 2
+    assert 68 <= cy <= 84
+    assert 60 <= cx <= 84
+    assert sl_y.start > 10  # excludes the row-10 sliver

@@ -534,13 +534,7 @@ def make_contrast_figure(component_rows: list[dict[str, Any]], tier_summary: lis
     ax.set_title("Post-hoc Hough\ncompletion")
     ax.set_ylim(-0.02, max(0.05, float(np.nanmax(added)) + 0.02))
 
-    fig.subplots_adjust(bottom=0.27, top=0.82)
-    fig.text(
-        0.5, 0.04,
-        "Two descriptive views of the same locked-winner components: recall and Hough completion.\n"
-        "Contrast is a relative 8-bit display proxy, not calibrated flux/SNR.",
-        ha="center", fontsize=6, color="#555555",
-    )
+    fig.subplots_adjust(bottom=0.16, top=0.84, wspace=0.48)
     save_vector(fig, "faint_streak_contrast_vs_recall")
 
 def make_profile_figure(component_rows: list[dict[str, Any]]) -> None:
@@ -566,12 +560,7 @@ def make_profile_figure(component_rows: list[dict[str, Any]]) -> None:
     ax.set_ylabel("Display value above local background")
     ax.set_title("Example median cross-sections")
     ax.legend(frameon=True, framealpha=0.86, edgecolor="none", loc="upper right", fontsize=6.5)
-    fig.subplots_adjust(bottom=0.22)
-    fig.text(
-        0.5, 0.035,
-        "Profiles use display-space PNG values; examples are descriptive.",
-        ha="center", fontsize=6, color="#555555",
-    )
+    fig.subplots_adjust(bottom=0.16, top=0.88)
     save_vector(fig, "faint_streak_profiles")
 
 def make_fp_intensity_figure(
@@ -624,9 +613,8 @@ def make_fp_intensity_figure(
         if ks_far is not None:
             bits.append(f"KS-D far FP vs background = {ks_far:.2f}")
         note = " ; ".join(bits) + "\n" + note
-    ax.legend(frameon=True, framealpha=0.86, edgecolor="none", fontsize=6.7, loc="upper right")
-    fig.subplots_adjust(bottom=0.27, top=0.88)
-    fig.text(0.5, 0.035, note, ha="center", fontsize=6, color="#555555")
+    ax.legend(frameon=True, framealpha=0.86, edgecolor="none", fontsize=6.7, loc="upper left")
+    fig.subplots_adjust(bottom=0.16, top=0.88)
     save_vector(fig, "fp_intensity_rider")
 
 def analyse(args: argparse.Namespace) -> dict[str, Any]:

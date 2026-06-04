@@ -117,19 +117,31 @@ def _overlay(raw: np.ndarray, masks: list[tuple[np.ndarray, tuple[float, float, 
     return np.clip(rgb, 0.0, 1.0)
 
 
+def _largest_component_mask(mask: np.ndarray) -> np.ndarray:
+    if not mask.any():
+        return mask.astype(bool)
+    n_labels, labels = cv2.connectedComponents(mask.astype(np.uint8), connectivity=8)
+    if n_labels <= 1:
+        return mask.astype(bool)
+    sizes = np.bincount(labels.ravel())
+    sizes[0] = 0
+    return labels == int(np.argmax(sizes))
+
+
 def _local_gap_crop(
     gap_mask: np.ndarray,
     fallback_mask: np.ndarray,
     raw_shape: tuple[int, int],
     half_size: int,
 ) -> tuple[slice, slice, tuple[int, int]]:
-    mask = gap_mask if gap_mask.any() else fallback_mask
+    mask = _largest_component_mask(gap_mask if gap_mask.any() else fallback_mask)
     yy, xx = np.nonzero(mask)
-    if yy.size == 0:
-        return _bbox_from_mask(mask, half_size, raw_shape)[0], _bbox_from_mask(mask, half_size, raw_shape)[1], (0, 0)
-    cy = int(np.median(yy))
-    cx = int(np.median(xx))
     h, w = raw_shape
+    if yy.size == 0:
+        cy, cx = h // 2, w // 2
+    else:
+        cy = int(np.median(yy))
+        cx = int(np.median(xx))
     y0 = max(0, cy - half_size)
     y1 = min(h, cy + half_size)
     x0 = max(0, cx - half_size)
@@ -144,53 +156,55 @@ def _local_gap_crop(
 
 
 def _make_figure(canvases, gap_mask: np.ndarray, crop_margin: int) -> tuple[tuple[slice, slice], dict[str, int]]:
-    fallback = np.logical_and(canvases.hough_canvas, canvases.target_canvas)
-    half_size = max(520, crop_margin * 3)
+    fallback = np.logical_and.reduce((canvases.hough_canvas, canvases.target_canvas, ~canvases.binary_canvas))
+    half_size = max(170, crop_margin)
     sl_y, sl_x, local_center = _local_gap_crop(gap_mask, fallback, canvases.raw_image.shape, half_size)
     raw = canvases.raw_image[sl_y, sl_x]
     gt = canvases.target_canvas[sl_y, sl_x]
     binary = canvases.binary_canvas[sl_y, sl_x]
-    hough = canvases.hough_canvas[sl_y, sl_x]
-    added = np.logical_and(hough, ~binary)
-    gap_crop = gap_mask[sl_y, sl_x]
+    recovered_gt = gap_mask[sl_y, sl_x]
+    gap_crop = recovered_gt
 
     panels = [
         (raw.astype(float) / 255.0, "Raw local crop", "gray"),
-        (_overlay(raw, [(gt, (0.0, 0.62, 0.45), 0.70), (binary, (0.80, 0.18, 0.58), 0.70)]),
+        (_overlay(raw, [(gt, (0.0, 0.62, 0.45), 0.60), (binary, (0.80, 0.18, 0.58), 0.72)]),
          "GT (green) + U-Net (magenta)", None),
-        (_overlay(raw, [(binary, (0.80, 0.18, 0.58), 0.60), (added, (0.9, 0.35, 0.0), 0.88)]),
-         "Hough-added pixels (orange)", None),
+        (_overlay(raw, [(gt, (0.0, 0.62, 0.45), 0.30), (recovered_gt, (0.95, 0.45, 0.0), 0.95)]),
+         "GT pixels recovered by Hough (orange)", None),
     ]
     fig, axes = plt.subplots(1, 3, figsize=(7.8, 2.75))
     for ax, (image, title, cmap) in zip(axes, panels):
         ax.imshow(image, cmap=cmap, interpolation="nearest")
         ax.set_title(title, fontsize=8)
-        ax.set_xticks([]); ax.set_yticks([])
+        ax.set_xticks([])
+        ax.set_yticks([])
     if gap_crop.any():
         cy, cx = local_center
-        box = 90
+        box = 70
         x0 = max(0, cx - box // 2)
         y0 = max(0, cy - box // 2)
-        for ax in axes:
+        for ax in axes[1:]:
             ax.add_patch(Rectangle((x0, y0), box, box, fill=False, edgecolor=COLORS["red"], lw=1.0))
-        axes[-1].annotate(
-            "bridged gap", xy=(cx, cy), xytext=(0.62, 0.12), textcoords="axes fraction",
+        axes[1].annotate(
+            "U-Net gap", xy=(cx, cy), xytext=(0.58, 0.13), textcoords="axes fraction",
             arrowprops={"arrowstyle": "->", "lw": 0.8, "color": COLORS["red"]},
             color=COLORS["red"], fontsize=7,
             bbox={"boxstyle": "round,pad=0.18", "fc": "white", "ec": COLORS["red"], "lw": 0.5, "alpha": 0.88},
         )
-    fig.subplots_adjust(bottom=0.18, top=0.82, wspace=0.06)
-    fig.text(
-        0.5, 0.04,
-        "Local crop from the rank-1 recovered-GT candidate; orange marks Hough additions not present in U-Net binary. Mechanism illustration only.",
-        ha="center", fontsize=6, color="#555555",
-    )
+        axes[2].annotate(
+            "Hough recovered GT", xy=(cx, cy), xytext=(0.48, 0.13), textcoords="axes fraction",
+            arrowprops={"arrowstyle": "->", "lw": 0.8, "color": COLORS["red"]},
+            color=COLORS["red"], fontsize=7,
+            bbox={"boxstyle": "round,pad=0.18", "fc": "white", "ec": COLORS["red"], "lw": 0.5, "alpha": 0.88},
+        )
+    fig.subplots_adjust(bottom=0.05, top=0.82, wspace=0.05)
     save_vector(fig, "hough_gap_bridge_example")
     return (sl_y, sl_x), {
         "crop_y0": sl_y.start, "crop_y1": sl_y.stop,
         "crop_x0": sl_x.start, "crop_x1": sl_x.stop,
         "local_gap_y": int(local_center[0]), "local_gap_x": int(local_center[1]),
         "display_crop_half_size": int(half_size),
+        "annotation_box_size": 70,
     }
 
 def main() -> None:

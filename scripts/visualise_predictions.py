@@ -38,6 +38,7 @@ import numpy as np
 import pandas as pd
 import torch
 import torchvision.transforms.functional as TF
+from matplotlib.patches import Rectangle
 from PIL import Image
 from torch.utils.data import DataLoader
 
@@ -158,6 +159,17 @@ def _load_patch_image(path: str) -> np.ndarray:
         return np.asarray(img.convert("L"), dtype=np.uint8)
 
 
+def _mask_outline(mask: np.ndarray) -> np.ndarray:
+    mask = np.asarray(mask, dtype=bool)
+    if not mask.any():
+        return mask
+    import cv2
+
+    eroded = cv2.erode(mask.astype(np.uint8), np.ones((3, 3), dtype=np.uint8), iterations=1) > 0
+    outline = np.logical_and(mask, ~eroded)
+    return outline if outline.any() else mask
+
+
 def _prediction_overlay(
     img: np.ndarray,
     gt: np.ndarray | None = None,
@@ -165,18 +177,20 @@ def _prediction_overlay(
 ) -> np.ndarray:
     base = img.astype(float) / 255.0
     rgb = np.dstack([base, base, base])
-    if gt is not None:
-        gt_mask = gt > 0
+    gt_full = gt > 0 if gt is not None else None
+    pred_full = pred > 0 if pred is not None else None
+    if gt_full is not None:
+        gt_mask = _mask_outline(gt_full)
         rgb[..., 1] = np.where(gt_mask, 0.78, rgb[..., 1])
         rgb[..., 0] = np.where(gt_mask, 0.05, rgb[..., 0])
         rgb[..., 2] = np.where(gt_mask, 0.18, rgb[..., 2])
-    if pred is not None:
-        pred_mask = pred > 0
+    if pred_full is not None:
+        pred_mask = _mask_outline(pred_full)
         rgb[..., 0] = np.where(pred_mask, 0.92, rgb[..., 0])
         rgb[..., 1] = np.where(pred_mask, 0.14, rgb[..., 1])
         rgb[..., 2] = np.where(pred_mask, 0.58, rgb[..., 2])
-    if gt is not None and pred is not None:
-        overlap = (gt > 0) & (pred > 0)
+    if gt_full is not None and pred_full is not None:
+        overlap = _mask_outline(np.logical_and(gt_full, pred_full))
         rgb[..., 0] = np.where(overlap, 1.0, rgb[..., 0])
         rgb[..., 1] = np.where(overlap, 0.82, rgb[..., 1])
         rgb[..., 2] = np.where(overlap, 0.05, rgb[..., 2])
@@ -214,7 +228,7 @@ def _figure_overlay_grid(
     selected = selected[:n]
     ncols = 4 if n >= 8 else 3
     nrows = int(np.ceil(n / ncols))
-    fig, axes = plt.subplots(nrows, ncols, figsize=(2.55 * ncols, 2.65 * nrows + 0.6))
+    fig, axes = plt.subplots(nrows, ncols, figsize=(2.55 * ncols, 2.85 * nrows + 0.28))
     axes_arr = np.atleast_1d(axes).ravel()
     for ax, rec in zip(axes_arr, selected):
         img = _load_patch_image(rec["patch_path"])
@@ -222,16 +236,17 @@ def _figure_overlay_grid(
         prob = _infer_patch_prob(img, rec, model, device, normalisation)
         pred_mask = (prob >= threshold).astype(np.uint8) * 255
         ax.imshow(_prediction_overlay(img, mask, pred_mask), interpolation="nearest")
-        ax.set_title(f"Dice={rec['dice']:.2f}; mean p={rec['mean_prob']:.2f}", fontsize=7)
+        ax.set_title(f"Dice={rec['dice']:.2f}; mean p={rec['mean_prob']:.2f}", fontsize=7, pad=5)
         ax.axis("off")
     for ax in axes_arr[n:]:
         ax.axis("off")
     fig.suptitle(
         "Prediction overlay subset: green=GT, magenta=prediction, yellow=overlap\n"
         "Deterministic set: worst-Dice positives plus seed-random test patches",
-        fontsize=10,
+        fontsize=12,
+        y=0.985,
     )
-    fig.tight_layout(rect=(0, 0, 1, 0.90))
+    fig.subplots_adjust(left=0.012, right=0.995, bottom=0.015, top=0.87, hspace=0.36, wspace=0.035)
     fig.savefig(out_path, dpi=170, bbox_inches="tight")
     plt.close(fig)
 
@@ -257,7 +272,7 @@ def _figure_fp_fn_gallery(
         ("Positive-GT patches\nlowest Dice", hardest_fn),
         ("Positive-GT patches\nhighest Dice", cleanest_tp),
     ]
-    fig, axes = plt.subplots(3, top_k, figsize=(2.3 * top_k, 7.8))
+    fig, axes = plt.subplots(3, top_k, figsize=(2.3 * top_k, 8.55))
     if top_k == 1:
         axes = axes[:, np.newaxis]
     for r, (label, items) in enumerate(rows):
@@ -274,10 +289,10 @@ def _figure_fp_fn_gallery(
             ax.imshow(_prediction_overlay(img, mask, pred_mask), interpolation="nearest")
             if c == 0:
                 ax.set_ylabel(label, fontsize=8)
-            ax.set_title(f"Dice={rec['dice']:.2f}\nmean p={rec['mean_prob']:.2f}", fontsize=7)
+            ax.set_title(f"Dice={rec['dice']:.2f}\nmean p={rec['mean_prob']:.2f}", fontsize=7, pad=5)
             ax.axis("off")
-    fig.suptitle("FP/FN/TP patch gallery: green=GT, magenta=prediction, yellow=overlap", fontsize=10)
-    fig.tight_layout(rect=(0, 0, 1, 0.94))
+    fig.suptitle("FP/FN/TP patch gallery: green=GT, magenta=prediction, yellow=overlap", fontsize=12, y=0.985)
+    fig.subplots_adjust(left=0.08, right=0.995, bottom=0.015, top=0.89, hspace=0.46, wspace=0.035)
     fig.savefig(out_path, dpi=170, bbox_inches="tight")
     plt.close(fig)
 
@@ -332,6 +347,32 @@ def _resize_for_display(arr: np.ndarray, max_dim: int = 1500, nearest: bool = Fa
     return cv2.resize(arr.astype(np.float32), (int(round(w * scale)), int(round(h * scale))), interpolation=interpolation)
 
 
+def _largest_component_bbox(mask: np.ndarray, margin: int, shape: tuple[int, int]) -> tuple[slice, slice]:
+    import cv2
+
+    mask = np.asarray(mask, dtype=bool)
+    h, w = shape
+    if not mask.any():
+        cy, cx = h // 2, w // 2
+        return slice(max(0, cy - margin), min(h, cy + margin)), slice(max(0, cx - margin), min(w, cx + margin))
+    n_labels, labels = cv2.connectedComponents(mask.astype(np.uint8), connectivity=8)
+    if n_labels > 1:
+        sizes = np.bincount(labels.ravel())
+        sizes[0] = 0
+        mask = labels == int(np.argmax(sizes))
+    yy, xx = np.nonzero(mask)
+    y0 = max(0, int(yy.min()) - margin)
+    y1 = min(h, int(yy.max()) + margin + 1)
+    x0 = max(0, int(xx.min()) - margin)
+    x1 = min(w, int(xx.max()) + margin + 1)
+    return slice(y0, y1), slice(x0, x1)
+
+
+def _contour_if_any(ax, mask: np.ndarray, *, color: str, linewidth: float, linestyle: str = "solid", alpha: float = 0.9) -> None:
+    if np.asarray(mask).any():
+        ax.contour(mask.astype(float), levels=[0.5], colors=[color], linewidths=linewidth, linestyles=linestyle, alpha=alpha)
+
+
 def _figure_full_image_heatmap(
     records: list[dict],
     model: torch.nn.Module,
@@ -342,7 +383,7 @@ def _figure_full_image_heatmap(
     hough_json: Path | None,
     out_path: Path,
 ) -> None:
-    """Full-image contour overview for one deterministic positive source image."""
+    """Full-frame contour overview plus deterministic inset zoom."""
     from src.classical.hough_runner import _apply_hough
 
     pos = [r for r in records if r["is_positive"]]
@@ -359,12 +400,14 @@ def _figure_full_image_heatmap(
     canvas_h = max(y for y, _ in coords) + _PATCH_SIZE
     canvas_w = max(x for _, x in coords) + _PATCH_SIZE
     prob_canvas = np.zeros((canvas_h, canvas_w), dtype=np.float32)
+    target_canvas = np.zeros((canvas_h, canvas_w), dtype=bool)
 
     has_full = {"image_mean", "image_std"}.issubset(group.columns)
     rows = list(group.itertuples(index=False))
     with torch.no_grad():
         for row in rows:
             img = _load_patch_image(row.patch_path)
+            mask = _load_patch_image(row.mask_path) > 0
             t = TF.pil_to_tensor(Image.fromarray(img)).float().unsqueeze(0) / 255.0
             mean = getattr(row, "image_mean", None) if has_full else None
             std = getattr(row, "image_std", None) if has_full else None
@@ -377,6 +420,7 @@ def _figure_full_image_heatmap(
             prob_canvas[y : y + _PATCH_SIZE, x : x + _PATCH_SIZE] = np.maximum(
                 prob_canvas[y : y + _PATCH_SIZE, x : x + _PATCH_SIZE], prob
             )
+            target_canvas[y : y + _PATCH_SIZE, x : x + _PATCH_SIZE] |= mask
 
     with Image.open(chosen_src) as img:
         raw = np.asarray(img.convert("L"), dtype=np.uint8)[:canvas_h, :canvas_w]
@@ -392,9 +436,8 @@ def _figure_full_image_heatmap(
         for key in ("hough_input_threshold", "hough_threshold", "min_line_length", "max_line_gap", "line_thickness"):
             if hdata.get(key) is not None:
                 hough_params[key] = hdata[key]
-    low = prob_canvas >= float(hough_params["hough_input_threshold"])
     binary = prob_canvas >= threshold
-    hough_input = low.astype(np.uint8) * 255
+    hough_input = (prob_canvas >= float(hough_params["hough_input_threshold"])).astype(np.uint8) * 255
     hough = _apply_hough(
         hough_input,
         hough_threshold=int(hough_params["hough_threshold"]),
@@ -404,26 +447,35 @@ def _figure_full_image_heatmap(
     ) > 0
 
     raw_d = _resize_for_display(raw, nearest=False)
-    low_d = _resize_for_display(low.astype(np.uint8), nearest=True) > 0
+    target_d = _resize_for_display(target_canvas.astype(np.uint8), nearest=True) > 0
     binary_d = _resize_for_display(binary.astype(np.uint8), nearest=True) > 0
     hough_d = _resize_for_display(hough.astype(np.uint8), nearest=True) > 0
 
     fig, ax = plt.subplots(figsize=(6.4, 6.4))
     ax.imshow(raw_d, cmap="gray", vmin=0, vmax=255, interpolation="nearest")
-    if low_d.any():
-        ax.contour(low_d.astype(float), levels=[0.5], colors=["#ffb000"], linewidths=0.45, alpha=0.85)
-    if binary_d.any():
-        ax.contour(binary_d.astype(float), levels=[0.5], colors=["#ff2f92"], linewidths=0.7, alpha=0.95)
-    if hough_d.any():
-        ax.contour(hough_d.astype(float), levels=[0.5], colors=["#00c8ff"], linewidths=0.55, linestyles="dashed", alpha=0.9)
-    ax.set_title(f"Full-image contour overview: {Path(chosen_src).stem}", fontsize=10)
+    _contour_if_any(ax, target_d, color="#009E73", linewidth=0.55, alpha=0.88)
+    _contour_if_any(ax, binary_d, color="#ff2f92", linewidth=0.72, alpha=0.95)
+    _contour_if_any(ax, hough_d, color="#00c8ff", linewidth=0.58, linestyle="dashed", alpha=0.92)
+    ax.set_title(f"Full-image contour overview with inset: {Path(chosen_src).stem}", fontsize=10)
     ax.axis("off")
-    fig.text(
-        0.5, 0.025,
-        f"Orange prob>={hough_params['hough_input_threshold']}; magenta prob>={threshold}; cyan dashed Hough. Deterministic source: most positive test patches.",
-        ha="center", fontsize=7, color="#555555",
-    )
-    fig.tight_layout(rect=(0, 0.04, 1, 0.96))
+
+    zoom_y, zoom_x = _largest_component_bbox(np.logical_or.reduce((target_canvas, binary, hough)), margin=180, shape=raw.shape)
+    sy = raw_d.shape[0] / raw.shape[0]
+    sx = raw_d.shape[1] / raw.shape[1]
+    ax.add_patch(Rectangle((zoom_x.start * sx, zoom_y.start * sy), (zoom_x.stop - zoom_x.start) * sx,
+                           (zoom_y.stop - zoom_y.start) * sy, fill=False, edgecolor="white", lw=0.9, alpha=0.9))
+    inset = ax.inset_axes([0.56, 0.02, 0.42, 0.42])
+    inset.imshow(raw[zoom_y, zoom_x], cmap="gray", vmin=0, vmax=255, interpolation="nearest")
+    _contour_if_any(inset, target_canvas[zoom_y, zoom_x], color="#009E73", linewidth=0.75, alpha=0.92)
+    _contour_if_any(inset, binary[zoom_y, zoom_x], color="#ff2f92", linewidth=0.9, alpha=0.97)
+    _contour_if_any(inset, hough[zoom_y, zoom_x], color="#00c8ff", linewidth=0.75, linestyle="dashed", alpha=0.94)
+    inset.set_title("inset", fontsize=7, pad=1)
+    inset.set_xticks([])
+    inset.set_yticks([])
+    for spine in inset.spines.values():
+        spine.set_edgecolor("white")
+        spine.set_linewidth(0.9)
+    fig.subplots_adjust(left=0.01, right=0.99, bottom=0.01, top=0.94)
     fig.savefig(out_path, dpi=170, bbox_inches="tight")
     plt.close(fig)
 

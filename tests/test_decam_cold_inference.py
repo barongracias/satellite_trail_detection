@@ -14,11 +14,15 @@ from scripts.decam_cold_inference import (  # noqa: E402
     DECAM_PIXEL_SCALE_ARCSEC,
     MEERLICHT_PIXEL_SCALE_ARCSEC,
     RESAMPLE_FACTOR,
+    MANUAL_REVIEW_FIELDS,
     VISUAL_FIELDS,
+    apply_manual_review,
+    build_manifest_entries,
     full_image_stats,
     iter_stride_tiles,
     normalise_uint8_patch_array,
     reflect_pad_to_multiple,
+    review_template_payload,
     visual_review_defaults,
 )
 
@@ -56,3 +60,60 @@ def test_visual_review_schema_defaults_to_null_and_is_json_safe() -> None:
     assert set(defaults) == set(VISUAL_FIELDS)
     assert all(value is None for value in defaults.values())
     json.dumps(defaults)
+
+
+def test_manual_review_template_has_null_author_fields() -> None:
+    payload = review_template_payload(build_manifest_entries()[:2])
+    assert payload["author_review_required"] is True
+    assert payload["auto_metric"] is False
+    assert len(payload["entries"]) == 2
+    for row in payload["entries"]:
+        assert "agent_suggestion" not in row
+        for field in MANUAL_REVIEW_FIELDS:
+            assert field in row
+            assert row[field] is None
+
+
+def test_apply_manual_review_rejects_incomplete_template(tmp_path: Path) -> None:
+    entry = build_manifest_entries()[0]
+    review = review_template_payload([entry])
+    review_path = tmp_path / "review.json"
+    review_path.write_text(json.dumps(review))
+    inference_path = tmp_path / "inference.json"
+    inference_path.write_text(json.dumps({"images": [{"expnum": entry.expnum, "detector": entry.detector}]}))
+
+    with pytest.raises(ValueError, match="still null"):
+        apply_manual_review(review_path, inference_path)
+
+
+def test_apply_manual_review_merges_completed_author_fields(tmp_path: Path) -> None:
+    entry = build_manifest_entries()[0]
+    review = review_template_payload([entry])
+    row = review["entries"][0]
+    row.update({
+        "visual_hit_unet_binary": True,
+        "visual_hit_unet_prob": True,
+        "visual_hit_hough": False,
+        "visual_fp_clean": False,
+        "notes": "author checked final figures",
+        "reviewer": "B. Gracias",
+        "review_date": "2026-06-03",
+    })
+    review_path = tmp_path / "review.json"
+    review_path.write_text(json.dumps(review))
+    inference_path = tmp_path / "inference.json"
+    inference_path.write_text(json.dumps({
+        "manual_review_summary": None,
+        "images": [{"expnum": entry.expnum, "detector": entry.detector}],
+    }))
+
+    merged = apply_manual_review(review_path, inference_path)
+
+    image = merged["images"][0]
+    assert image["visual_hit_unet_binary"] is True
+    assert image["visual_hit_hough"] is False
+    assert image["human_review_status"] == "reviewed"
+    assert image["human_review_notes"] == "author checked final figures"
+    assert merged["manual_review_summary"]["unet_binary_visual_hits"] == 1
+    assert merged["manual_review_summary"]["hough_visual_hits"] == 0
+    assert merged["manual_review_summary"]["auto_metric"] is False

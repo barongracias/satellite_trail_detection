@@ -7,7 +7,7 @@
     "split": "sampled_test",
     "manifest": "data/patches/manifest.csv",
     "manifest_sha256": "e4082a0c16fd58aeaafb061baf846555fe76543700058bd7119f08063c7cf24b",
-    "git_commit": "a0e7dfd1cbc3a37657af9dd0b4d1a02183bf037d",
+    "git_commit": "6824deef7cd6b7b152387b9a771bc5babd5ab727",
     "post_hoc_locked_winner_analysis": true,
     "display_intensity_caveat": "Raw intensities are 8-bit display-scaled PNG values; contrast metrics are relative display-space proxies, not calibrated flux/SNR."
   },
@@ -29,12 +29,13 @@
     "recovered_gt_px": 24256,
     "interior_fraction": 0.6857684696569921,
     "component_gt_px": 105141,
-    "crop_y0": 6839,
-    "crop_y1": 7879,
-    "crop_x0": 5260,
-    "crop_x1": 6300,
-    "local_gap_y": 520,
-    "local_gap_x": 520,
-    "display_crop_half_size": 520
+    "crop_y0": 9713,
+    "crop_y1": 10053,
+    "crop_x0": 2199,
+    "crop_x1": 2539,
+    "local_gap_y": 170,
+    "local_gap_x": 170,
+    "display_crop_half_size": 170,
+    "annotation_box_size": 70
   }
 }

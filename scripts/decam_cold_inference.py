@@ -54,6 +54,19 @@ VISUAL_FIELDS = (
     "human_review_status",
     "human_review_notes",
 )
+MANUAL_VISUAL_BOOL_FIELDS = (
+    "visual_hit_unet_binary",
+    "visual_hit_unet_prob",
+    "visual_hit_hough",
+    "visual_fp_clean",
+)
+MANUAL_REVIEW_FIELDS = (*MANUAL_VISUAL_BOOL_FIELDS, "notes", "reviewer", "review_date")
+RAW_VS_OVERLAY_EXAMPLES = ((1134933, 5), (1138498, 23))
+RAW_VS_OVERLAY_SELECTION_RULE = (
+    "Two highest RECA-table SNR measured-streak examples: NAVSTAR-70 "
+    "(exp 1134933, det 5; SNR 4509.6) and STARLINK-2600 "
+    "(exp 1138498, det 23; SNR 301.9)."
+)
 
 
 @dataclass(frozen=True)
@@ -155,6 +168,100 @@ def write_manifest(entries: list[ManifestEntry], path: str | Path) -> None:
         "entries": [asdict(entry) for entry in entries],
     }
     write_json(payload, path)
+
+
+def review_template_payload(entries: list[ManifestEntry]) -> dict[str, Any]:
+    rows = []
+    for entry in entries:
+        rows.append({
+            "object_name": entry.object_name,
+            "norad_id": entry.norad_id,
+            "expnum": entry.expnum,
+            "detector": entry.detector,
+            "expected_visual_class": entry.expected_visual_class,
+            "in_reca_measured_streak_sample": entry.in_reca_measured_streak_sample,
+            "source_notebook_or_list": entry.source_notebook_or_list,
+            **{field: None for field in MANUAL_REVIEW_FIELDS},
+        })
+    return {
+        "schema_version": "1.0",
+        "analysis": "m61b_qualitative_cold_decam_manual_review",
+        "author_review_required": True,
+        "auto_metric": False,
+        "instructions": (
+            "Author fills every visual_hit_* boolean plus visual_fp_clean, reviewer, and review_date "
+            "after inspecting the final montage and raw-vs-overlay figure. Leave no binding visual fields null."
+        ),
+        "entries": rows,
+    }
+
+
+def write_review_template(entries: list[ManifestEntry], path: str | Path) -> None:
+    write_json(review_template_payload(entries), path)
+
+
+def _review_key(row: dict[str, Any]) -> tuple[int, int]:
+    return int(row["expnum"]), int(row["detector"])
+
+
+def apply_manual_review(review_path: str | Path, inference_json_path: str | Path) -> dict[str, Any]:
+    review_path = Path(review_path)
+    inference_json_path = Path(inference_json_path)
+    payload = json.loads(inference_json_path.read_text())
+    review = json.loads(review_path.read_text())
+    rows = review.get("entries")
+    if not isinstance(rows, list) or not rows:
+        raise ValueError("manual review JSON must contain a non-empty entries list")
+
+    review_by_key: dict[tuple[int, int], dict[str, Any]] = {}
+    for row in rows:
+        missing = [field for field in MANUAL_REVIEW_FIELDS if field not in row]
+        if missing:
+            raise ValueError(f"manual review row {row!r} missing fields: {missing}")
+        for field in MANUAL_VISUAL_BOOL_FIELDS:
+            if row[field] is None:
+                raise ValueError(f"manual review field {field} is still null for exp={row.get('expnum')} det={row.get('detector')}")
+            if not isinstance(row[field], bool):
+                raise ValueError(f"manual review field {field} must be boolean for exp={row.get('expnum')} det={row.get('detector')}")
+        for field in ("reviewer", "review_date"):
+            if not isinstance(row[field], str) or not row[field].strip():
+                raise ValueError(f"manual review field {field} is required for exp={row.get('expnum')} det={row.get('detector')}")
+        key = _review_key(row)
+        if key in review_by_key:
+            raise ValueError(f"duplicate manual review row for exp={key[0]} det={key[1]}")
+        review_by_key[key] = row
+
+    images = payload.get("images", [])
+    if not isinstance(images, list) or not images:
+        raise ValueError("inference JSON has no images to review")
+    for image in images:
+        key = _review_key(image)
+        if key not in review_by_key:
+            raise ValueError(f"missing manual review row for exp={key[0]} det={key[1]}")
+        row = review_by_key[key]
+        for field in MANUAL_VISUAL_BOOL_FIELDS:
+            image[field] = bool(row[field])
+        image["human_review_status"] = "reviewed"
+        image["human_review_notes"] = row.get("notes")
+        image["reviewer"] = row["reviewer"]
+        image["review_date"] = row["review_date"]
+
+    reviewers = sorted({review_by_key[_review_key(image)]["reviewer"] for image in images})
+    dates = sorted({review_by_key[_review_key(image)]["review_date"] for image in images})
+    payload["manual_review_summary"] = {
+        "n_images": len(images),
+        "unet_binary_visual_hits": int(sum(bool(image["visual_hit_unet_binary"]) for image in images)),
+        "unet_prob_visual_hits": int(sum(bool(image["visual_hit_unet_prob"]) for image in images)),
+        "hough_visual_hits": int(sum(bool(image["visual_hit_hough"]) for image in images)),
+        "visual_fp_clean_count": int(sum(bool(image["visual_fp_clean"]) for image in images)),
+        "reviewer": reviewers[0] if len(reviewers) == 1 else reviewers,
+        "review_date": dates[0] if len(dates) == 1 else dates,
+        "review_template_path": str(review_path),
+        "review_template_sha256": sha256_file(review_path),
+        "auto_metric": False,
+    }
+    write_json(payload, inference_json_path)
+    return payload
 
 
 def noirlab_search(expnum: int, proc_type: str, timeout: float = 180.0) -> list[dict[str, Any]]:
@@ -402,6 +509,8 @@ def process_entry(
     hough_canvas = hough_overlay(prob_canvas)
 
     if save_input_pngs:
+        import cv2
+
         png_dir = Path(input_png_dir)
         png_dir.mkdir(parents=True, exist_ok=True)
         out_png = png_dir / f"decam_exp{entry.expnum}_det{entry.detector}_zscale.png"
@@ -463,6 +572,22 @@ def rotate_panel_for_display(arr: np.ndarray) -> np.ndarray:
     return np.rot90(arr, k=1) if arr.shape[0] > arr.shape[1] else arr
 
 
+def _strip_svg_trailing_whitespace(path: Path) -> None:
+    lines = path.read_text(encoding="utf-8").splitlines()
+    path.write_text("\n".join(line.rstrip() for line in lines) + "\n", encoding="utf-8")
+
+
+def _save_figure_pair(fig: Any, pdf_path: str | Path, svg_path: str | Path) -> None:
+    import matplotlib.pyplot as plt
+
+    for out in (Path(pdf_path), Path(svg_path)):
+        out.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(out, bbox_inches="tight")
+        if out.suffix == ".svg":
+            _strip_svg_trailing_whitespace(out)
+    plt.close(fig)
+
+
 def make_montage(processed: list[ProcessedImage], pdf_path: str | Path, svg_path: str | Path) -> None:
     import matplotlib
 
@@ -473,61 +598,75 @@ def make_montage(processed: list[ProcessedImage], pdf_path: str | Path, svg_path
     n = len(processed)
     ncols = 3
     nrows = math.ceil(n / ncols)
-    fig, axes = plt.subplots(nrows, ncols, figsize=(16.0, 2.85 * nrows), constrained_layout=False)
+    fig, axes = plt.subplots(nrows, ncols, figsize=(16.5, 3.05 * nrows), constrained_layout=False)
     axes_arr = np.atleast_1d(axes).ravel()
     for ax, item in zip(axes_arr, processed):
-        image = rotate_panel_for_display(resize_for_figure(item.image_u8, nearest=False))
-        prob = rotate_panel_for_display(resize_for_figure(item.prob_canvas, nearest=False))
+        image = rotate_panel_for_display(resize_for_figure(item.image_u8, max_dim=1500, nearest=False))
         binary = rotate_panel_for_display(
-            resize_for_figure(item.binary_canvas.astype(np.uint8), nearest=True)
+            resize_for_figure(item.binary_canvas.astype(np.uint8), max_dim=1500, nearest=True)
         ) > 0
         hough = rotate_panel_for_display(
-            resize_for_figure(item.hough_canvas.astype(np.uint8), nearest=True)
+            resize_for_figure(item.hough_canvas.astype(np.uint8), max_dim=1500, nearest=True)
         ) > 0
         ax.imshow(image, cmap="gray", vmin=0, vmax=255, interpolation="nearest")
-        low_prob = prob >= LOCKED_HOUGH_INPUT_THRESHOLD
-        if low_prob.any():
-            ax.contour(
-                low_prob.astype(float), levels=[0.5], colors=["#ffb000"],
-                linewidths=0.45, alpha=0.9,
-            )
         if binary.any():
-            ax.contour(
-                binary.astype(float), levels=[0.5], colors=["#ff2f92"],
-                linewidths=0.75, alpha=0.95,
-            )
+            ax.contour(binary.astype(float), levels=[0.5], colors=["#ff2f92"], linewidths=0.82, alpha=0.96)
         if hough.any():
-            ax.contour(
-                hough.astype(float), levels=[0.5], colors=["#00c8ff"],
-                linewidths=0.55, linestyles="dashed", alpha=0.9,
-            )
+            ax.contour(hough.astype(float), levels=[0.5], colors=["#00c8ff"], linewidths=0.62, linestyles="dashed", alpha=0.92)
         rec = item.record
-        ax.set_title(
-            f"{rec['object_name']} | exp {rec['expnum']} det {rec['detector']}",
-            fontsize=8,
-        )
+        ax.set_title(f"{rec['object_name']} | exp {rec['expnum']} det {rec['detector']}", fontsize=9.5, pad=2)
         ax.set_xticks([])
         ax.set_yticks([])
     for ax in axes_arr[n:]:
         ax.axis("off")
-    fig.subplots_adjust(left=0.006, right=0.996, top=0.875, bottom=0.083, hspace=0.26, wspace=0.012)
+    fig.subplots_adjust(left=0.004, right=0.998, top=0.86, bottom=0.02, hspace=0.13, wspace=0.004)
     fig.suptitle(
         "Locked MeerLICHT winner on predeclared RECA/NOIRLab DECam measured-streak images\n"
-        "Qualitative cold-domain illustration only: probability contours, U-Net binary, dashed Hough overlay",
-        fontsize=11,
-        y=0.985,
+        "Qualitative cold-domain illustration only: U-Net binary and dashed Hough contours",
+        fontsize=13,
+        y=0.988,
     )
-    fig.text(
-        0.5, 0.025,
-        "Panels rotated 90 deg for page layout. Contours: orange prob >= 0.10, "
-        "magenta U-Net >= 0.45, cyan dashed Hough. No masks or benchmark metrics.",
-        ha="center",
-        fontsize=8,
-    )
-    for out in (Path(pdf_path), Path(svg_path)):
-        out.parent.mkdir(parents=True, exist_ok=True)
-        fig.savefig(out, bbox_inches="tight")
-    plt.close(fig)
+    _save_figure_pair(fig, pdf_path, svg_path)
+
+
+def make_raw_vs_overlay(processed: list[ProcessedImage], pdf_path: str | Path, svg_path: str | Path) -> list[dict[str, Any]]:
+    import matplotlib
+
+    matplotlib.use("Agg")
+
+    import matplotlib.pyplot as plt
+
+    by_key = {(int(item.record["expnum"]), int(item.record["detector"])): item for item in processed}
+    selected = [by_key[key] for key in RAW_VS_OVERLAY_EXAMPLES if key in by_key]
+    if not selected:
+        return []
+    fig, axes = plt.subplots(len(selected), 2, figsize=(11.0, 2.85 * len(selected)), constrained_layout=False)
+    axes_arr = np.asarray(axes).reshape(len(selected), 2)
+    records = []
+    for row_axes, item in zip(axes_arr, selected):
+        image = rotate_panel_for_display(resize_for_figure(item.image_u8, max_dim=1500, nearest=False))
+        binary = rotate_panel_for_display(
+            resize_for_figure(item.binary_canvas.astype(np.uint8), max_dim=1500, nearest=True)
+        ) > 0
+        for ax in row_axes:
+            ax.imshow(image, cmap="gray", vmin=0, vmax=255, interpolation="nearest")
+            ax.set_xticks([])
+            ax.set_yticks([])
+        if binary.any():
+            row_axes[1].contour(binary.astype(float), levels=[0.5], colors=["#ff2f92"], linewidths=0.85, alpha=0.96)
+        rec = item.record
+        row_axes[0].set_title(f"Raw display frame: {rec['object_name']}", fontsize=9.5, pad=2)
+        row_axes[1].set_title("Same frame with locked U-Net contour", fontsize=9.5, pad=2)
+        records.append({
+            "object_name": rec["object_name"],
+            "expnum": int(rec["expnum"]),
+            "detector": int(rec["detector"]),
+            "selection_rule": RAW_VS_OVERLAY_SELECTION_RULE,
+        })
+    fig.subplots_adjust(left=0.004, right=0.998, top=0.94, bottom=0.02, hspace=0.16, wspace=0.006)
+    fig.suptitle("Raw vs locked U-Net overlay for predeclared high-SNR DECam examples", fontsize=13, y=0.992)
+    _save_figure_pair(fig, pdf_path, svg_path)
+    return records
 
 
 def build_result_payload(
@@ -579,8 +718,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--manifest-out", default="results/classical/decam_cold_manifest.json")
     parser.add_argument("--output-json", default="results/classical/decam_cold_inference.json")
     parser.add_argument("--figure-prefix", default="results/figures/decam_cold_inference_montage")
+    parser.add_argument("--raw-vs-overlay-prefix", default="results/figures/decam_cold_raw_vs_overlay")
+    parser.add_argument("--review-template-out", default="results/classical/decam_cold_manual_review.json")
     parser.add_argument("--raw-dir", default="data/external/decam/raw")
     parser.add_argument("--manifest-only", action="store_true")
+    parser.add_argument("--write-review-template", action="store_true")
+    parser.add_argument("--apply-review", default=None)
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--batch-size", type=int, default=16)
     parser.add_argument("--device", default=None)
@@ -590,8 +733,17 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    if args.apply_review:
+        apply_manual_review(args.apply_review, args.output_json)
+        print(f"Applied manual review from {args.apply_review} into {args.output_json}")
+        return
+
     entries = build_manifest_entries()
     write_manifest(entries, args.manifest_out)
+    if args.write_review_template:
+        write_review_template(entries, args.review_template_out)
+        print(f"Wrote manual-review template: {args.review_template_out}")
+        return
     if args.manifest_only:
         print(f"Wrote predeclared manifest: {args.manifest_out}")
         return
@@ -609,17 +761,36 @@ def main() -> None:
         )
         for entry in selected
     ]
+    fig_prefix = Path(args.figure_prefix)
+    raw_overlay_prefix = Path(args.raw_vs_overlay_prefix)
     payload = build_result_payload(
         entries=entries,
         processed=processed,
         manifest_path=args.manifest_out,
         partial_run=len(processed) != len(entries),
     )
+    payload["figures"] = {
+        "montage": [str(fig_prefix.with_suffix(".pdf")), str(fig_prefix.with_suffix(".svg"))],
+        "raw_vs_overlay": [str(raw_overlay_prefix.with_suffix(".pdf")), str(raw_overlay_prefix.with_suffix(".svg"))],
+    }
+    payload["raw_vs_overlay_examples"] = [
+        {
+            "object_name": entry.object_name,
+            "expnum": entry.expnum,
+            "detector": entry.detector,
+            "selection_rule": RAW_VS_OVERLAY_SELECTION_RULE,
+        }
+        for entry in entries
+        if (entry.expnum, entry.detector) in RAW_VS_OVERLAY_EXAMPLES
+    ]
+    payload["provenance"]["raw_vs_overlay_selection_rule"] = RAW_VS_OVERLAY_SELECTION_RULE
     write_json(payload, args.output_json)
-    fig_prefix = Path(args.figure_prefix)
     make_montage(processed, fig_prefix.with_suffix(".pdf"), fig_prefix.with_suffix(".svg"))
+    raw_records = make_raw_vs_overlay(processed, raw_overlay_prefix.with_suffix(".pdf"), raw_overlay_prefix.with_suffix(".svg"))
     print(f"Wrote {args.output_json}")
     print(f"Wrote {fig_prefix.with_suffix('.pdf')} and {fig_prefix.with_suffix('.svg')}")
+    if raw_records:
+        print(f"Wrote {raw_overlay_prefix.with_suffix('.pdf')} and {raw_overlay_prefix.with_suffix('.svg')}")
 
 
 if __name__ == "__main__":

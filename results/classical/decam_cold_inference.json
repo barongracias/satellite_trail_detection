@@ -1,6 +1,16 @@
 {
   "analysis": "m61b_qualitative_cold_decam_locked_winner",
   "benchmark": false,
+  "figures": {
+    "montage": [
+      "results/figures/decam_cold_inference_montage.pdf",
+      "results/figures/decam_cold_inference_montage.svg"
+    ],
+    "raw_vs_overlay": [
+      "results/figures/decam_cold_raw_vs_overlay.pdf",
+      "results/figures/decam_cold_raw_vs_overlay.svg"
+    ]
+  },
   "images": [
     {
       "cleaned_nonfinite_pixels": 0,
@@ -695,7 +705,7 @@
   "provenance": {
     "checkpoint": "results/checkpoints/unet_paper_arch_noise_topk_t44_s2804_best.pth",
     "display_domain_caveat": "DECam FITS data are linearly resampled and ZScale-stretched into an 8-bit display-like domain before applying the MeerLICHT PNG-trained model; this is a qualitative visual stress test, not calibrated cross-dataset performance.",
-    "git_commit": "1ec1d32683fabce7b2a080866fb56e3ff9f5127b",
+    "git_commit": "6824deef7cd6b7b152387b9a771bc5babd5ab727",
     "montage_display_rotation_degrees": 90,
     "noirlab_acknowledgement": "Based on observations at Cerro Tololo Inter-American Observatory, NSF's NOIRLab, managed by AURA under a cooperative agreement with the U.S. National Science Foundation.",
     "noirlab_archive": "https://astroarchive.noirlab.edu",
@@ -703,12 +713,27 @@
     "partial_run": false,
     "predeclared_manifest_entries": 9,
     "processed_entries": 9,
+    "raw_vs_overlay_selection_rule": "Two highest RECA-table SNR measured-streak examples: NAVSTAR-70 (exp 1134933, det 5; SNR 4509.6) and STARLINK-2600 (exp 1138498, det 23; SNR 301.9).",
     "reca_paper": "https://arxiv.org/abs/2603.10790",
     "reca_repository": "https://github.com/iausathub/reca-streaks",
     "source": "RECA notebooks/paper_notebooks/DECam_streaks_photometry-V2.ipynb cell 2 table",
     "threshold": 0.45
   },
   "qualitative_only": true,
+  "raw_vs_overlay_examples": [
+    {
+      "detector": 5,
+      "expnum": 1134933,
+      "object_name": "NAVSTAR-70",
+      "selection_rule": "Two highest RECA-table SNR measured-streak examples: NAVSTAR-70 (exp 1134933, det 5; SNR 4509.6) and STARLINK-2600 (exp 1138498, det 23; SNR 301.9)."
+    },
+    {
+      "detector": 23,
+      "expnum": 1138498,
+      "object_name": "STARLINK-2600",
+      "selection_rule": "Two highest RECA-table SNR measured-streak examples: NAVSTAR-70 (exp 1134933, det 5; SNR 4509.6) and STARLINK-2600 (exp 1138498, det 23; SNR 301.9)."
+    }
+  ],
   "reporting_rule": "After human review, report only X/N visible streak-containing images visually flagged; clean controls would be reported separately, but none are included here.",
   "schema_version": "1.0",
   "selection_or_threshold_tuning": false

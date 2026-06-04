@@ -33,7 +33,7 @@ from scripts.faint_streak_analysis import (  # noqa: E402
     fp_distance_strata,
     profile_metrics,
 )
-from scripts.hough_gap_figure import rank_hough_candidates  # noqa: E402
+from scripts.hough_gap_figure import _local_gap_crop, rank_hough_candidates  # noqa: E402
 
 
 def test_support_canvas_uses_raw_image_shape_and_patch_footprints() -> None:
@@ -180,3 +180,19 @@ def test_fp_intensity_rider_effect_sizes_match_synthetic_categories() -> None:
     assert rider["ks_d_far_fp_vs_background"] <= 0.01
     assert all(len(final_samples[name]) == rider["categories"][name]["n_sampled"] for name in FP_RIDER_CATEGORIES)
     json.dumps(rider)  # summary is JSON-safe and contains no sampled arrays
+
+
+def test_hough_gap_crop_centres_largest_recovered_component() -> None:
+    gap = np.zeros((120, 140), dtype=bool)
+    fallback = np.zeros_like(gap)
+    gap[10:14, 10:14] = True
+    gap[72:82, 64:80] = True
+
+    sl_y, sl_x, local = _local_gap_crop(gap, fallback, gap.shape, half_size=20)
+
+    global_y = sl_y.start + local[0]
+    global_x = sl_x.start + local[1]
+    assert 74 <= global_y <= 79
+    assert 69 <= global_x <= 75
+    assert sl_y.start <= 72 < sl_y.stop
+    assert sl_x.start <= 64 < sl_x.stop

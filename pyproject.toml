@@ -1,4 +1,44 @@
+# Project metadata is declarative only — there is no [build-system] table yet, so the
+# package is run in place (see the sys.path note in the README); making it pip-installable
+# is tracked as future work. Runtime dependencies live in hpc-requirements.txt (CSD3, pinned)
+# and local-requirements.txt (CPU, relaxed); they are the single source of truth, so they are
+# intentionally not duplicated here.
+[project]
+name = "satellite-trail-detection"
+version = "1.0.0"
+description = "U-Net + Hough satellite-trail detection on MeerLICHT images (Stoppa et al. 2024 replication and extensions)."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Baron Gracias", email = "barongracias@gmail.com" }]
+keywords = ["satellite trails", "segmentation", "U-Net", "Hough transform", "astronomy", "MeerLICHT"]
+classifiers = [
+    "Programming Language :: Python :: 3.11",
+    "License :: OSI Approved :: MIT License",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Astronomy",
+]
+
+[project.urls]
+Repository = "https://github.com/barongracias/satellite_trail_detection"
+
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = ["notebooks", "docs/_build"]
+
+[tool.ruff.lint]
+# F = pyflakes (correctness), E/W = pycodestyle. Import ordering (I) is left to the
+# project's documented manual grouping (stdlib / third-party / local) rather than isort.
+select = ["E", "F", "W"]
+ignore = [
+    "E501",  # line length — long lines are tolerated, not an error
+    "E402",  # deliberate: imports after pytest.importorskip / sys.path bootstrap
+    "E702",  # deliberate: compact one-line statements in small helpers
+    "E731",  # deliberate: lambda assignment used in a few local helpers
+]

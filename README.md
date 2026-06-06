@@ -44,7 +44,9 @@ The pipeline:
 └── tests/                    # Unit tests (run with `pytest -q`)
 ```
 
-## Data Layout
+## Data
+
+### Layout
 
 Paired 8-bit PNG renders (display-scaled, **not** calibrated flux):
 
@@ -55,6 +57,38 @@ Paired 8-bit PNG renders (display-scaled, **not** calibrated flux):
 The patch builder writes `data/patches/{train,val,test}/` plus a `manifest.csv`
 carrying per-patch split, positive-pixel fraction, and per-image normalisation stats.
 `data/` is gitignored — patches are rebuilt on CSD3, not committed.
+
+### Availability
+
+**Primary (MeerLICHT).** Training, validation, and test use a 178-image MeerLICHT
+subset with hand-verified trail masks, provided through the MeerLICHT consortium
+(supervisor: Dr Eduardo Gonzalez-Solares, University of Cambridge). These are
+collaboration data and are not redistributed here; they are available on request,
+subject to the MeerLICHT data policy. All splits are reproducible from the image-level
+split logic (`src/data/splits.py`, seed `2804`) once the image/mask pairs are in place.
+
+**Extension (DECam).** The qualitative cold-domain demo uses nine measured-streak DECam
+detector images from the public NSF NOIRLab Astro Data Archive, retrieved via the RECA
+codebase (Stoppa-adjacent; arXiv:2603.10790, `iausathub/reca-streaks`). The exact frames
+are predeclared in `results/classical/decam_cold_manifest.json` (expnum/detector), so the
+demo is reproducible from the archive without bundling raw FITS. Any use must carry the
+NOIRLab acknowledgement recorded in `results/classical/decam_cold_inference.json`.
+
+## Trained Weights
+
+Model weights (`*.pth`, ~120 MB total) are gitignored and not committed. The reported
+results all come from one locked checkpoint:
+
+- `results/checkpoints/unet_paper_arch_noise_topk_t44_s2804_best.pth` — threshold `0.45`,
+  `full_image` normalisation. The descriptive name encodes its provenance
+  (architecture-faithful, noise-augmented, top-K trial 44, seed 2804).
+
+For archival/reproduction the locked checkpoint should be deposited (e.g. Zenodo or a
+GitHub Release) and cited by DOI. To mirror the original paper's `model-best.h5`
+convention, ship a **copy** named `best_model.pth` alongside it — keep the descriptive
+filename as the canonical, provenance-bearing source (it is what configs, scripts, and
+result-JSON provenance reference), and treat `best_model.pth` purely as a convenience
+alias documented in the deposit. Do not rename the canonical file in-repo.
 
 ## Environment Setup
 
@@ -172,6 +206,18 @@ cross-dataset metrics.
 - `results/` and `*.pth` are gitignored; selected deliverable JSONs and figures are
   force-added. Trained weights are kept local only.
 
+### Computational requirements
+
+- **Hardware.** GPU training/inference ran on CSD3 (Cambridge), Ampere partition,
+  one NVIDIA A100 (40 GB) per job. CPU-only paths — tests, figure generation, and the
+  classical Hough baseline — need no GPU.
+- **Software.** Python 3.11.9; PyTorch CUDA 11.8 wheels (`hpc-requirements.txt`). The
+  full sweep was 45 Optuna trials (balanced batch-size allocation), then the top-5 trials
+  retrained at 5 seeds for 75 epochs each; BF16 autocast and TF32 matmul enabled.
+- **Determinism.** `torch`/`numpy`/`random` are seeded and deterministic algorithms are
+  requested where available. Residual GPU non-determinism is handled by reporting
+  5-seed means rather than a single run.
+
 ## Testing
 
 ```bash
@@ -190,8 +236,18 @@ sphinx-build -b html docs docs/_build/html
 Heavy dependencies are mocked in `docs/conf.py`, so the same build runs on
 ReadTheDocs (`.readthedocs.yaml`) without the CUDA/scientific stack.
 
+## License
+
+Released under the MIT License — see [`LICENSE`](LICENSE). The MeerLICHT and DECam
+data are **not** covered by this licence and remain under their respective providers'
+terms (see [Data](#data)).
+
+## Citation
+
+If you use this code, please cite the dissertation — see [`CITATION.cff`](CITATION.cff).
+This work replicates and extends Stoppa et al. 2024 (A&A 692, A199).
+
 ## Author
 
 Baron Gracias — University of Cambridge MPhil Data Intensive Science
-
-Baron Gracias — University of Cambridge MPhil Data Intensive Science
+(supervisor: Dr Eduardo Gonzalez-Solares)

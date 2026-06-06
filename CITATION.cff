@@ -1,0 +1,42 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the dissertation below."
+title: "Automated Detection of Satellite Trails in Astronomical Images"
+abstract: >-
+  Replication and extension of the Stoppa et al. (2024) U-Net + Hough satellite-trail
+  detection pipeline on a MeerLICHT image subset, with architectural, error-characterisation,
+  training-protocol, and inference-time extensions.
+type: software
+authors:
+  - family-names: Gracias
+    given-names: Baron
+    affiliation: "University of Cambridge"
+    email: barongracias@gmail.com
+license: MIT
+repository-code: "https://github.com/barongracias/satellite_trail_detection"
+keywords:
+  - satellite trails
+  - image segmentation
+  - U-Net
+  - Hough transform
+  - astronomical images
+  - MeerLICHT
+preferred-citation:
+  type: thesis
+  title: "Automated Detection of Satellite Trails in Astronomical Images Using Deep Learning"
+  authors:
+    - family-names: Gracias
+      given-names: Baron
+  year: 2026
+  institution:
+    name: "University of Cambridge"
+  thesis-type: "MPhil dissertation (Data Intensive Science)"
+references:
+  - type: article
+    title: "Automatic Satellite Trail Segmentation and Astrometry (ASTA)"
+    authors:
+      - family-names: Stoppa
+        given-names: F.
+    year: 2024
+    journal: "Astronomy & Astrophysics"
+    volume: 692
+    notes: "Article A199; original pipeline replicated here. Full author list in the published article."

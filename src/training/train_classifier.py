@@ -234,9 +234,13 @@ def select_operating_points(
         thresholds = np.round(np.arange(0.05, 0.955, 0.01), 2)
     rows = [_metrics_at_threshold(probs, labels, float(t)) for t in thresholds]
     max_f1 = max(rows, key=lambda row: (row["f1"], row["threshold"]))
-    high_recall = next(
-        (row for row in rows if row["recall"] >= high_recall_target),
-        max_f1,
+    high_recall_candidates = [
+        row for row in rows if row["recall"] >= high_recall_target
+    ]
+    high_recall = (
+        max(high_recall_candidates, key=lambda row: (row["threshold"], row["f1"]))
+        if high_recall_candidates
+        else max_f1
     )
     return {
         "max_f1": max_f1,

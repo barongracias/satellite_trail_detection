@@ -681,6 +681,9 @@ def run_training(
             precision_metadata=precision_metadata,
         )
 
+        # Epoch-level checkpointing is based on fixed-threshold validation
+        # Dice. Some sweeps later rank completed trials by threshold-swept
+        # validation F1, so these are related but not identical criteria.
         if val_result.metrics.dice > best_dice:
             best_dice = val_result.metrics.dice
             best_checkpoint = save_checkpoint(

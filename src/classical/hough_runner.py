@@ -1,18 +1,12 @@
-"""Per-image Hough post-processing helper, extracted from ``scripts/evaluation/hough_postprocess.py``.
+"""Per-image Hough post-processing helper used by evaluation scripts.
 
 The script-level logic in ``scripts/evaluation/hough_postprocess.py`` is responsible for
 manifest grouping, per-source-image canvas construction, batched U-Net
 inference, and cross-image aggregation. The per-canvas operations — applying
 the main threshold, running the probabilistic Hough transform on a lower-
 threshold canvas, and computing image-level + pixel-level overlap counts —
-are independent of the manifest grouping and the model, and are extracted
-here so that ``src/inference/two_stage.py`` (planned) can reuse them with a
-two-stage probability canvas without duplicating logic.
-
-This helper is byte-equivalent to the inline logic at
-``scripts/evaluation/hough_postprocess.py:280-329`` for the same ``prob_canvas`` and
-``gt_canvas`` inputs and the same Hough parameters; see
-``tests/test_hough_runner.py`` for the regression test.
+are independent of the manifest grouping and the model, so they live here
+instead of being duplicated across scripts.
 
 The helper returns both the scalar counts and the boolean canvases. The
 canvases are returned so the caller can carry out **patch-level** FNR

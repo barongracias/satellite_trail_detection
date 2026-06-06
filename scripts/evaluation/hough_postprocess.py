@@ -54,13 +54,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-import cv2
 import numpy as np
 import pandas as pd
 import torch
 import torchvision.transforms.functional as TF
 from PIL import Image
 
+from src.classical.hough_runner import run_hough_on_canvas
 from src.config.constants import PAPER_FNR_POST_HOUGH, PAPER_FNR_PRE_HOUGH, PATCH_SIZE
 from src.data.transforms import normalise_tensor
 from src.models.loading import load_segmentation_model
@@ -142,30 +142,6 @@ def _chunks(seq: list, size: int):
     """Yield successive size-bounded slices of seq."""
     for start in range(0, len(seq), size):
         yield seq[start : start + size]
-
-
-def _apply_hough(
-    canvas: np.ndarray,
-    hough_threshold: int,
-    min_line_length: int,
-    max_line_gap: int,
-    line_thickness: int,
-) -> np.ndarray:
-    lines = cv2.HoughLinesP(
-        canvas,
-        rho=1,
-        theta=np.pi / 180.0,
-        threshold=hough_threshold,
-        minLineLength=min_line_length,
-        maxLineGap=max_line_gap,
-    )
-    result = np.zeros_like(canvas)
-    if lines is None:
-        return result
-    for line in lines[:, 0]:
-        x1, y1, x2, y2 = int(line[0]), int(line[1]), int(line[2]), int(line[3])
-        cv2.line(result, (x1, y1), (x2, y2), color=255, thickness=line_thickness)
-    return result
 
 
 def main() -> None:
@@ -268,25 +244,22 @@ def main() -> None:
                     target_canvas[y : y + _PATCH_SIZE, x : x + _PATCH_SIZE], mask_patch
                 )
 
-        binary_canvas = (prob_canvas >= args.threshold).astype(np.uint8) * 255
-        # Detection requires overlap with ground truth
-        detected_pre = bool((binary_canvas > 0).any() and (binary_canvas & target_canvas).any())
-
-        # Hough runs on a lower-threshold canvas so it can recover faint detections
-        # that are below the main threshold but still form linear structures.
-        hough_input = (prob_canvas >= args.hough_input_threshold).astype(np.uint8) * 255
-        hough_canvas = _apply_hough(
-            hough_input,
+        hough_result = run_hough_on_canvas(
+            prob_canvas,
+            target_canvas,
+            threshold=args.threshold,
+            hough_input_threshold=args.hough_input_threshold,
             hough_threshold=args.hough_threshold,
             min_line_length=args.min_line_length,
             max_line_gap=args.max_line_gap,
             line_thickness=args.line_thickness,
         )
-        detected_post = bool(((binary_canvas | hough_canvas) & target_canvas).any())
 
-        binary_bool = binary_canvas > 0
+        detected_pre = hough_result.detected_pre
+        detected_post = hough_result.detected_post
+        binary_bool = hough_result.binary_canvas > 0
         target_bool = target_canvas > 0
-        combined_bool = (binary_canvas | hough_canvas) > 0
+        combined_bool = hough_result.combined_canvas > 0
 
         n_patches_pos = 0
         n_fn_pre_patch = 0
@@ -306,9 +279,9 @@ def main() -> None:
             if not (combined_bool[sl_y, sl_x] & tgt_patch).any():
                 n_fn_post_patch += 1
 
-        gt_pixels = int(target_bool.sum())
-        pixels_pre = int((binary_bool & target_bool).sum())
-        pixels_post = int((combined_bool & target_bool).sum())
+        gt_pixels = hough_result.gt_pixels
+        pixels_pre = hough_result.pixels_pre
+        pixels_post = hough_result.pixels_post
 
         if is_positive:
             n_positive += 1

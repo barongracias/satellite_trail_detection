@@ -1,8 +1,7 @@
-# Project metadata is declarative only — there is no [build-system] table yet, so the
-# package is run in place (see the sys.path note in the README); making it pip-installable
-# is tracked as future work. Runtime dependencies live in hpc-requirements.txt (CSD3, pinned)
-# and local-requirements.txt (CPU, relaxed); they are the single source of truth, so they are
-# intentionally not duplicated here.
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "satellite-trail-detection"
 version = "1.0.0"
@@ -21,6 +20,10 @@ classifiers = [
 
 [project.urls]
 Repository = "https://github.com/barongracias/satellite_trail_detection"
+
+[tool.setuptools.packages.find]
+include = ["src*"]
+namespaces = true
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

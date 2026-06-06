@@ -179,6 +179,9 @@ def _objective(trial: optuna.Trial, base: dict[str, Any], patch_dir: str, study_
     pruned = False
 
     def _pruner(epoch: int, val_dice: float) -> bool:
+        # Pruning uses the fixed-threshold in-epoch validation Dice as an
+        # efficiency heuristic. If objective=val_f1, the final trial score is
+        # recomputed afterwards by sweeping thresholds on the best checkpoint.
         nonlocal pruned
         trial.report(val_dice, epoch)
         if trial.should_prune():

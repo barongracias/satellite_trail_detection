@@ -1,4 +1,7 @@
 # Documentation build dependencies (ReadTheDocs). Heavy project deps are mocked
-# in conf.py via autodoc_mock_imports, so only Sphinx and the theme are needed.
+# in conf.py via autodoc_mock_imports, so only Sphinx, the theme, and the doc
+# extensions are needed.
 sphinx>=7.0
 sphinx-rtd-theme>=2.0
+sphinx-autodoc-typehints>=2.0
+sphinx-copybutton>=0.5

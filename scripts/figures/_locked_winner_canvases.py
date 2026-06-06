@@ -2,7 +2,7 @@
 """Shared locked-winner canvas reconstruction helpers for M6.1 analyses.
 
 These helpers intentionally live under ``scripts/`` because they reuse the
-existing ``scripts.hough_postprocess`` inference/Hough functions. They are for
+existing locked-winner inference and Hough helpers. They are for
 post-hoc locked-winner analysis only: no model selection, no threshold tuning.
 """
 
@@ -25,12 +25,12 @@ from PIL import Image
 
 from scripts.evaluation.hough_postprocess import (
     _HOUGH_MAX_BATCH,
-    _apply_hough,
     _chunks,
     _infer_batch,
     _load_normalised_patch,
     _parse_yx,
 )
+from src.classical.hough_runner import _apply_hough
 from src.config.constants import PATCH_SIZE
 from src.models.loading import load_segmentation_model
 

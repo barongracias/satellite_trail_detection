@@ -21,6 +21,7 @@ import argparse
 import csv
 import random
 import sys
+from collections import defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -45,6 +46,8 @@ _MANIFEST_COLUMNS = [
     "positive_pixel_fraction",
 ]
 
+PatchEntry = tuple[Path, Path, int, int, int]
+
 
 def _count_trail_pixels(mask_path: Path) -> int:
     with Image.open(mask_path) as m:
@@ -56,23 +59,20 @@ def _extract_split_patches(
     pairs: list,
     patch_size: int,
     stride: int,
-) -> tuple[list, list]:
-    """Return (pos_patches, neg_patches) across all pairs in one split."""
-    pos_patches: list = []
-    neg_patches: list = []
+) -> tuple[list[PatchEntry], list[PatchEntry]]:
+    """Return lightweight positive/negative patch metadata for one split."""
+    pos_patches: list[PatchEntry] = []
+    neg_patches: list[PatchEntry] = []
 
     for pair in pairs:
-        with Image.open(pair.image_path) as img_pil:
-            img_full = img_pil.convert("L")
         with Image.open(pair.mask_path) as msk_pil:
             msk_full = msk_pil.convert("L")
 
         for y in range(0, pair.height - patch_size + 1, stride):
             for x in range(0, pair.width - patch_size + 1, stride):
-                img_patch = img_full.crop((x, y, x + patch_size, y + patch_size))
                 msk_patch = msk_full.crop((x, y, x + patch_size, y + patch_size))
                 pos_pixels = int((np.asarray(msk_patch, dtype=np.uint8) > 0).sum())
-                entry = (img_patch, msk_patch, pair.image_path, y, x, pos_pixels)
+                entry = (pair.image_path, pair.mask_path, y, x, pos_pixels)
                 if pos_pixels > 0:
                     pos_patches.append(entry)
                 else:
@@ -82,8 +82,8 @@ def _extract_split_patches(
 
 
 def _write_patches(
-    pos_patches: list,
-    neg_patches: list,
+    pos_patches: list[PatchEntry],
+    neg_patches: list[PatchEntry],
     out_dir: Path,
     split: str,
     transform,
@@ -105,30 +105,44 @@ def _write_patches(
         sampled_neg = rng.sample(neg_patches, n_neg) if n_neg > 0 else []
     all_patches = pos_patches + sampled_neg
 
-    for img_patch, msk_patch, src_img, y, x, pos_pixels in all_patches:
-        stem = f"{src_img.stem}_{y}_{x}"
-        img_out = out_dir / f"{stem}_image.png"
-        msk_out = out_dir / f"{stem}_mask.png"
+    entries_by_source: dict[tuple[Path, Path], list[PatchEntry]] = defaultdict(list)
+    for entry in all_patches:
+        src_img, src_msk, *_ = entry
+        entries_by_source[(src_img, src_msk)].append(entry)
 
-        img_t, msk_t = transform(img_patch, msk_patch)
+    for (src_img, src_msk), entries in entries_by_source.items():
+        with Image.open(src_img) as img_pil:
+            img_full = img_pil.convert("L")
+        with Image.open(src_msk) as msk_pil:
+            msk_full = msk_pil.convert("L")
 
-        # img_t: [1, H, W] float32 in [0, 1]; convert back to uint8 for PNG
-        img_arr = (img_t.squeeze().numpy() * 255).clip(0, 255).astype(np.uint8)
-        msk_arr = (msk_t.squeeze().numpy() * 255).clip(0, 255).astype(np.uint8)
-        Image.fromarray(img_arr, mode="L").save(img_out)
-        Image.fromarray(msk_arr, mode="L").save(msk_out)
+        for _, _, y, x, pos_pixels in entries:
+            stem = f"{src_img.stem}_{y}_{x}"
+            img_out = out_dir / f"{stem}_image.png"
+            msk_out = out_dir / f"{stem}_mask.png"
 
-        pos_frac = pos_pixels / total_pixels
+            crop_box = (x, y, x + patch_size, y + patch_size)
+            img_patch = img_full.crop(crop_box)
+            msk_patch = msk_full.crop(crop_box)
+            img_t, msk_t = transform(img_patch, msk_patch)
 
-        manifest_rows.append(
-            {
-                "split": split,
-                "source_image": str(src_img),
-                "patch_path": str(img_out),
-                "mask_path": str(msk_out),
-                "positive_pixel_fraction": round(pos_frac, 8),
-            }
-        )
+            # img_t: [1, H, W] float32 in [0, 1]; convert back to uint8 for PNG
+            img_arr = (img_t.squeeze().numpy() * 255).clip(0, 255).astype(np.uint8)
+            msk_arr = (msk_t.squeeze().numpy() * 255).clip(0, 255).astype(np.uint8)
+            Image.fromarray(img_arr, mode="L").save(img_out)
+            Image.fromarray(msk_arr, mode="L").save(msk_out)
+
+            pos_frac = pos_pixels / total_pixels
+
+            manifest_rows.append(
+                {
+                    "split": split,
+                    "source_image": str(src_img),
+                    "patch_path": str(img_out),
+                    "mask_path": str(msk_out),
+                    "positive_pixel_fraction": round(pos_frac, 8),
+                }
+            )
 
 
 def build(

@@ -83,6 +83,7 @@ python -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
 pip install -r local-requirements.txt
+pip install -e .
 ```
 
 ### HPC / CSD3 (CUDA training)
@@ -93,11 +94,13 @@ floors and no CUDA wheels, for CPU-only local work.
 
 ```bash
 pip install -r hpc-requirements.txt
+pip install -e .
 ```
 
 ### Docker
 
-The image builds the CSD3-aligned environment and runs the test suite:
+The image builds a portable CPU environment from `local-requirements.txt` and
+runs the test suite:
 
 ```bash
 docker build -t satellite-trails .
@@ -115,14 +118,16 @@ rm -rf data/patches
 jid1=$(sbatch --parsable slurm/build_patches_cpu.sbatch)
 jid2=$(MANIFEST=data/patches/manifest.csv \
        sbatch --parsable --dependency=afterok:$jid1 slurm/compute_image_stats_cpu.sbatch)
-MANIFEST=data/patches/manifest.csv \
-  sbatch --dependency=afterok:$jid2 slurm/compute_background_noise_stats_cpu.sbatch
+jid3=$(MANIFEST=data/patches/manifest.csv \
+       sbatch --parsable --dependency=afterok:$jid2 slurm/compute_background_noise_stats_cpu.sbatch)
+jid4=$(MANIFEST=data/patches/manifest.csv \
+       sbatch --parsable --dependency=afterok:$jid3 slurm/audit_manifest_cpu.sbatch)
 
 # 2. Optuna sweep (balanced batch-size allocation, validation-only objective)
 STUDY_NAME=unet_paper_arch_noise_f1 \
 CONFIG=configs/experiments/unet_paper_arch_noise_base.yaml \
 N_TRIALS=45 SKIP_RETRAIN=1 \
-  sbatch slurm/optuna_sweep.sbatch
+  sbatch --dependency=afterok:$jid4 slurm/optuna_sweep.sbatch
 
 # 3. Retrain top-K trials × 5 seeds, then sweep validation thresholds.
 #    Per-trial/seed configs live in configs/experiments/restudy_topk/.
@@ -133,7 +138,9 @@ CONFIG=configs/experiments/restudy_topk/topk_t44_s2804.yaml \
 CHECKPOINT=results/checkpoints/unet_paper_arch_noise_topk_t44_s2804_best.pth \
 THRESHOLD=0.45 \
   sbatch slurm/threshold_sweep.sbatch
-sbatch slurm/hough_postprocess.sbatch
+CHECKPOINT=results/checkpoints/unet_paper_arch_noise_topk_t44_s2804_best.pth \
+THRESHOLD=0.45 \
+  sbatch slurm/hough_postprocess.sbatch
 
 # 5. Prediction figures for the report
 CHECKPOINT=results/checkpoints/unet_paper_arch_noise_topk_t44_s2804_best.pth \

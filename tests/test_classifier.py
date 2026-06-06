@@ -104,8 +104,8 @@ def test_classifier_threshold_helper_returns_max_f1_and_high_recall_points() -> 
     )
 
     assert selected["max_f1"]["threshold"] == pytest.approx(0.65)
-    assert selected["high_recall"]["threshold"] == pytest.approx(0.35)
-    assert selected["high_recall"]["threshold"] <= selected["max_f1"]["threshold"]
+    assert selected["high_recall"]["threshold"] == pytest.approx(0.65)
+    assert selected["high_recall"]["threshold"] >= selected["max_f1"]["threshold"]
     assert selected["auc_roc"] == pytest.approx(1.0)
 
 

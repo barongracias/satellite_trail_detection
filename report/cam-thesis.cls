@@ -321,6 +321,23 @@ for the degree of Doctor of Philosophy%
 }
 \newcommand{\submissionnotice}[1]{\renewcommand{\@submissionnotice}{#1}}
 
+% DOCVAR: declaration (The text of the originality declaration. The default is
+% the standard PhD wording; set \declaration{...} in the preamble to provide
+% degree-appropriate wording, or \declaration{} to omit the declaration page
+% entirely.)
+\newcommand{\@declaration}{%
+This dissertation is the result of my own work and includes nothing which is the outcome
+of work done in collaboration except as declared in the Preface and specified in the text.
+It is not substantially the same as any that I have submitted, or am concurrently
+submitting, for a degree or diploma or other qualification at the University of Cambridge
+or any other University or similar institution except as declared in the Preface and
+specified in the text. I further state that no substantial part of my dissertation has
+already been submitted, or is being concurrently submitted, for any such degree, diploma
+or other qualification at the University of Cambridge or any other University or similar
+institution except as declared in the Preface and specified in the text.
+This dissertation does not exceed the prescribed limit of 60\,000 words.}
+\newcommand{\declaration}[1]{\renewcommand{\@declaration}{#1}}
+
 % DOCVAR: collegeshield (The name of the file that contains the image of the
 % college's shield. If `collegeshield' is provided, it will be included in the
 % title page (just below the author's name and above the name of the college).
@@ -476,18 +493,10 @@ for the degree of Doctor of Philosophy%
 \ifcam@secondyr
 %
 \else
+\ifx\@declaration\@empty\else
 \chapter*{Declaration}
 \thispagestyle{empty}
-This dissertation is the result of my own work and includes nothing which is the outcome
-of work done in collaboration except as declared in the Preface and specified in the text.
-It is not substantially the same as any that I have submitted, or am concurrently
-submitting, for a degree or diploma or other qualification at the University of Cambridge
-or any other University or similar institution except as declared in the Preface and
-specified in the text. I further state that no substantial part of my dissertation has
-already been submitted, or is being concurrently submitted, for any such degree, diploma
-or other qualification at the University of Cambridge or any other University or similar
-institution except as declared in the Preface and specified in the text.
-This dissertation does not exceed the prescribed limit of 60\,000 words.
+\@declaration{}
 
 % Leaving some space for the signature:
 \vspace{15mm}
@@ -497,6 +506,7 @@ This dissertation does not exceed the prescribed limit of 60\,000 words.
 \@date{}\\
 \end{flushright}
 \vfill
+\fi
 \fi
 \fi}
 \fi

@@ -26,5 +26,7 @@ RUN pip install --no-cache-dir --upgrade pip \
 # Copy the project (see .dockerignore for what is excluded).
 COPY . .
 
+RUN pip install --no-cache-dir -e .
+
 # Default command verifies the build by running the test suite.
 CMD ["pytest", "-q"]

@@ -16,8 +16,8 @@ threshold, three regimes for pixel recall and patch-level FNR:
   - stratified Hough  : union over strata (this approximation)
 
 The locked Hough path (src/classical/hough_runner.py, scripts/evaluation/hough_postprocess.py)
-is NOT modified; this script reuses hough_postprocess's canvas-reconstruction and
-Hough-drawing helpers by import and writes a separate JSON artifact.
+is NOT modified; this script reuses the locked canvas-reconstruction helpers and
+the shared Hough-drawing helper, then writes a separate JSON artifact.
 
 Usage (CSD3):
     CHECKPOINT=results/checkpoints/unet_paper_arch_noise_topk_t44_s2804_best.pth \\
@@ -44,13 +44,13 @@ from PIL import Image
 from scripts.evaluation.hough_postprocess import (
     _HOUGH_MAX_BATCH,
     _PATCH_SIZE,
-    _apply_hough,
     _chunks,
     _infer_batch,
     _load_normalised_patch,
     _parse_yx,
     load_model,
 )
+from src.classical.hough_runner import _apply_hough
 from src.utils.logger import get_logger
 from src.utils.seed import seed_everything
 

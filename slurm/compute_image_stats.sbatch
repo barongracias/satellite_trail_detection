@@ -38,6 +38,6 @@ MANIFEST="${MANIFEST:?must be set; e.g. data/patches_test_full/manifest.csv}"
 echo "Job:      $SLURM_JOB_ID  Node: $SLURM_NODELIST"
 echo "Manifest: $MANIFEST"
 
-python scripts/compute_image_stats.py --manifest "$MANIFEST"
+python scripts/data/compute_image_stats.py --manifest "$MANIFEST"
 
 echo "Job finished."

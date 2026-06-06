@@ -43,7 +43,7 @@ def dilated_soft_target(
 class PatchDirectoryDataset(Dataset[dict[str, Any]]):
     """Load pre-built patches from a single split directory and a manifest CSV.
 
-    Patches are expected to have been written by ``scripts/build_patch_dataset.py``.
+    Patches are expected to have been written by ``scripts/data/build_patch_dataset.py``.
     Image patches are normalised at load time; mask patches are converted to float
     tensors. ``__getitem__`` returns ``{"image": ..., "mask": ...}``.
     """

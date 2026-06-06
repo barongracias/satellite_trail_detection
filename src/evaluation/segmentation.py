@@ -286,9 +286,11 @@ def centerline_dice(
     """clDice (centerline Dice) for one 2D patch — a topology-aware overlap
     for thin linear structures (Shit et al. 2021).
 
-    Tprec = |skeleton(pred) ∩ target| / |skeleton(pred)|  (skeleton stays on the mask)
-    Tsens = |skeleton(target) ∩ pred| / |skeleton(target)|
-    clDice = 2 * Tprec * Tsens / (Tprec + Tsens)
+    Defined per patch as (skeletons stay on the mask)::
+
+        Tprec  = |skeleton(pred) cap target| / |skeleton(pred)|
+        Tsens  = |skeleton(target) cap pred| / |skeleton(target)|
+        clDice = 2 * Tprec * Tsens / (Tprec + Tsens)
 
     Returns 1.0 when both masks are empty (perfect agreement on absence) and
     0.0 when exactly one is empty or either skeleton fails to overlap the other

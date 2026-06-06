@@ -17,14 +17,14 @@ pytest.importorskip("scipy")
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts._locked_winner_canvases import (  # noqa: E402
+from scripts.figures._locked_winner_canvases import (  # noqa: E402
     LOCKED_NORMALISATION,
     LOCKED_THRESHOLD,
     build_support_canvas,
     place_patch_max,
     provenance,
 )
-from scripts.faint_streak_analysis import (  # noqa: E402
+from scripts.figures.faint_streak_analysis import (  # noqa: E402
     FP_RIDER_CATEGORIES,
     build_fp_intensity_rider,
     cleaned_gt_components,
@@ -33,7 +33,7 @@ from scripts.faint_streak_analysis import (  # noqa: E402
     fp_distance_strata,
     profile_metrics,
 )
-from scripts.hough_gap_figure import _recovered_crop  # noqa: E402
+from scripts.figures.hough_gap_figure import _recovered_crop  # noqa: E402
 
 
 def test_support_canvas_uses_raw_image_shape_and_patch_footprints() -> None:

@@ -61,7 +61,7 @@ if [ -n "$OUT" ]; then
     EXTRA_ARGS+=(--out "$OUT")
 fi
 
-python scripts/bootstrap_metrics.py \
+python scripts/evaluation/bootstrap_metrics.py \
     --checkpoint "$CHECKPOINT" \
     --threshold "$THRESHOLD" \
     --patch_dir "$PATCH_DIR" \

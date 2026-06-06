@@ -64,7 +64,7 @@ if [ "$VAL_ONLY" = "1" ] || [ "$VAL_ONLY" = "true" ] || [ "$VAL_ONLY" = "TRUE" ]
     VAL_ONLY_ARG=(--val-only)
 fi
 
-python scripts/threshold_sweep.py \
+python scripts/evaluation/threshold_sweep.py \
     --checkpoint "$CHECKPOINT" \
     --patch_dir "$PATCH_DIR" \
     --num_workers 0 \

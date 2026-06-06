@@ -37,6 +37,6 @@ echo "Python: $(which python)"
 python -c "import torch; print('PyTorch:', torch.__version__, '| CUDA:', torch.cuda.is_available())"
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 
-python scripts/decam_cold_inference.py
+python scripts/figures/decam_cold_inference.py
 
 echo "Job finished."

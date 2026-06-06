@@ -8,9 +8,9 @@ import matplotlib
 import numpy as np
 import pandas as pd
 import pytest
-from PIL import Image
 
 from src.data.catalog import SatelliteCatalog
+from tests.helpers import write_pair as _write_pair
 from src.evaluation.eda import (  # noqa: E402
     compute_image_summary_dataframe,
     compute_mask_component_stats,
@@ -148,16 +148,6 @@ def test_false_positive_distances_empty_gt_reported_separately() -> None:
     dists, whole = false_positive_distances(pred, gt)
     assert dists.size == 0       # distance undefined when GT is empty
     assert whole == 2            # counted as whole-patch FP instead
-
-
-def _write_pair(
-    root_dir: Path,
-    stem: str,
-    image_array: np.ndarray,
-    mask_array: np.ndarray,
-) -> None:
-    Image.fromarray(image_array).save(root_dir / f"{stem}_red.fits_full.png")
-    Image.fromarray(mask_array).save(root_dir / f"{stem}_red_mask.png")
 
 
 def _write_meerlicht_pair(

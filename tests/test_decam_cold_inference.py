@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.decam_cold_inference import (  # noqa: E402
+from scripts.figures.decam_cold_inference import (  # noqa: E402
     DECAM_PIXEL_SCALE_ARCSEC,
     MEERLICHT_PIXEL_SCALE_ARCSEC,
     RESAMPLE_FACTOR,

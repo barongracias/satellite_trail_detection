@@ -54,7 +54,7 @@ if [ -n "$OUT" ]; then
     OUT_ARG=(--out "$OUT")
 fi
 
-python scripts/hough_postprocess.py \
+python scripts/evaluation/hough_postprocess.py \
     --checkpoint "$CHECKPOINT" \
     --patch_dir "$PATCH_DIR" \
     --threshold "$THRESHOLD" \

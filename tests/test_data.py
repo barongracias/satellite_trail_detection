@@ -28,16 +28,7 @@ from src.data.transforms import (  # noqa: E402
     get_eval_transforms,
     get_train_transforms,
 )
-
-
-def _write_pair(
-    root_dir: Path,
-    stem: str,
-    image_array: np.ndarray,
-    mask_array: np.ndarray,
-) -> None:
-    Image.fromarray(image_array).save(root_dir / f"{stem}_red.fits_full.png")
-    Image.fromarray(mask_array).save(root_dir / f"{stem}_red_mask.png")
+from tests.helpers import write_pair as _write_pair  # noqa: E402
 
 
 def test_satellite_catalog_summary_methods(tmp_path: Path) -> None:
@@ -371,7 +362,7 @@ def test_build_patch_dataset_writes_train_patches_without_augmentation(
 ) -> None:
     import csv
 
-    from scripts import build_patch_dataset as builder
+    from scripts.data import build_patch_dataset as builder
     from src.data import transforms as transform_module
 
     processed_dir = tmp_path / "processed"

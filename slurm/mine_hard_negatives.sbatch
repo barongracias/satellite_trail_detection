@@ -60,7 +60,7 @@ echo "Checkpoint: $CHECKPOINT  (threshold=$THRESHOLD)"
 echo "Patch dir:  $PATCH_DIR"
 echo "Out:        $OUT  (top_k=$TOP_K)"
 
-python scripts/mine_hard_negatives.py \
+python scripts/data/mine_hard_negatives.py \
     --checkpoint "$CHECKPOINT" \
     --threshold "$THRESHOLD" \
     --patch_dir "$PATCH_DIR" \

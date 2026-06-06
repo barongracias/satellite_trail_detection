@@ -38,9 +38,9 @@ python -c "import torch; print('PyTorch:', torch.__version__, '| CUDA:', torch.c
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 
 echo "Running M6.1 A-MVP faint-streak diagnostic..."
-python scripts/faint_streak_analysis.py
+python scripts/figures/faint_streak_analysis.py
 
 echo "Running M6.1 B Hough gap bridge figure..."
-python scripts/hough_gap_figure.py
+python scripts/figures/hough_gap_figure.py
 
 echo "Job finished."

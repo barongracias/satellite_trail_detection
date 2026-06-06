@@ -33,6 +33,6 @@ source venv/bin/activate
 echo "Job:    $SLURM_JOB_ID  Node: $SLURM_NODELIST"
 echo "Python: $(which python)"
 
-python scripts/tune_hough.py
+python scripts/evaluation/tune_hough.py
 
 echo "Job finished."

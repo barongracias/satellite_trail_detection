@@ -52,7 +52,7 @@ if [ -n "$OUT" ]; then
     OUT_ARG=(--out "$OUT")
 fi
 
-python scripts/mask_dilation_sweep.py \
+python scripts/evaluation/mask_dilation_sweep.py \
     --checkpoint "$CHECKPOINT" \
     --patch_dir "$PATCH_DIR" \
     --threshold "$THRESHOLD" \

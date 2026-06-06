@@ -1,6 +1,6 @@
-"""Per-image Hough post-processing helper, extracted from ``scripts/hough_postprocess.py``.
+"""Per-image Hough post-processing helper, extracted from ``scripts/evaluation/hough_postprocess.py``.
 
-The script-level logic in ``scripts/hough_postprocess.py`` is responsible for
+The script-level logic in ``scripts/evaluation/hough_postprocess.py`` is responsible for
 manifest grouping, per-source-image canvas construction, batched U-Net
 inference, and cross-image aggregation. The per-canvas operations — applying
 the main threshold, running the probabilistic Hough transform on a lower-
@@ -10,7 +10,7 @@ here so that ``src/inference/two_stage.py`` (planned) can reuse them with a
 two-stage probability canvas without duplicating logic.
 
 This helper is byte-equivalent to the inline logic at
-``scripts/hough_postprocess.py:280-329`` for the same ``prob_canvas`` and
+``scripts/evaluation/hough_postprocess.py:280-329`` for the same ``prob_canvas`` and
 ``gt_canvas`` inputs and the same Hough parameters; see
 ``tests/test_hough_runner.py`` for the regression test.
 
@@ -60,7 +60,7 @@ class HoughCanvasResult:
     """Per-image result of pre/post-Hough evaluation against a target canvas.
 
     Attributes are bitwise-equivalent to the in-place computation performed
-    by ``scripts/hough_postprocess.py`` per source image. The boolean
+    by ``scripts/evaluation/hough_postprocess.py`` per source image. The boolean
     canvases are exposed so the caller can compute patch-level FNR by
     slicing ``binary_canvas`` / ``combined_canvas`` at each patch's
     ``(y, x)`` extent.
@@ -123,7 +123,7 @@ def run_hough_on_canvas(
     The image-level detection flags require **overlap with ground truth**:
     a stray false-positive that does not touch a GT pixel does not count
     as detection. This matches the contract in
-    ``scripts/hough_postprocess.py``, where dropping the overlap
+    ``scripts/evaluation/hough_postprocess.py``, where dropping the overlap
     requirement would trivially drive FNR to zero on any image with even
     one false-positive pixel.
     """

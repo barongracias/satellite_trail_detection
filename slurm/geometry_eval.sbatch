@@ -63,7 +63,7 @@ if [ -n "$THRESHOLD_SOURCE" ]; then
     EXTRA_ARGS+=(--threshold-source "$THRESHOLD_SOURCE")
 fi
 
-python scripts/geometry_eval.py \
+python scripts/evaluation/geometry_eval.py \
     --checkpoint "$CHECKPOINT" \
     --patch_dir "$PATCH_DIR" \
     --threshold "$THRESHOLD" \

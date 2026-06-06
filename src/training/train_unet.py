@@ -257,7 +257,7 @@ def build_dataloaders(
     if config.patch_dir is None:
         raise ValueError(
             "patch_dir must be set in the config; "
-            "run scripts/build_patch_dataset.py to build the patch directory first."
+            "run scripts/data/build_patch_dataset.py to build the patch directory first."
         )
     manifest = config.patch_dir / "manifest.csv"
     train_ds = PatchDirectoryDataset(

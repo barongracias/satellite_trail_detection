@@ -47,7 +47,7 @@ if [ -e "$OUT_DIR" ] && [ "${ALLOW_EXISTING:-0}" != "1" ]; then
 fi
 
 CMD=(
-    python scripts/build_patch_dataset.py
+    python scripts/data/build_patch_dataset.py
     --data-root "$DATA_ROOT"
     --out-dir "$OUT_DIR"
     --patch-size "$PATCH_SIZE"

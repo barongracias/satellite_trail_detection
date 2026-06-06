@@ -1,23 +1,13 @@
 from pathlib import Path
 
 import numpy as np
-from PIL import Image
 import pytest
 
 
 cv2 = pytest.importorskip("cv2")
 
 from src.classical.hough import HoughTransformConfig, evaluate_hough_baseline  # noqa: E402
-
-
-def _write_pair(
-    root_dir: Path,
-    stem: str,
-    image_array: np.ndarray,
-    mask_array: np.ndarray,
-) -> None:
-    Image.fromarray(image_array).save(root_dir / f"{stem}_red.fits_full.png")
-    Image.fromarray(mask_array).save(root_dir / f"{stem}_red_mask.png")
+from tests.helpers import write_pair as _write_pair  # noqa: E402
 
 
 def test_hough_baseline_detects_a_simple_synthetic_trail(tmp_path: Path) -> None:

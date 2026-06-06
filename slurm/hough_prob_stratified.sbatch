@@ -58,7 +58,7 @@ if [ -n "$TAG" ]; then
     TAG_ARG=(--tag "$TAG")
 fi
 
-python scripts/hough_prob_stratified.py \
+python scripts/evaluation/hough_prob_stratified.py \
     --checkpoint "$CHECKPOINT" \
     --patch_dir "$PATCH_DIR" \
     --threshold "$THRESHOLD" \

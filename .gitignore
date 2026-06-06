@@ -55,3 +55,5 @@ asta_proj_env.sh
 
 # Report — track .bib, .cls, assets; ignore AI-assisted source and build artefacts
 report/
+# Sphinx build output
+docs/_build/

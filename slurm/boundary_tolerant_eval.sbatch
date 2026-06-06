@@ -52,7 +52,7 @@ if [ -n "$OUT" ]; then
     OUT_ARG=(--out "$OUT")
 fi
 
-python scripts/boundary_tolerant_eval.py \
+python scripts/evaluation/boundary_tolerant_eval.py \
     --checkpoint "$CHECKPOINT" \
     --patch_dir "$PATCH_DIR" \
     --threshold "$THRESHOLD" \

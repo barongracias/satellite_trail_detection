@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 """Manifest and data-integrity audit for data/patches/.
 
-Run after scripts/build_patch_dataset.py (and optionally
-scripts/compute_image_stats.py) to catch silent dataset bugs before they
+Run after scripts/data/build_patch_dataset.py (and optionally
+scripts/data/compute_image_stats.py) to catch silent dataset bugs before they
 contaminate training or evaluation.
 
 The audit is read-only. It exits with status 0 if every check passes and

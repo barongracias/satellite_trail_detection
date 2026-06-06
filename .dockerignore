@@ -1,0 +1,21 @@
+# Keep the build context small: exclude large or environment-specific trees.
+.git
+venv/
+.venv/
+data/
+results/
+report/
+agents/
+notebooks/
+docs/_build/
+
+# Python caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store

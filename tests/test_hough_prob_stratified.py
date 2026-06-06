@@ -13,7 +13,7 @@ pytest.importorskip("cv2")
 # Add the repo root to sys.path so `scripts/` is importable.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.hough_prob_stratified import _DEFAULT_STRATA, _hough_union  # noqa: E402
+from scripts.evaluation.hough_prob_stratified import _DEFAULT_STRATA, _hough_union  # noqa: E402
 
 
 def _line_prob_canvas() -> np.ndarray:

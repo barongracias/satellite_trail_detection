@@ -58,7 +58,7 @@ if [ -n "$THRESHOLD" ]; then
     EXTRA_ARGS+=(--threshold "$THRESHOLD")
 fi
 
-python scripts/ensemble_eval.py \
+python scripts/evaluation/ensemble_eval.py \
     --checkpoints "$CHECKPOINTS" \
     --patch_dir "$PATCH_DIR" \
     --out "$OUT" \

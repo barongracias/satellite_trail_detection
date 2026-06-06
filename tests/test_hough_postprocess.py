@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from PIL import Image
 
-from scripts.hough_postprocess import (   # noqa: E402
+from scripts.evaluation.hough_postprocess import (   # noqa: E402
     _HOUGH_MAX_BATCH,
     _chunks,
     _infer_batch,
@@ -97,7 +97,7 @@ def test_streaming_sweep_arithmetic_matches_known_counts() -> None:
     constant-prob batch and verify per-threshold TP/FP/FN/precision/recall
     against hand-computed values. Locks the per-batch sweep math against
     accidental drift if the helper is refactored."""
-    from scripts.threshold_sweep import streaming_sweep_thresholds   # noqa: E402
+    from scripts.evaluation.threshold_sweep import streaming_sweep_thresholds   # noqa: E402
 
     class _ConstantModel(torch.nn.Module):
         """Returns logits that sigmoid to a known constant — independent of input."""

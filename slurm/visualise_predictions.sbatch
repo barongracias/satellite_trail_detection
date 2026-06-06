@@ -54,7 +54,7 @@ echo "Hough JSON: $HOUGH_JSON"
 echo "Patch dir:  $PATCH_DIR"
 echo "Out dir:    $OUT_DIR"
 
-python scripts/visualise_predictions.py \
+python scripts/figures/visualise_predictions.py \
     --checkpoint "$CHECKPOINT" \
     --patch_dir "$PATCH_DIR" \
     --threshold "$THRESHOLD" \

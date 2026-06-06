@@ -319,7 +319,7 @@ def test_arch_sweep_uses_common_lr_bounds_and_yaml_pruner_settings() -> None:
 
 
 def test_generate_topk_configs_reads_batch_size_from_user_attrs(tmp_path: Path) -> None:
-    from scripts.generate_restudy_topk_configs import load_top_trials
+    from scripts.sweep.generate_restudy_topk_configs import load_top_trials
 
     db = tmp_path / "study.db"
     con = sqlite3.connect(db)

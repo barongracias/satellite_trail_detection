@@ -16,7 +16,7 @@ import optuna
 import yaml
 from torch.utils.data import DataLoader
 
-from scripts.threshold_sweep import streaming_sweep_thresholds
+from scripts.evaluation.threshold_sweep import streaming_sweep_thresholds
 from src.config.constants import GLOBAL_SEED
 from src.data.dataset import PatchDirectoryDataset
 from src.models.loading import load_segmentation_model

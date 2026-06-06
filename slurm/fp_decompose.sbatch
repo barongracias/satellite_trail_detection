@@ -53,7 +53,7 @@ if [ -n "$OUT" ]; then
     OUT_ARG=(--out "$OUT")
 fi
 
-python scripts/fp_decompose.py \
+python scripts/evaluation/fp_decompose.py \
     --checkpoint "$CHECKPOINT" \
     --patch_dir "$PATCH_DIR" \
     --threshold "$THRESHOLD" \

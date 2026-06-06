@@ -40,6 +40,6 @@ echo "Job:      $SLURM_JOB_ID  Node: $SLURM_NODELIST"
 echo "Manifest: $MANIFEST"
 echo "Out:      $OUT"
 
-python scripts/compute_background_noise_stats.py --manifest "$MANIFEST" --out "$OUT"
+python scripts/data/compute_background_noise_stats.py --manifest "$MANIFEST" --out "$OUT"
 
 echo "Job finished."

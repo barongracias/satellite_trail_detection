@@ -64,12 +64,15 @@ subset with hand-verified trail masks, provided through the MeerLICHT consortium
 
 ## Trained Weights
 
-Model weights (`*.pth`, ~120 MB total) are gitignored and not committed. The reported
-results all come from one locked checkpoint:
+The single locked winning model is committed, so the repository is self-contained:
 
-- `results/checkpoints/unet_paper_arch_noise_topk_t44_s2804_best.pth` — threshold `0.45`,
-  `full_image` normalisation. The descriptive name encodes its provenance
-  (architecture-faithful, noise-augmented, top-K trial 44, seed 2804).
+- `results/checkpoints/model-best.pth` (5.7 MB) — the reported model, evaluated at
+  threshold `0.45` with `full_image` normalisation. It is a byte-identical copy of the
+  canonical `unet_paper_arch_noise_topk_t44_s2804_best.pth`, whose descriptive name
+  encodes the provenance (architecture-faithful, noise-augmented, top-K trial 44, seed
+  2804). Pass it to any pipeline stage with `CHECKPOINT=results/checkpoints/model-best.pth`.
+
+All other intermediate checkpoints (`*.pth`, ~120 MB) are gitignored and kept local.
 
 ## Environment Setup
 
@@ -184,8 +187,9 @@ cross-dataset metrics.
 - Model and threshold selection are **validation-only**; test metrics are never used
   for selection or tie-breaking.
 - Every experiment is reproducible from a `configs/` file plus runtime overrides.
-- `results/` and `*.pth` are gitignored; selected deliverable JSONs and figures are
-  force-added. Trained weights are kept local only.
+- `results/` and `*.pth` are gitignored; selected deliverable JSONs, figures, and the
+  locked model (`results/checkpoints/model-best.pth`) are force-added. Other checkpoints
+  are kept local only.
 
 ### Computational requirements
 

@@ -1,10 +1,7 @@
 # Automated Detection of Satellite Trails in Astronomical Images
 
 Replication and extension of the Stoppa et al. 2024 (A&A 692, A199) satellite-trail
-detection pipeline on a 178-image MeerLICHT subset. A U-Net segmenter produces a binary
-trail mask, a classical Hough transform bridges gaps in that mask, and a suite of
-extensions characterises and improves the detector. MPhil Data Intensive Science
-dissertation, University of Cambridge.
+detection pipeline on a 178-image MeerLICHT subset. A U-Net segmenter produces a binary trail mask, a classical Hough transform bridges gaps in that mask, and a suite of extensions characterises and improves the detector. MPhil Data Intensive Science dissertation, University of Cambridge.
 
 The pipeline:
 
@@ -61,18 +58,9 @@ carrying per-patch split, positive-pixel fraction, and per-image normalisation s
 ### Availability
 
 **Primary (MeerLICHT).** Training, validation, and test use a 178-image MeerLICHT
-subset with hand-verified trail masks, provided through the MeerLICHT consortium
-(supervisor: Dr Eduardo Gonzalez-Solares, University of Cambridge). These are
-collaboration data and are not redistributed here; they are available on request,
-subject to the MeerLICHT data policy. All splits are reproducible from the image-level
-split logic (`src/data/splits.py`, seed `2804`) once the image/mask pairs are in place.
+subset with hand-verified trail masks, provided through the MeerLICHT consortium. These are collaboration data and are not redistributed here; they are available on request, subject to the MeerLICHT data policy. All splits are reproducible from the image-level split logic (`src/data/splits.py`, seed `2804`) once the image/mask pairs are in place.
 
-**Extension (DECam).** The qualitative cold-domain demo uses nine measured-streak DECam
-detector images from the public NSF NOIRLab Astro Data Archive, retrieved via the RECA
-codebase (Stoppa-adjacent; arXiv:2603.10790, `iausathub/reca-streaks`). The exact frames
-are predeclared in `results/classical/decam_cold_manifest.json` (expnum/detector), so the
-demo is reproducible from the archive without bundling raw FITS. Any use must carry the
-NOIRLab acknowledgement recorded in `results/classical/decam_cold_inference.json`.
+**Extension (DECam).** The qualitative cold-domain demo uses nine measured-streak DECam detector images from the public NSF NOIRLab Astro Data Archive, retrieved via the RECA codebase (Stoppa-adjacent; arXiv:2603.10790, `iausathub/reca-streaks`). The exact frames are predeclared in `results/classical/decam_cold_manifest.json` (expnum/detector), so the demo is reproducible from the archive without bundling raw FITS. Any use must carry the NOIRLab acknowledgement recorded in `results/classical/decam_cold_inference.json`.
 
 ## Trained Weights
 
@@ -82,13 +70,6 @@ results all come from one locked checkpoint:
 - `results/checkpoints/unet_paper_arch_noise_topk_t44_s2804_best.pth` — threshold `0.45`,
   `full_image` normalisation. The descriptive name encodes its provenance
   (architecture-faithful, noise-augmented, top-K trial 44, seed 2804).
-
-For archival/reproduction the locked checkpoint should be deposited (e.g. Zenodo or a
-GitHub Release) and cited by DOI. To mirror the original paper's `model-best.h5`
-convention, ship a **copy** named `best_model.pth` alongside it — keep the descriptive
-filename as the canonical, provenance-bearing source (it is what configs, scripts, and
-result-JSON provenance reference), and treat `best_model.pth` purely as a convenience
-alias documented in the deposit. Do not rename the canonical file in-repo.
 
 ## Environment Setup
 
@@ -251,3 +232,11 @@ This work replicates and extends Stoppa et al. 2024 (A&A 692, A199).
 
 Baron Gracias — University of Cambridge MPhil Data Intensive Science
 (supervisor: Dr Eduardo Gonzalez-Solares)
+
+## AI/LLM usage
+I have used Codex (ChatGPT) and Claude Code to support me across this work, primarily in the following areas:
+
+- Providing advice and usage support for libraries like PyTorch and PIL.
+- Generating boilerplate code for plotting, testing and scripting.
+- Generating function docstrings.
+- Reviewing and auditing project structure for completeness, consistency, accuracy and best practises in software engineering.

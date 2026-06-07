@@ -45,7 +45,7 @@ echo "Job:    $SLURM_JOB_ID  Node: $SLURM_NODELIST"
 echo "Python: $(which python)"
 python -c "import torch; print('PyTorch:', torch.__version__, '| CUDA:', torch.cuda.is_available())"
 
-CHECKPOINT="${CHECKPOINT:-results/checkpoints/unet_paper_arch_noise_topk_t44_s2804_best.pth}"
+CHECKPOINT="${CHECKPOINT:-results/checkpoints/model-best.pth}"
 THRESHOLD="${THRESHOLD:-0.45}"
 PATCH_DIR="${PATCH_DIR:-data/patches}"
 OUT="${OUT:-results/classical/hard_negative_train_t44_s2804.json}"

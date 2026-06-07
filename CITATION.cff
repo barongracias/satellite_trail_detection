@@ -12,6 +12,8 @@ authors:
     affiliation: "University of Cambridge"
     email: barongracias@gmail.com
 license: MIT
+version: 1.0.0
+date-released: "2026-07-01"
 repository-code: "https://github.com/barongracias/satellite_trail_detection"
 keywords:
   - satellite trails

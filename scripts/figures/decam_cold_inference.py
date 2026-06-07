@@ -27,7 +27,7 @@ import numpy as np
 from src.config.constants import PATCH_SIZE
 from src.utils.imaging import resize_for_display
 
-LOCKED_CHECKPOINT = Path("results/checkpoints/unet_paper_arch_noise_topk_t44_s2804_best.pth")
+LOCKED_CHECKPOINT = Path("results/checkpoints/model-best.pth")
 LOCKED_THRESHOLD = 0.45
 LOCKED_NORMALISATION = "full_image"
 LOCKED_HOUGH_INPUT_THRESHOLD = 0.10

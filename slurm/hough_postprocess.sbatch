@@ -2,7 +2,7 @@
 #! ==============================================================
 #!  CSD3 Ampere GPU job — interactive queue (< 59 min)
 #!  Usage:
-#!    CHECKPOINT=results/checkpoints/unet_paper_arch_noise_topk_t44_s2804_best.pth \
+#!    CHECKPOINT=results/checkpoints/model-best.pth \
 #!    THRESHOLD=0.45 \
 #!      sbatch slurm/hough_postprocess.sbatch
 #! ==============================================================
@@ -39,7 +39,7 @@ echo "Python: $(which python)"
 python -c "import torch; print('PyTorch:', torch.__version__, '| CUDA:', torch.cuda.is_available())"
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 
-CHECKPOINT="${CHECKPOINT:-results/checkpoints/unet_paper_arch_noise_topk_t44_s2804_best.pth}"
+CHECKPOINT="${CHECKPOINT:-results/checkpoints/model-best.pth}"
 PATCH_DIR="${PATCH_DIR:-data/patches}"
 THRESHOLD="${THRESHOLD:?must be set; extract from results/classical/threshold_sweep_<tag>.json optimal_threshold (default 0.5 silently corrupted Hough across all ablations)}"
 OUT="${OUT:-}"

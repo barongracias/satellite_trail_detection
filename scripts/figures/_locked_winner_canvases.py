@@ -36,7 +36,7 @@ from src.models.loading import load_segmentation_model
 
 Image.MAX_IMAGE_PIXELS = None
 
-LOCKED_CHECKPOINT = "results/checkpoints/unet_paper_arch_noise_topk_t44_s2804_best.pth"
+LOCKED_CHECKPOINT = "results/checkpoints/model-best.pth"
 LOCKED_THRESHOLD = 0.45
 LOCKED_NORMALISATION = "full_image"
 LOCKED_HOUGH_INPUT_THRESHOLD = 0.10

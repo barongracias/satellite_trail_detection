@@ -3,12 +3,10 @@
   "benchmark": false,
   "figures": {
     "montage": [
-      "results/figures/decam_cold_inference_montage.pdf",
-      "results/figures/decam_cold_inference_montage.svg"
+      "results/figures/decam_cold_inference_montage.pdf"
     ],
     "raw_vs_overlay": [
-      "results/figures/decam_cold_raw_vs_overlay.pdf",
-      "results/figures/decam_cold_raw_vs_overlay.svg"
+      "results/figures/decam_cold_raw_vs_overlay.pdf"
     ]
   },
   "images": [

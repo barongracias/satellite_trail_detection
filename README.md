@@ -1,7 +1,11 @@
 # Automated Detection of Satellite Trails in Astronomical Images
 
+[![Documentation Status](https://readthedocs.org/projects/satellite-trail-detection/badge/?version=latest)](https://satellite-trail-detection.readthedocs.io/en/latest/)
+
 Replication and extension of the Stoppa et al. 2024 (A&A 692, A199) satellite-trail
 detection pipeline on a 178-image MeerLICHT subset. A U-Net segmenter produces a binary trail mask, a classical Hough transform bridges gaps in that mask, and a suite of extensions characterises and improves the detector. MPhil Data Intensive Science dissertation, University of Cambridge.
+
+📖 **Documentation:** <https://satellite-trail-detection.readthedocs.io/>
 
 The pipeline:
 
@@ -135,24 +139,25 @@ CONFIG=configs/experiments/restudy_topk/topk_t44_s2804.yaml \
   sbatch slurm/train_unet_ampere_long.sbatch
 
 # 4. Evaluate the locked winner: test threshold sweep + Hough post-processing
-CHECKPOINT=results/checkpoints/unet_paper_arch_noise_topk_t44_s2804_best.pth \
+CHECKPOINT=results/checkpoints/model-best.pth \
 THRESHOLD=0.45 \
   sbatch slurm/threshold_sweep.sbatch
-CHECKPOINT=results/checkpoints/unet_paper_arch_noise_topk_t44_s2804_best.pth \
+CHECKPOINT=results/checkpoints/model-best.pth \
 THRESHOLD=0.45 \
   sbatch slurm/hough_postprocess.sbatch
 
 # 5. Prediction figures for the report
-CHECKPOINT=results/checkpoints/unet_paper_arch_noise_topk_t44_s2804_best.pth \
+CHECKPOINT=results/checkpoints/model-best.pth \
 THRESHOLD=0.45 \
 HOUGH_JSON=results/classical/hough_postprocess_winner_t44_s2804.json \
 TAG=winner_t44_s2804 \
   sbatch slurm/visualise_predictions.sbatch
 ```
 
-The **locked winner** is `unet_paper_arch_noise_topk_t44_s2804_best.pth` at threshold
-`0.45` with `full_image` normalisation. It is fixed: no retraining, threshold tuning,
-or model reselection downstream of step 3.
+The **locked winner** is committed as `results/checkpoints/model-best.pth` (the
+byte-identical copy of `unet_paper_arch_noise_topk_t44_s2804_best.pth` produced by
+step 3), evaluated at threshold `0.45` with `full_image` normalisation. It is fixed:
+no retraining, threshold tuning, or model reselection downstream of step 3.
 
 ### Classical baseline (local or CSD3)
 
@@ -218,7 +223,10 @@ pytest -q
 
 ## Documentation
 
-The `src/` API reference is built with Sphinx (NumPy-style docstrings, autodoc):
+Full documentation — install guide, usage examples, and the `src/` API reference —
+is hosted on Read the Docs: **<https://satellite-trail-detection.readthedocs.io/>**.
+
+To build it locally:
 
 ```bash
 pip install -r docs/requirements.txt
@@ -250,4 +258,4 @@ I have used Codex (ChatGPT) and Claude Code to support me across this work, prim
 - Providing advice and usage support for libraries like PyTorch and PIL.
 - Generating boilerplate code for plotting, testing and scripting.
 - Generating function docstrings.
-- Reviewing and auditing project structure for completeness, consistency, accuracy and best practises in software engineering.
+- Reviewing and auditing project structure for completeness, consistency, accuracy and best practices in software engineering.

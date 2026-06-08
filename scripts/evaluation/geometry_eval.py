@@ -17,7 +17,7 @@ selection must already be locked; this re-scores the locked checkpoint's test
 predictions at its validation-optimal threshold.
 
 Usage (CSD3):
-    CHECKPOINT=results/checkpoints/unet_paper_arch_noise_topk_t44_s2804_best.pth \\
+    CHECKPOINT=results/checkpoints/model-best.pth \\
     THRESHOLD=0.45 \\
     TAG=t44_s2804 \\
       sbatch slurm/geometry_eval.sbatch

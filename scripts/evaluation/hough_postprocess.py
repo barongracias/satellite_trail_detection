@@ -39,7 +39,7 @@ Deviations from Stoppa et al. 2024:
   have positive_pixel_fraction > 0 in the manifest.
 
 Usage (CSD3):
-    CHECKPOINT=results/checkpoints/unet_paper_arch_noise_topk_t44_s2804_best.pth \
+    CHECKPOINT=results/checkpoints/model-best.pth \
     THRESHOLD=0.45 \
       sbatch slurm/hough_postprocess.sbatch
 """

@@ -8,7 +8,7 @@
 #!  feeds the disabled-by-default hard_negative_manifest training
 #!  path; it does not alter any locked checkpoint on its own.
 #!  Usage:
-#!    CHECKPOINT=results/checkpoints/unet_paper_arch_noise_topk_t44_s2804_best.pth \
+#!    CHECKPOINT=results/checkpoints/model-best.pth \
 #!    THRESHOLD=0.45 \
 #!    OUT=results/classical/hard_negative_train_t44_s2804.json \
 #!      sbatch slurm/mine_hard_negatives.sbatch

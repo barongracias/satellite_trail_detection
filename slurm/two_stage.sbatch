@@ -7,7 +7,7 @@
 #!  classifier_base_best.pth, which is a different operating point. UNET +
 #!  UNET_THRESHOLD must be set per the chosen winner seed.
 #!  Usage:
-#!    UNET=results/checkpoints/unet_paper_arch_noise_topk_t44_s2804_best.pth \
+#!    UNET=results/checkpoints/model-best.pth \
 #!    UNET_THRESHOLD=0.45 \
 #!    OUT=results/classical/two_stage_t44_s2804.json \
 #!    BASELINE=results/classical/threshold_sweep_winner_t44_s2804.json \
@@ -48,7 +48,7 @@ python -c "import torch; print('PyTorch:', torch.__version__, '| CUDA:', torch.c
 
 CLASSIFIER="${CLASSIFIER:-results/checkpoints/classifier_base_latest.pth}"
 CLF_THRESHOLD="${CLF_THRESHOLD:-0.18}"
-UNET="${UNET:?must be set; e.g. results/checkpoints/unet_paper_arch_noise_topk_t44_s2804_best.pth}"
+UNET="${UNET:?must be set; e.g. results/checkpoints/model-best.pth}"
 UNET_THRESHOLD="${UNET_THRESHOLD:?must be set; the validation-optimal threshold for the winner seed}"
 MANIFEST="${MANIFEST:-data/patches/manifest.csv}"
 SPLIT="${SPLIT:-test}"

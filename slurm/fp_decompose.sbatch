@@ -2,7 +2,7 @@
 #! ==============================================================
 #!  CSD3 Ampere GPU job — Step 6 false-positive decomposition
 #!  Usage:
-#!    CHECKPOINT=results/checkpoints/unet_paper_arch_noise_topk_t44_s2804_best.pth \
+#!    CHECKPOINT=results/checkpoints/model-best.pth \
 #!    THRESHOLD=0.45 \
 #!      sbatch slurm/fp_decompose.sbatch
 #! ==============================================================
@@ -38,7 +38,7 @@ echo "Job:    $SLURM_JOB_ID  Node: $SLURM_NODELIST"
 echo "Python: $(which python)"
 python -c "import torch; print('PyTorch:', torch.__version__, '| CUDA:', torch.cuda.is_available())"
 
-CHECKPOINT="${CHECKPOINT:?must be set; e.g. results/checkpoints/unet_paper_arch_noise_topk_t44_s2804_best.pth}"
+CHECKPOINT="${CHECKPOINT:?must be set; e.g. results/checkpoints/model-best.pth}"
 THRESHOLD="${THRESHOLD:?must be set; the validation-optimal threshold for the winner}"
 PATCH_DIR="${PATCH_DIR:-data/patches}"
 OUT="${OUT:-}"

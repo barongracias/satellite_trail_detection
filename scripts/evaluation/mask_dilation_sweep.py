@@ -15,7 +15,7 @@ Predictions are computed once at the supplied (validation-optimal) threshold; on
 the GT mask is morphologically adjusted. No retraining.
 
 Usage (CSD3 or login CPU):
-    CHECKPOINT=results/checkpoints/unet_paper_arch_noise_topk_t44_s2804_best.pth \\
+    CHECKPOINT=results/checkpoints/model-best.pth \\
     THRESHOLD=0.45 \\
       python scripts/evaluation/mask_dilation_sweep.py --checkpoint ... --threshold ...
 """

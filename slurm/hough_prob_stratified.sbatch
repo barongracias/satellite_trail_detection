@@ -4,7 +4,7 @@
 #!  Compares pre-Hough / binary Hough / stratified Hough recall on the
 #!  reconstructed test canvases. Does NOT modify the locked Hough path.
 #!  Usage:
-#!    CHECKPOINT=results/checkpoints/unet_paper_arch_noise_topk_t44_s2804_best.pth \
+#!    CHECKPOINT=results/checkpoints/model-best.pth \
 #!    THRESHOLD=0.45 \
 #!    TAG=t44_s2804 \
 #!      sbatch slurm/hough_prob_stratified.sbatch
@@ -40,7 +40,7 @@ source venv/bin/activate
 echo "Job: $SLURM_JOB_ID  Node: $SLURM_NODELIST"
 python -c "import torch; print('PyTorch:', torch.__version__, '| CUDA:', torch.cuda.is_available())"
 
-CHECKPOINT="${CHECKPOINT:?must be set; e.g. results/checkpoints/unet_paper_arch_noise_topk_t44_s2804_best.pth}"
+CHECKPOINT="${CHECKPOINT:?must be set; e.g. results/checkpoints/model-best.pth}"
 THRESHOLD="${THRESHOLD:?must be set; the validation-optimal threshold for the checkpoint}"
 PATCH_DIR="${PATCH_DIR:-data/patches}"
 STRATA="${STRATA:-0.1,0.3,0.5,0.7,0.9}"

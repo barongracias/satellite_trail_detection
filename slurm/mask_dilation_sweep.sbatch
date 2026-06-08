@@ -2,7 +2,7 @@
 #! ==============================================================
 #!  CSD3 Ampere GPU job — PS-0 mask-dilation sensitivity check
 #!  Usage:
-#!    CHECKPOINT=results/checkpoints/unet_paper_arch_noise_topk_t44_s2804_best.pth \
+#!    CHECKPOINT=results/checkpoints/model-best.pth \
 #!    THRESHOLD=0.45 \
 #!      sbatch slurm/mask_dilation_sweep.sbatch
 #! ==============================================================
@@ -37,7 +37,7 @@ source venv/bin/activate
 echo "Job: $SLURM_JOB_ID  Node: $SLURM_NODELIST"
 python -c "import torch; print('PyTorch:', torch.__version__, '| CUDA:', torch.cuda.is_available())"
 
-CHECKPOINT="${CHECKPOINT:?must be set; e.g. results/checkpoints/unet_paper_arch_noise_topk_t44_s2804_best.pth}"
+CHECKPOINT="${CHECKPOINT:?must be set; e.g. results/checkpoints/model-best.pth}"
 THRESHOLD="${THRESHOLD:?must be set; the validation-optimal threshold for the checkpoint}"
 PATCH_DIR="${PATCH_DIR:-data/patches}"
 KERNELS="${KERNELS:--1,0,1,2,3}"

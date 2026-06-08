@@ -13,7 +13,7 @@ Apples-to-apples note: this is a performance-track extension, NOT a paper
 replication model. The baseline comparison remains the single-model M5.6 winner.
 
 Usage (CSD3):
-    CHECKPOINTS="results/checkpoints/unet_paper_arch_noise_topk_t44_s2804_best.pth,...x5" \\
+    CHECKPOINTS="results/checkpoints/model-best.pth,...x5" \\
     python scripts/evaluation/ensemble_eval.py --checkpoints "$CHECKPOINTS" --tta \\
         --out results/classical/ensemble_t44.json
 """

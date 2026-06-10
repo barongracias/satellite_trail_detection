@@ -10,7 +10,9 @@ checkpoints — no figure changes model selection.
 |---|---|---|
 | `eda_random_image_mask_pairs.png` | Seeded full-frame image/mask examples from the 178-image EDA notebook | `notebooks/01_dataset_eda.ipynb` / `src/evaluation/eda.py` |
 | `eda_random_mask_overlays.png` | Seeded full-frame mask overlays from the same EDA sample | `notebooks/01_dataset_eda.ipynb` / `src/evaluation/eda.py` |
+| `eda_mask_inspection_grid_3row.png` | Top three rows of `eda_mask_inspection_grid.png`, suptitle band cropped (thesis Fig. 2.3) | derived crop of the notebook output |
 | `unet_architecture.pdf` | Architecture-faithful U-Net schematic used in Chapter 4 | `scripts/figures/make_unet_diagram.py` |
+| `data_split_schematic.pdf` | Data flow from 178 frames to sampled/parity manifests (Chapter 2) | `scripts/figures/make_data_split_schematic.py` |
 | `thesis_1_multiseed_replication.pdf` | 5-seed replication metrics vs the paper reference | `scripts/figures/make_thesis_figures.py` |
 | `thesis_2_boundary_tolerance.pdf` | Precision/recall under ±1 px boundary tolerance | `scripts/figures/make_thesis_figures.py` |
 | `thesis_4_data_efficiency.pdf` | Validation Dice vs training-image fraction (30/50/70/100%) | `scripts/figures/make_thesis_figures.py` |

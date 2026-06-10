@@ -24,7 +24,7 @@ keywords:
   - MeerLICHT
 preferred-citation:
   type: thesis
-  title: "Automated Detection of Satellite Trails in Astronomical Images Using Deep Learning"
+  title: "Automated Detection of Satellite Trails in Ground-Based Observations Using U-Net and the Probabilistic Hough Transform"
   authors:
     - family-names: Gracias
       given-names: Baron

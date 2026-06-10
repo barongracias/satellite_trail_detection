@@ -26,7 +26,7 @@
       },
       "hough_pixel_count": 22295,
       "human_review_notes": null,
-      "human_review_status": null,
+      "human_review_status": "reviewed",
       "image_hdu_index": 1,
       "in_reca_measured_streak_sample": true,
       "n_patches": 8,
@@ -61,6 +61,8 @@
         962
       ],
       "resampling_note": "linear area downsampling with cv2.INTER_AREA; not integrated-flux preserving",
+      "review_date": "2026-06-10",
+      "reviewer": "Baron Gracias",
       "source_notebook_or_list": "RECA notebooks/paper_notebooks/DECam_streaks_photometry-V2.ipynb cell 2 table",
       "stretch_recipe": {
         "fallback_percentile_used": false,
@@ -70,10 +72,10 @@
         "vmin": 1176.4610392940924
       },
       "threshold": 0.45,
-      "visual_fp_clean": null,
-      "visual_hit_hough": null,
-      "visual_hit_unet_binary": null,
-      "visual_hit_unet_prob": null
+      "visual_fp_clean": true,
+      "visual_hit_hough": true,
+      "visual_hit_unet_binary": true,
+      "visual_hit_unet_prob": true
     },
     {
       "cleaned_nonfinite_pixels": 0,
@@ -91,7 +93,7 @@
       },
       "hough_pixel_count": 19127,
       "human_review_notes": null,
-      "human_review_status": null,
+      "human_review_status": "reviewed",
       "image_hdu_index": 1,
       "in_reca_measured_streak_sample": true,
       "n_patches": 8,
@@ -126,6 +128,8 @@
         962
       ],
       "resampling_note": "linear area downsampling with cv2.INTER_AREA; not integrated-flux preserving",
+      "review_date": "2026-06-10",
+      "reviewer": "Baron Gracias",
       "source_notebook_or_list": "RECA notebooks/paper_notebooks/DECam_streaks_photometry-V2.ipynb cell 2 table",
       "stretch_recipe": {
         "fallback_percentile_used": false,
@@ -135,10 +139,10 @@
         "vmin": 3146.9725373375054
       },
       "threshold": 0.45,
-      "visual_fp_clean": null,
-      "visual_hit_hough": null,
-      "visual_hit_unet_binary": null,
-      "visual_hit_unet_prob": null
+      "visual_fp_clean": true,
+      "visual_hit_hough": true,
+      "visual_hit_unet_binary": true,
+      "visual_hit_unet_prob": true
     },
     {
       "cleaned_nonfinite_pixels": 0,
@@ -156,7 +160,7 @@
       },
       "hough_pixel_count": 16129,
       "human_review_notes": null,
-      "human_review_status": null,
+      "human_review_status": "reviewed",
       "image_hdu_index": 1,
       "in_reca_measured_streak_sample": true,
       "n_patches": 8,
@@ -191,6 +195,8 @@
         962
       ],
       "resampling_note": "linear area downsampling with cv2.INTER_AREA; not integrated-flux preserving",
+      "review_date": "2026-06-10",
+      "reviewer": "Baron Gracias",
       "source_notebook_or_list": "RECA notebooks/paper_notebooks/DECam_streaks_photometry-V2.ipynb cell 2 table",
       "stretch_recipe": {
         "fallback_percentile_used": false,
@@ -200,10 +206,10 @@
         "vmin": 814.9049670428802
       },
       "threshold": 0.45,
-      "visual_fp_clean": null,
-      "visual_hit_hough": null,
-      "visual_hit_unet_binary": null,
-      "visual_hit_unet_prob": null
+      "visual_fp_clean": true,
+      "visual_hit_hough": true,
+      "visual_hit_unet_binary": true,
+      "visual_hit_unet_prob": true
     },
     {
       "cleaned_nonfinite_pixels": 0,
@@ -221,7 +227,7 @@
       },
       "hough_pixel_count": 12154,
       "human_review_notes": null,
-      "human_review_status": null,
+      "human_review_status": "reviewed",
       "image_hdu_index": 1,
       "in_reca_measured_streak_sample": true,
       "n_patches": 8,
@@ -256,6 +262,8 @@
         962
       ],
       "resampling_note": "linear area downsampling with cv2.INTER_AREA; not integrated-flux preserving",
+      "review_date": "2026-06-10",
+      "reviewer": "Baron Gracias",
       "source_notebook_or_list": "RECA notebooks/paper_notebooks/DECam_streaks_photometry-V2.ipynb cell 2 table",
       "stretch_recipe": {
         "fallback_percentile_used": false,
@@ -265,10 +273,10 @@
         "vmin": 244.14469781084577
       },
       "threshold": 0.45,
-      "visual_fp_clean": null,
-      "visual_hit_hough": null,
-      "visual_hit_unet_binary": null,
-      "visual_hit_unet_prob": null
+      "visual_fp_clean": true,
+      "visual_hit_hough": true,
+      "visual_hit_unet_binary": true,
+      "visual_hit_unet_prob": true
     },
     {
       "cleaned_nonfinite_pixels": 0,
@@ -286,7 +294,7 @@
       },
       "hough_pixel_count": 16321,
       "human_review_notes": null,
-      "human_review_status": null,
+      "human_review_status": "reviewed",
       "image_hdu_index": 1,
       "in_reca_measured_streak_sample": true,
       "n_patches": 8,
@@ -321,6 +329,8 @@
         962
       ],
       "resampling_note": "linear area downsampling with cv2.INTER_AREA; not integrated-flux preserving",
+      "review_date": "2026-06-10",
+      "reviewer": "Baron Gracias",
       "source_notebook_or_list": "RECA notebooks/paper_notebooks/DECam_streaks_photometry-V2.ipynb cell 2 table",
       "stretch_recipe": {
         "fallback_percentile_used": false,
@@ -330,10 +340,10 @@
         "vmin": 246.1832733154297
       },
       "threshold": 0.45,
-      "visual_fp_clean": null,
-      "visual_hit_hough": null,
-      "visual_hit_unet_binary": null,
-      "visual_hit_unet_prob": null
+      "visual_fp_clean": true,
+      "visual_hit_hough": true,
+      "visual_hit_unet_binary": true,
+      "visual_hit_unet_prob": true
     },
     {
       "cleaned_nonfinite_pixels": 0,
@@ -351,7 +361,7 @@
       },
       "hough_pixel_count": 22086,
       "human_review_notes": null,
-      "human_review_status": null,
+      "human_review_status": "reviewed",
       "image_hdu_index": 1,
       "in_reca_measured_streak_sample": true,
       "n_patches": 8,
@@ -386,6 +396,8 @@
         962
       ],
       "resampling_note": "linear area downsampling with cv2.INTER_AREA; not integrated-flux preserving",
+      "review_date": "2026-06-10",
+      "reviewer": "Baron Gracias",
       "source_notebook_or_list": "RECA notebooks/paper_notebooks/DECam_streaks_photometry-V2.ipynb cell 2 table",
       "stretch_recipe": {
         "fallback_percentile_used": false,
@@ -395,10 +407,10 @@
         "vmin": 244.71237180912456
       },
       "threshold": 0.45,
-      "visual_fp_clean": null,
-      "visual_hit_hough": null,
-      "visual_hit_unet_binary": null,
-      "visual_hit_unet_prob": null
+      "visual_fp_clean": true,
+      "visual_hit_hough": true,
+      "visual_hit_unet_binary": true,
+      "visual_hit_unet_prob": true
     },
     {
       "cleaned_nonfinite_pixels": 0,
@@ -416,7 +428,7 @@
       },
       "hough_pixel_count": 19426,
       "human_review_notes": null,
-      "human_review_status": null,
+      "human_review_status": "reviewed",
       "image_hdu_index": 1,
       "in_reca_measured_streak_sample": true,
       "n_patches": 8,
@@ -451,6 +463,8 @@
         962
       ],
       "resampling_note": "linear area downsampling with cv2.INTER_AREA; not integrated-flux preserving",
+      "review_date": "2026-06-10",
+      "reviewer": "Baron Gracias",
       "source_notebook_or_list": "RECA notebooks/paper_notebooks/DECam_streaks_photometry-V2.ipynb cell 2 table",
       "stretch_recipe": {
         "fallback_percentile_used": false,
@@ -460,10 +474,10 @@
         "vmin": 255.24948120117188
       },
       "threshold": 0.45,
-      "visual_fp_clean": null,
-      "visual_hit_hough": null,
-      "visual_hit_unet_binary": null,
-      "visual_hit_unet_prob": null
+      "visual_fp_clean": true,
+      "visual_hit_hough": true,
+      "visual_hit_unet_binary": true,
+      "visual_hit_unet_prob": true
     },
     {
       "cleaned_nonfinite_pixels": 0,
@@ -481,7 +495,7 @@
       },
       "hough_pixel_count": 23371,
       "human_review_notes": null,
-      "human_review_status": null,
+      "human_review_status": "reviewed",
       "image_hdu_index": 1,
       "in_reca_measured_streak_sample": true,
       "n_patches": 8,
@@ -516,6 +530,8 @@
         962
       ],
       "resampling_note": "linear area downsampling with cv2.INTER_AREA; not integrated-flux preserving",
+      "review_date": "2026-06-10",
+      "reviewer": "Baron Gracias",
       "source_notebook_or_list": "RECA notebooks/paper_notebooks/DECam_streaks_photometry-V2.ipynb cell 2 table",
       "stretch_recipe": {
         "fallback_percentile_used": false,
@@ -525,10 +541,10 @@
         "vmin": 2432.403750762071
       },
       "threshold": 0.45,
-      "visual_fp_clean": null,
-      "visual_hit_hough": null,
-      "visual_hit_unet_binary": null,
-      "visual_hit_unet_prob": null
+      "visual_fp_clean": true,
+      "visual_hit_hough": true,
+      "visual_hit_unet_binary": true,
+      "visual_hit_unet_prob": true
     },
     {
       "cleaned_nonfinite_pixels": 0,
@@ -545,8 +561,8 @@
         "min_line_length": 100
       },
       "hough_pixel_count": 17127,
-      "human_review_notes": null,
-      "human_review_status": null,
+      "human_review_notes": "Streak only partially traced: the binary and Hough overlays cover a segment of the visible streak. Counted as 0.5 in the author's 8.5/9 assessment; the other eight streaks are fully traced.",
+      "human_review_status": "reviewed",
       "image_hdu_index": 1,
       "in_reca_measured_streak_sample": true,
       "n_patches": 8,
@@ -581,6 +597,8 @@
         962
       ],
       "resampling_note": "linear area downsampling with cv2.INTER_AREA; not integrated-flux preserving",
+      "review_date": "2026-06-10",
+      "reviewer": "Baron Gracias",
       "source_notebook_or_list": "RECA notebooks/paper_notebooks/DECam_streaks_photometry-V2.ipynb cell 2 table",
       "stretch_recipe": {
         "fallback_percentile_used": false,
@@ -590,10 +608,10 @@
         "vmin": 59.69660568237305
       },
       "threshold": 0.45,
-      "visual_fp_clean": null,
-      "visual_hit_hough": null,
-      "visual_hit_unet_binary": null,
-      "visual_hit_unet_prob": null
+      "visual_fp_clean": true,
+      "visual_hit_hough": true,
+      "visual_hit_unet_binary": true,
+      "visual_hit_unet_prob": true
     }
   ],
   "manifest": [
@@ -699,7 +717,18 @@
   ],
   "manifest_path": "results/classical/decam_cold_manifest.json",
   "manifest_sha256": "8b6453d888e9ba4298aed9dd9da5dd0a3c36a0f9b829036a06a7669d5007f24c",
-  "manual_review_summary": null,
+  "manual_review_summary": {
+    "auto_metric": false,
+    "hough_visual_hits": 9,
+    "n_images": 9,
+    "review_date": "2026-06-10",
+    "review_template_path": "results/classical/decam_cold_manual_review.json",
+    "review_template_sha256": "52840c29cd5973947c4e56c82c1dd6fc702a321554b798f1e02a1b36b36742e9",
+    "reviewer": "Baron Gracias",
+    "unet_binary_visual_hits": 9,
+    "unet_prob_visual_hits": 9,
+    "visual_fp_clean_count": 9
+  },
   "provenance": {
     "checkpoint": "results/checkpoints/unet_paper_arch_noise_topk_t44_s2804_best.pth",
     "display_domain_caveat": "DECam FITS data are linearly resampled and ZScale-stretched into an 8-bit display-like domain before applying the MeerLICHT PNG-trained model; this is a qualitative visual stress test, not calibrated cross-dataset performance.",

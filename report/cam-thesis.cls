@@ -99,7 +99,8 @@
 %% Using report class as base.
 %%
 %%%%%
-\PassOptionsToClass{a4paper,12pt,twoside,openright}{report}
+% Oneside/openany for the MPhil report: symmetric margins, no blank verso pages.
+\PassOptionsToClass{a4paper,12pt,oneside,openany}{report}
 \DeclareOption*{\PassOptionsToClass{\CurrentOption}{report}}
 \ProcessOptions\relax
 \LoadClass{report}
@@ -213,7 +214,7 @@
 \ifcam@techreport
 \cam@calcpaperdims{25mm}{25mm}{20mm}{20mm}
 \else
-\cam@calcpaperdims{30mm}{20mm}{20mm}{20mm}
+\cam@calcpaperdims{25mm}{25mm}{20mm}{20mm}
 \fi
 
 
@@ -270,7 +271,8 @@
 % DOCVAR: acknowledgements (The text that will be instered into the
 % acknowledgments of the thesis.)
 \newcommand{\@acknowledgements}{}
-\newcommand{\acknowledgements}[1]{\renewcommand{\@acknowledgements}{#1}}
+\newif\ifcam@hasacknowledgements \cam@hasacknowledgementsfalse
+\newcommand{\acknowledgements}[1]{\renewcommand{\@acknowledgements}{#1}\cam@hasacknowledgementstrue}
 
 % DOCVAR: college (The name of the thesis writer's college, which will appear
 % just below their name.)
@@ -547,13 +549,15 @@ This dissertation does not exceed the prescribed limit of 60\,000 words.}
 
 \ifcam@firstyr
 % First and second yr report don't need the acknowledgements
-\else 
+\else
 {\ifcam@secondyr
 %
 \else
+{\ifcam@hasacknowledgements
 \chapter*{Acknowledgements}
 \thispagestyle{empty}
 \@acknowledgements{}
+\fi}
 \fi}
 \fi
 

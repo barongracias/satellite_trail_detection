@@ -89,9 +89,10 @@ the manifest audit as one dependency chain:
    jid4=$(MANIFEST=data/patches/manifest.csv \
           sbatch --parsable --dependency=afterok:$jid3 slurm/audit_manifest_cpu.sbatch)
 
-The **locked winner** is ``unet_paper_arch_noise_topk_t44_s2804_best.pth`` at threshold
-``0.45`` with ``full_image`` normalisation — committed as
-``results/checkpoints/model-best.pth``. It is fixed downstream of selection: no
+The **locked winner** is committed as ``results/checkpoints/model-best.pth``,
+evaluated at threshold ``0.45`` with ``full_image`` normalisation (a byte-identical
+copy of ``unet_paper_arch_noise_topk_t44_s2804_best.pth``, whose descriptive name
+records the provenance). It is fixed downstream of selection: no
 retraining, threshold tuning, or model reselection. See the project ``README`` for the
 full step-by-step submission of the sweep, retraining, threshold sweep, Hough, and
 figure jobs.

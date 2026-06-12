@@ -349,6 +349,103 @@ def false_positive_distances(
     return dist[fp].astype(np.float64), 0
 
 
+def _mask_boundary(mask: np.ndarray) -> np.ndarray:
+    """8-connected inner boundary: mask pixels with at least one background
+    neighbour. For 1–3 px trail masks this is essentially the mask itself,
+    which is the expected behaviour on thin structures."""
+    from scipy.ndimage import binary_erosion
+
+    if not mask.any():
+        return mask.copy()
+    eroded = binary_erosion(mask, structure=np.ones((3, 3), dtype=bool), border_value=0)
+    return np.logical_and(mask, ~eroded)
+
+
+@dataclass(frozen=True)
+class SurfaceDistanceCounts:
+    """Boundary-pixel agreement counts for NSD / surface Dice at one tolerance.
+
+    NSD@τ = (pred_boundary_within_tau + gt_boundary_within_tau)
+            / (pred_boundary_total + gt_boundary_total).
+    Counts are micro-aggregatable across images by summing fields. With unit
+    pixel spacing and integer-pixel boundaries, "normalised surface distance"
+    and "surface Dice at tolerance τ" (Nikolov et al. 2021) are the same
+    quantity; both names map to this count structure.
+    """
+
+    pred_boundary_total: int
+    gt_boundary_total: int
+    pred_boundary_within_tau: int
+    gt_boundary_within_tau: int
+
+    def __add__(self, other: "SurfaceDistanceCounts") -> "SurfaceDistanceCounts":
+        return SurfaceDistanceCounts(
+            self.pred_boundary_total + other.pred_boundary_total,
+            self.gt_boundary_total + other.gt_boundary_total,
+            self.pred_boundary_within_tau + other.pred_boundary_within_tau,
+            self.gt_boundary_within_tau + other.gt_boundary_within_tau,
+        )
+
+    @property
+    def nsd(self) -> float | None:
+        denom = self.pred_boundary_total + self.gt_boundary_total
+        if denom == 0:
+            return None
+        return (self.pred_boundary_within_tau + self.gt_boundary_within_tau) / denom
+
+
+def surface_distance_counts_multi(
+    prediction: np.ndarray | torch.Tensor,
+    target: np.ndarray | torch.Tensor,
+    taus: Sequence[float],
+) -> dict[float, SurfaceDistanceCounts]:
+    """NSD / surface-Dice counts for one 2D mask pair at several tolerances.
+
+    Pixel spacing is assumed unity (square pixels). Boundaries are 8-connected
+    inner boundaries; distances are Euclidean via
+    ``scipy.ndimage.distance_transform_edt``, computed once and reused for all
+    ``taus``. τ=0 degenerates to exact boundary-pixel coincidence. Empty-mask
+    conventions are the CALLER's responsibility (this function just counts):
+    if both masks are empty the counts are all zero and ``nsd`` is None; if
+    exactly one is empty its within-τ count is zero, so ``nsd`` is 0.
+    """
+    from scipy.ndimage import distance_transform_edt
+
+    if any(t < 0 for t in taus):
+        raise ValueError(f"taus must all be >= 0, got {list(taus)}")
+    pred = _boundary_to_2d_bool(prediction)
+    gt = _boundary_to_2d_bool(target)
+    if pred.shape != gt.shape:
+        raise ValueError(f"prediction shape {pred.shape} != target shape {gt.shape}")
+
+    pred_b = _mask_boundary(pred)
+    gt_b = _mask_boundary(gt)
+    n_pred = int(pred_b.sum())
+    n_gt = int(gt_b.sum())
+
+    pred_dists: np.ndarray | None = None
+    gt_dists: np.ndarray | None = None
+    if n_pred and n_gt:
+        pred_dists = distance_transform_edt(~gt_b)[pred_b]
+        gt_dists = distance_transform_edt(~pred_b)[gt_b]
+
+    out: dict[float, SurfaceDistanceCounts] = {}
+    for tau in taus:
+        pred_within = int((pred_dists <= tau).sum()) if pred_dists is not None else 0
+        gt_within = int((gt_dists <= tau).sum()) if gt_dists is not None else 0
+        out[tau] = SurfaceDistanceCounts(n_pred, n_gt, pred_within, gt_within)
+    return out
+
+
+def surface_distance_counts(
+    prediction: np.ndarray | torch.Tensor,
+    target: np.ndarray | torch.Tensor,
+    tau: float,
+) -> SurfaceDistanceCounts:
+    """Single-tolerance convenience wrapper for ``surface_distance_counts_multi``."""
+    return surface_distance_counts_multi(prediction, target, [tau])[tau]
+
+
 def compute_segmentation_metrics(
     prediction: Any,
     target: Any,

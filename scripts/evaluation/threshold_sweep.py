@@ -56,6 +56,16 @@ def parse_args() -> argparse.Namespace:
              "F1-optimal threshold from a matching val-sweep JSON.",
     )
     p.add_argument(
+        "--eval_threshold",
+        type=float,
+        default=None,
+        help="Post-hoc diagnostic mode: skip the val sweep and evaluate the test "
+             "split at this fixed threshold, writing a separate "
+             "threshold_sweep_<tag>_t<NNN>.json with a threshold_provenance "
+             "field. Never overwrites the locked threshold_sweep_<tag>.json and "
+             "never re-selects the operating point.",
+    )
+    p.add_argument(
         "--val-only",
         action="store_true",
         help="Run only the validation PR sweep and do not evaluate or write test "
@@ -63,6 +73,13 @@ def parse_args() -> argparse.Namespace:
              "are intentionally inadmissible.",
     )
     return p.parse_args()
+
+
+def _diagnostic_out_path(tag: str, eval_threshold: float) -> Path:
+    """Output path for --eval_threshold diagnostics: never collides with the
+    locked threshold_sweep_<tag>.json (e.g. 0.58 → threshold_sweep_<tag>_t058.json)."""
+    suffix = f"t{int(round(eval_threshold * 100)):03d}"
+    return Path("results/classical") / f"threshold_sweep_{tag}_{suffix}.json"
 
 
 def _resolve_tag(args: argparse.Namespace) -> str:
@@ -163,6 +180,8 @@ def main() -> None:
     args = parse_args()
     if args.val_only and args.threshold is not None:
         raise SystemExit("--val-only cannot be combined with --threshold")
+    if args.eval_threshold is not None and (args.val_only or args.threshold is not None):
+        raise SystemExit("--eval_threshold cannot be combined with --threshold or --val-only")
 
     tag = _resolve_tag(args)
     logger = get_logger("threshold_sweep")
@@ -185,12 +204,14 @@ def main() -> None:
             pin_memory=device.type == "cuda",
         )
 
-    if args.threshold is not None:
+    fixed_threshold = args.threshold if args.threshold is not None else args.eval_threshold
+    if fixed_threshold is not None:
         # Fixed-threshold mode: skip val sweep, evaluate test only. Used when
         # the manifest has no val split (e.g., a parity test set built by
-        # passing --splits test to build_patch_dataset.py). PR curve and val
-        # metrics are unavailable in this mode.
-        optimal_threshold = float(args.threshold)
+        # passing --splits test to build_patch_dataset.py), or for post-hoc
+        # diagnostics at a foreign operating point (--eval_threshold). PR curve
+        # and val metrics are unavailable in this mode.
+        optimal_threshold = float(fixed_threshold)
         sweep = []
         best = {"threshold": optimal_threshold, "f1": None,
                 "precision": None, "recall": None}
@@ -228,7 +249,7 @@ def main() -> None:
     figures_dir.mkdir(parents=True, exist_ok=True)
 
     if not sweep:
-        logger.info("No val sweep performed (--threshold supplied); skipping PR-curve figure.")
+        logger.info("No val sweep performed (fixed threshold supplied); skipping PR-curve figure.")
     else:
         precisions = [r["precision"] for r in sweep]
         recalls = [r["recall"] for r in sweep]
@@ -283,20 +304,28 @@ def main() -> None:
             "test_dice": test_m["dice"],
             "test_iou": test_m["iou"],
         })
-    out_path = Path("results/classical") / f"threshold_sweep_{tag}.json"
+    if args.eval_threshold is not None:
+        # Diagnostic output gets its own filename so the locked
+        # threshold_sweep_<tag>.json is never overwritten.
+        out["threshold_provenance"] = (
+            f"fixed-paper-{args.eval_threshold:g}, post-hoc diagnostic"
+        )
+        out_path = _diagnostic_out_path(tag, args.eval_threshold)
+    else:
+        out_path = Path("results/classical") / f"threshold_sweep_{tag}.json"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with open(out_path, "w") as f:
         json.dump(out, f, indent=2, allow_nan=False)
     logger.info("Saved results to %s", out_path)
 
     print(f"\nOptimal threshold: {optimal_threshold:.2f}")
-    if args.threshold is None:
+    if fixed_threshold is None:
         print(
             f"Val   F1={best['f1']:.4f}  "
             f"P={best['precision']:.4f}  R={best['recall']:.4f}"
         )
     else:
-        print(f"Val   <skipped — threshold supplied: {args.threshold:.4f}>")
+        print(f"Val   <skipped — threshold supplied: {fixed_threshold:.4f}>")
     if test_m is None:
         print("Test  <skipped - val-only mode>")
     else:

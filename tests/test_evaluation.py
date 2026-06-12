@@ -486,3 +486,101 @@ def test_bootstrap_metrics_patch_collapses_with_single_unit() -> None:
         point, lo, hi = result[name]
         assert abs(lo - point) < 1e-12, f"{name}: lo {lo} != point {point}"
         assert abs(hi - point) < 1e-12, f"{name}: hi {hi} != point {point}"
+
+
+def test_surface_nsd_identical_masks_perfect_at_tau_zero() -> None:
+    """tau=0 degenerate behaviour: identical masks give NSD=1; any boundary
+    offset breaks tau=0 but not tau>=offset."""
+    from src.evaluation.segmentation import surface_distance_counts
+
+    mask = np.zeros((32, 32), dtype=bool)
+    mask[10, 5:25] = True
+    c = surface_distance_counts(mask, mask, tau=0.0)
+    assert c.nsd == 1.0
+    assert c.pred_boundary_total == c.gt_boundary_total == 20
+
+
+def test_surface_nsd_one_px_offset_line_is_one_at_tau_one() -> None:
+    """A synthetic 1 px-offset line scores NSD=1 at tau=1 but < 1 at tau=0 —
+    the boundary-scale equivalence the metric is meant to capture."""
+    from src.evaluation.segmentation import surface_distance_counts_multi
+
+    gt = np.zeros((32, 64), dtype=bool)
+    pred = np.zeros((32, 64), dtype=bool)
+    gt[10, 5:60] = True
+    pred[11, 5:60] = True   # same line, shifted down by exactly 1 px
+    counts = surface_distance_counts_multi(pred, gt, taus=(0.0, 1.0, 2.0))
+    assert counts[0.0].nsd == 0.0
+    assert counts[1.0].nsd == 1.0
+    assert counts[2.0].nsd == 1.0
+
+
+def test_surface_nsd_empty_mask_edges() -> None:
+    """Empty/empty has undefined NSD (None — caller excludes); one-sided empty
+    scores 0; tau must be non-negative."""
+    import pytest as _pytest
+
+    from src.evaluation.segmentation import (
+        surface_distance_counts,
+        surface_distance_counts_multi,
+    )
+
+    empty = np.zeros((16, 16), dtype=bool)
+    line = np.zeros((16, 16), dtype=bool)
+    line[8, 2:14] = True
+
+    both_empty = surface_distance_counts(empty, empty, tau=1.0)
+    assert both_empty.nsd is None
+    assert both_empty.pred_boundary_total == both_empty.gt_boundary_total == 0
+
+    pred_only = surface_distance_counts(line, empty, tau=1.0)   # whole-image FP
+    assert pred_only.nsd == 0.0
+    assert pred_only.pred_boundary_total > 0
+
+    gt_only = surface_distance_counts(empty, line, tau=1.0)     # whole-image FN
+    assert gt_only.nsd == 0.0
+
+    with _pytest.raises(ValueError):
+        surface_distance_counts_multi(line, line, taus=(-1.0,))
+
+
+def test_surface_nsd_counts_micro_aggregate_by_addition() -> None:
+    """SurfaceDistanceCounts adds field-wise so canvas-level micro aggregation
+    equals counting over the union of boundaries."""
+    from src.evaluation.segmentation import (
+        surface_distance_counts,
+    )
+
+    gt_a = np.zeros((16, 16), dtype=bool); gt_a[4, 2:10] = True
+    pred_a = np.zeros((16, 16), dtype=bool); pred_a[5, 2:10] = True
+    gt_b = np.zeros((16, 16), dtype=bool); gt_b[8, 1:15] = True
+    pred_b = np.zeros((16, 16), dtype=bool)   # whole-image FN
+
+    c_a = surface_distance_counts(pred_a, gt_a, tau=1.0)
+    c_b = surface_distance_counts(pred_b, gt_b, tau=1.0)
+    total = c_a + c_b
+    assert total.pred_boundary_total == c_a.pred_boundary_total
+    assert total.gt_boundary_total == c_a.gt_boundary_total + c_b.gt_boundary_total
+    expected = (c_a.pred_boundary_within_tau + c_a.gt_boundary_within_tau) / (
+        c_a.pred_boundary_total + c_a.gt_boundary_total
+        + c_b.pred_boundary_total + c_b.gt_boundary_total
+    )
+    assert total.nsd == _pytest_approx(expected)
+
+
+def _pytest_approx(x: float):
+    import pytest as _pytest
+
+    return _pytest.approx(x, abs=1e-12)
+
+
+def test_surface_nsd_thick_mask_boundary_is_eroded_interior_excluded() -> None:
+    """On a wide structure the interior must not count as boundary: a filled
+    8x8 square has a 28-px one-pixel-wide boundary ring."""
+    from src.evaluation.segmentation import surface_distance_counts
+
+    sq = np.zeros((16, 16), dtype=bool)
+    sq[4:12, 4:12] = True
+    c = surface_distance_counts(sq, sq, tau=0.0)
+    assert c.gt_boundary_total == 28
+    assert c.nsd == 1.0

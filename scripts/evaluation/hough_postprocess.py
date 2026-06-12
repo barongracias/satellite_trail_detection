@@ -196,6 +196,13 @@ def main() -> None:
     total_gt_pixels = 0
     total_pixels_pre = 0
     total_pixels_post = 0
+    # FP accounting (schema_version 2) over ALL test images — negative images
+    # contribute false positives with no true positives, so precision must not
+    # be restricted to positive images the way the recall aggregates are.
+    total_pred_pixels_pre = 0
+    total_pred_pixels_post = 0
+    total_tp_pixels_pre = 0
+    total_tp_pixels_post = 0
 
     for source_image, group in groups:
         is_positive = bool((group["positive_pixel_fraction"] > 0).any())
@@ -283,6 +290,18 @@ def main() -> None:
         pixels_pre = hough_result.pixels_pre
         pixels_post = hough_result.pixels_post
 
+        # Per-image FP accounting on the canvases already in memory: predicted
+        # pixel totals minus GT-overlapping (TP) pixels. combined ⊇ binary, so
+        # fp_post − fp_pre is exactly the Hough-added FP mass.
+        pred_pixels_pre = int(binary_bool.sum())
+        pred_pixels_post = int(combined_bool.sum())
+        fp_pixels_pre = pred_pixels_pre - pixels_pre
+        fp_pixels_post = pred_pixels_post - pixels_post
+        total_pred_pixels_pre += pred_pixels_pre
+        total_pred_pixels_post += pred_pixels_post
+        total_tp_pixels_pre += pixels_pre
+        total_tp_pixels_post += pixels_post
+
         if is_positive:
             n_positive += 1
             if not detected_pre:
@@ -315,6 +334,19 @@ def main() -> None:
             "gt_pixels": gt_pixels,
             "pixels_covered_pre": pixels_pre,
             "pixels_covered_post": pixels_post,
+            "pred_pixels_pre": pred_pixels_pre,
+            "pred_pixels_post": pred_pixels_post,
+            "fp_pixels_pre": fp_pixels_pre,
+            "fp_pixels_post": fp_pixels_post,
+            "hough_fp_added_pixels": fp_pixels_post - fp_pixels_pre,
+            "pixel_precision_pre": (
+                None if pred_pixels_pre == 0
+                else round(pixels_pre / pred_pixels_pre, 6)
+            ),
+            "pixel_precision_post": (
+                None if pred_pixels_post == 0
+                else round(pixels_post / pred_pixels_post, 6)
+            ),
         })
 
     if n_positive > 0:
@@ -338,7 +370,17 @@ def main() -> None:
         pixel_recall_pre = None
         pixel_recall_post = None
 
+    total_fp_pixels_pre = total_pred_pixels_pre - total_tp_pixels_pre
+    total_fp_pixels_post = total_pred_pixels_post - total_tp_pixels_post
+    pixel_precision_pre = (
+        total_tp_pixels_pre / total_pred_pixels_pre if total_pred_pixels_pre else None
+    )
+    pixel_precision_post = (
+        total_tp_pixels_post / total_pred_pixels_post if total_pred_pixels_post else None
+    )
+
     result = {
+        "schema_version": 2,
         "checkpoint": str(args.checkpoint),
         "threshold": args.threshold,
         "hough_input_threshold": args.hough_input_threshold,
@@ -359,6 +401,31 @@ def main() -> None:
         "total_gt_pixels": total_gt_pixels,
         "total_pixels_covered_pre": total_pixels_pre,
         "total_pixels_covered_post": total_pixels_post,
+        "total_pred_pixels_pre": total_pred_pixels_pre,
+        "total_pred_pixels_post": total_pred_pixels_post,
+        "total_fp_pixels_pre": total_fp_pixels_pre,
+        "total_fp_pixels_post": total_fp_pixels_post,
+        "hough_fp_added_pixels": total_fp_pixels_post - total_fp_pixels_pre,
+        "pixel_precision_pre": (
+            None if pixel_precision_pre is None else round(pixel_precision_pre, 6)
+        ),
+        "pixel_precision_post": (
+            None if pixel_precision_post is None else round(pixel_precision_post, 6)
+        ),
+        "precision_scope_note": (
+            "pixel_precision_* and FP totals are micro-aggregated over ALL test "
+            "images (negative images contribute FP with no TP); the recall/"
+            "coverage aggregates above keep their original positive-image-only "
+            "scope for backwards compatibility. Post-Hough strict precision is "
+            "depressed partly by the 3 px line-drawing convention rasterised "
+            "onto 1-3 px masks; report alongside tolerant metrics."
+        ),
+        "opencv_rng_note": (
+            "cv2.HoughLinesP is the probabilistic Hough variant and the global "
+            "seeding harness does not call cv2.setRNGSeed, so reruns are near- "
+            "but not guaranteed bit-identical. The locked runner is left "
+            "unchanged; this field records the caveat."
+        ),
         "paper_fnr_pre_hough": PAPER_FNR_PRE_HOUGH,
         "paper_fnr_post_hough": PAPER_FNR_POST_HOUGH,
         "fnr_metric_note": (
@@ -394,6 +461,12 @@ def main() -> None:
                 "Pixel recall     pre: %.4f  post: %.4f  (gt_pixels=%d)",
                 pixel_recall_pre, pixel_recall_post, total_gt_pixels,
             )
+    if pixel_precision_pre is not None and pixel_precision_post is not None:
+        logger.info(
+            "Pixel precision  pre: %.4f  post: %.4f  (hough_fp_added=%d)",
+            pixel_precision_pre, pixel_precision_post,
+            total_fp_pixels_post - total_fp_pixels_pre,
+        )
     logger.info("Saved to %s", out_path)
     if fnr_pre is None:
         print("\nFNR pre/post: undefined (no positive test images)")
@@ -411,6 +484,11 @@ def main() -> None:
             print(
                 f"Pixel recall     pre: {pixel_recall_pre:.4f}  post: {pixel_recall_post:.4f}  "
                 f"(gt_pixels={total_gt_pixels})"
+            )
+        if pixel_precision_pre is not None and pixel_precision_post is not None:
+            print(
+                f"Pixel precision  pre: {pixel_precision_pre:.4f}  post: {pixel_precision_post:.4f}  "
+                f"(hough_fp_added={total_fp_pixels_post - total_fp_pixels_pre})"
             )
 
 

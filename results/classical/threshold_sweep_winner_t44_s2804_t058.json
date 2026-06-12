@@ -1,0 +1,14 @@
+{
+  "tag": "winner_t44_s2804",
+  "checkpoint": "results/checkpoints/unet_paper_arch_noise_topk_t44_s2804_best.pth",
+  "optimal_threshold": 0.58,
+  "val_f1": null,
+  "val_precision": null,
+  "val_recall": null,
+  "pr_curve": [],
+  "test_precision": 0.8768142445863603,
+  "test_recall": 0.8907343059974618,
+  "test_dice": 0.8837194626222322,
+  "test_iou": 0.7916643111042317,
+  "threshold_provenance": "fixed-paper-0.58, post-hoc diagnostic"
+}

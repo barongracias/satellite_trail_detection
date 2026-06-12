@@ -40,11 +40,13 @@ from torch.utils.data import DataLoader
 from src.data.dataset import PatchDirectoryDataset
 from src.evaluation.segmentation import (
     SegmentationCounts,
+    SurfaceDistanceCounts,
     centerline_dice,
     combine_counts,
     compute_metrics_from_counts,
     compute_segmentation_counts,
     false_positive_distances,
+    surface_distance_counts_multi,
 )
 from src.models.loading import load_segmentation_model
 from src.utils.logger import get_logger
@@ -67,17 +69,27 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--out", default=None)
     p.add_argument("--batch_size", type=int, default=32)
     p.add_argument("--num_workers", type=int, default=4)
+    p.add_argument(
+        "--surface_nsd",
+        action="store_true",
+        help="Compute NSD / surface Dice at tau in {1,2} px on per-source-image "
+             "canvases (patch borders create artificial boundary pixels, so "
+             "surface metrics are computed on reconstructed canvases, not "
+             "patches). Skips the patch-level metrics and writes "
+             "geometry_eval_<tag>_nsd.json.",
+    )
     return p.parse_args()
 
 
 def _resolve_out_path(args: argparse.Namespace) -> Path:
+    suffix = "_nsd" if args.surface_nsd else ""
     if args.out:
         return Path(args.out)
     if args.tag:
-        return Path("results/classical") / f"geometry_eval_{args.tag}.json"
+        return Path("results/classical") / f"geometry_eval_{args.tag}{suffix}.json"
     stem = Path(args.checkpoint).stem
     tag = stem[:-5] if stem.endswith("_best") else stem
-    return Path("results/classical") / f"geometry_eval_{tag}.json"
+    return Path("results/classical") / f"geometry_eval_{tag}{suffix}.json"
 
 
 def _approx_median(counts: np.ndarray, edges: np.ndarray) -> float | None:
@@ -95,6 +107,182 @@ def _approx_median(counts: np.ndarray, edges: np.ndarray) -> float | None:
     return float(edges[idx] + frac * (edges[idx + 1] - edges[idx]))
 
 
+_NSD_TAUS = (1.0, 2.0)
+
+
+def _run_surface_nsd(
+    args: argparse.Namespace,
+    model: torch.nn.Module,
+    normalisation: str,
+    device: torch.device,
+    logger,
+) -> None:
+    """Canvas-level NSD / surface Dice at τ∈{1,2} px (M9.3 post-hoc diagnostic).
+
+    Mirrors the per-source-image canvas reconstruction in
+    scripts/evaluation/hough_postprocess.py (max-composited probability and
+    mask canvases over the test patches of each source image) so that patch
+    borders never create artificial boundary pixels. No Hough involvement:
+    this scores the thresholded segmentation canvases only.
+    """
+    import pandas as pd
+    from PIL import Image
+
+    from scripts.evaluation.hough_postprocess import (
+        _HOUGH_MAX_BATCH,
+        _PATCH_SIZE,
+        _chunks,
+        _infer_batch,
+        _load_normalised_patch,
+        _parse_yx,
+    )
+
+    Image.MAX_IMAGE_PIXELS = None
+
+    manifest = pd.read_csv(Path(args.patch_dir) / "manifest.csv")
+    test_df = manifest[manifest["split"] == "test"].reset_index(drop=True)
+    has_full_image_stats = {"image_mean", "image_std"}.issubset(test_df.columns)
+    groups = test_df.groupby("source_image")
+    logger.info("Surface NSD: %d test patches over %d source images",
+                len(test_df), len(groups))
+
+    totals_all = {tau: SurfaceDistanceCounts(0, 0, 0, 0) for tau in _NSD_TAUS}
+    totals_gt_pos = {tau: SurfaceDistanceCounts(0, 0, 0, 0) for tau in _NSD_TAUS}
+    per_image: list[dict] = []
+    n_scored = 0
+    n_excluded_empty_both = 0
+    n_empty_gt_nonempty_pred = 0
+    n_empty_pred_nonempty_gt = 0
+
+    for source_image, group in groups:
+        yx_list = [_parse_yx(p) for p in group["patch_path"]]
+        canvas_h = max(y for y, _ in yx_list) + _PATCH_SIZE
+        canvas_w = max(x for _, x in yx_list) + _PATCH_SIZE
+        prob_canvas = np.zeros((canvas_h, canvas_w), dtype=np.float32)
+        target_canvas = np.zeros((canvas_h, canvas_w), dtype=np.uint8)
+
+        group_rows = list(group.itertuples(index=False))
+        for chunk in _chunks(group_rows, _HOUGH_MAX_BATCH):
+            patches = []
+            coords = []
+            for row in chunk:
+                mean = getattr(row, "image_mean", None) if has_full_image_stats else None
+                std = getattr(row, "image_std", None) if has_full_image_stats else None
+                patches.append(
+                    _load_normalised_patch(row.patch_path, normalisation, mean, std)
+                )
+                coords.append(_parse_yx(row.patch_path))
+            probs = _infer_batch(patches, model, device)
+            for (y, x), prob, row in zip(coords, probs, chunk):
+                prob_canvas[y : y + _PATCH_SIZE, x : x + _PATCH_SIZE] = np.maximum(
+                    prob_canvas[y : y + _PATCH_SIZE, x : x + _PATCH_SIZE], prob
+                )
+                with Image.open(row.mask_path) as msk:
+                    mask_patch = np.asarray(msk.convert("L"), dtype=np.uint8)
+                target_canvas[y : y + _PATCH_SIZE, x : x + _PATCH_SIZE] = np.maximum(
+                    target_canvas[y : y + _PATCH_SIZE, x : x + _PATCH_SIZE], mask_patch
+                )
+
+        pred_bool = prob_canvas >= args.threshold
+        gt_bool = target_canvas > 0
+        del prob_canvas, target_canvas
+
+        if not gt_bool.any() and not pred_bool.any():
+            # Trivially correct: excluded from both aggregates, counted.
+            n_excluded_empty_both += 1
+            per_image.append({
+                "source_image": str(source_image),
+                "category": "empty_both_excluded",
+            })
+            logger.info("%s | empty GT and empty prediction — excluded",
+                        Path(str(source_image)).name)
+            continue
+
+        if not gt_bool.any():
+            category = "empty_gt_nonempty_pred"   # whole-image FP: scores 0
+            n_empty_gt_nonempty_pred += 1
+        elif not pred_bool.any():
+            category = "empty_pred_nonempty_gt"   # whole-image FN: scores 0
+            n_empty_pred_nonempty_gt += 1
+        else:
+            category = "scored"
+            n_scored += 1
+
+        counts = surface_distance_counts_multi(pred_bool, gt_bool, _NSD_TAUS)
+        row_out = {"source_image": str(source_image), "category": category}
+        for tau in _NSD_TAUS:
+            c = counts[tau]
+            totals_all[tau] = totals_all[tau] + c
+            if gt_bool.any():
+                totals_gt_pos[tau] = totals_gt_pos[tau] + c
+            row_out[f"nsd_tau_{int(tau)}"] = (
+                None if c.nsd is None else round(c.nsd, 6)
+            )
+            row_out[f"counts_tau_{int(tau)}"] = {
+                "pred_boundary_total": c.pred_boundary_total,
+                "gt_boundary_total": c.gt_boundary_total,
+                "pred_boundary_within_tau": c.pred_boundary_within_tau,
+                "gt_boundary_within_tau": c.gt_boundary_within_tau,
+            }
+        per_image.append(row_out)
+        logger.info(
+            "%s | %s | NSD@1=%s NSD@2=%s",
+            Path(str(source_image)).name, category,
+            row_out["nsd_tau_1"], row_out["nsd_tau_2"],
+        )
+
+    def _micro(totals: dict[float, SurfaceDistanceCounts]) -> dict:
+        return {
+            f"nsd_tau_{int(tau)}": (
+                None if totals[tau].nsd is None else round(totals[tau].nsd, 6)
+            )
+            for tau in _NSD_TAUS
+        }
+
+    out = {
+        "checkpoint": str(args.checkpoint),
+        "threshold": args.threshold,
+        "threshold_source": args.threshold_source,
+        "split": "test",
+        "normalisation": normalisation,
+        "patch_dir": str(args.patch_dir),
+        "pixel_spacing": 1.0,
+        "taus_px": [float(t) for t in _NSD_TAUS],
+        "aggregation": "canvas-level (per source image), micro over boundary counts",
+        "micro_all_images": _micro(totals_all),
+        "micro_gt_positive_images": _micro(totals_gt_pos),
+        "n_images_scored_both_nonempty": n_scored,
+        "n_images_excluded_empty_both": n_excluded_empty_both,
+        "n_images_empty_gt_nonempty_pred": n_empty_gt_nonempty_pred,
+        "n_images_empty_pred_nonempty_gt": n_empty_pred_nonempty_gt,
+        "metric_note": (
+            "NSD computed on per-source-image canvases (patch borders would "
+            "create artificial boundary pixels). Pixel spacing is unity. With "
+            "unit spacing and integer-pixel boundaries, NSD and surface Dice "
+            "at tolerance tau (Nikolov et al. 2021) are the same quantity; "
+            "both vocabularies map to these numbers. Empty-GT+empty-pred "
+            "images are excluded; empty-GT+non-empty-pred images score 0 and "
+            "are included in micro_all_images but not micro_gt_positive_images "
+            "(counts above). On 1-3 px trails the mask boundary is essentially "
+            "the mask, so NSD@1 is expected to track the existing +/-1 px "
+            "boundary-tolerant F1 — equivalence, not independent confirmation."
+        ),
+        "per_image": per_image,
+        "generated": str(date.today()),
+    }
+    out_path = _resolve_out_path(args)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(out, indent=2, allow_nan=False))
+    logger.info("micro (all images): %s | micro (GT-positive): %s",
+                out["micro_all_images"], out["micro_gt_positive_images"])
+    logger.info("Saved to %s", out_path)
+    print(f"Surface NSD eval -> {out_path}")
+    print(f"  micro all images:    {out['micro_all_images']}")
+    print(f"  micro GT-positive:   {out['micro_gt_positive_images']}")
+    print(f"  scored/excluded/whole-FP/whole-FN: {n_scored}/{n_excluded_empty_both}/"
+          f"{n_empty_gt_nonempty_pred}/{n_empty_pred_nonempty_gt}")
+
+
 def main() -> None:
     args = parse_args()
     logger = get_logger("geometry_eval")
@@ -104,6 +292,10 @@ def main() -> None:
     model, normalisation = load_segmentation_model(args.checkpoint, device)
     logger.info("Loaded %s (model=%s, normalisation=%s, threshold=%.3f)",
                 args.checkpoint, type(model).__name__, normalisation, args.threshold)
+
+    if args.surface_nsd:
+        _run_surface_nsd(args, model, normalisation, device, logger)
+        return
 
     dataset = PatchDirectoryDataset(Path(args.patch_dir) / "test", normalisation=normalisation)
     loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False,

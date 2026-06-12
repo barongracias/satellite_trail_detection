@@ -1,4 +1,5 @@
 {
+  "schema_version": 2,
   "checkpoint": "results/checkpoints/unet_paper_arch_noise_topk_t44_s1234_best.pth",
   "threshold": 0.45,
   "hough_input_threshold": 0.1,
@@ -19,6 +20,15 @@
   "total_gt_pixels": 2279581,
   "total_pixels_covered_pre": 2121103,
   "total_pixels_covered_post": 2255854,
+  "total_pred_pixels_pre": 2694074,
+  "total_pred_pixels_post": 5553434,
+  "total_fp_pixels_pre": 572971,
+  "total_fp_pixels_post": 3297580,
+  "hough_fp_added_pixels": 2724609,
+  "pixel_precision_pre": 0.787322,
+  "pixel_precision_post": 0.406209,
+  "precision_scope_note": "pixel_precision_* and FP totals are micro-aggregated over ALL test images (negative images contribute FP with no TP); the recall/coverage aggregates above keep their original positive-image-only scope for backwards compatibility. Post-Hough strict precision is depressed partly by the 3 px line-drawing convention rasterised onto 1-3 px masks; report alongside tolerant metrics.",
+  "opencv_rng_note": "cv2.HoughLinesP is the probabilistic Hough variant and the global seeding harness does not call cv2.setRNGSeed, so reruns are near- but not guaranteed bit-identical. The locked runner is left unchanged; this field records the caveat.",
   "paper_fnr_pre_hough": 0.0698,
   "paper_fnr_post_hough": 0.0338,
   "fnr_metric_note": "fnr_*_hough is IMAGE-level detection FNR (fraction of positive test images with no detected-pixel/GT overlap); it saturates at 0 once every positive image is hit by >=1 pixel, so Hough cannot change it and it is NOT comparable to the paper. fnr_*_patch is the analogous patch-level rate. pixel_fnr_* = 1 - pixel_recall is full-field trail-pixel completeness. The paper's reported FNR (paper_fnr_*) is pixel completeness and is comparable ONLY to pixel_fnr_*.",
@@ -33,7 +43,14 @@
       "n_fn_post_patch": 0,
       "gt_pixels": 48685,
       "pixels_covered_pre": 46321,
-      "pixels_covered_post": 46457
+      "pixels_covered_post": 46457,
+      "pred_pixels_pre": 69312,
+      "pred_pixels_post": 136903,
+      "fp_pixels_pre": 22991,
+      "fp_pixels_post": 90446,
+      "hough_fp_added_pixels": 67455,
+      "pixel_precision_pre": 0.668297,
+      "pixel_precision_post": 0.339342
     },
     {
       "source_image": "data/Processed/ML1_20181231_194444_red.fits_full.png",
@@ -45,7 +62,14 @@
       "n_fn_post_patch": 0,
       "gt_pixels": 71071,
       "pixels_covered_pre": 70779,
-      "pixels_covered_post": 71069
+      "pixels_covered_post": 71069,
+      "pred_pixels_pre": 92382,
+      "pred_pixels_post": 148437,
+      "fp_pixels_pre": 21603,
+      "fp_pixels_post": 77368,
+      "hough_fp_added_pixels": 55765,
+      "pixel_precision_pre": 0.766156,
+      "pixel_precision_post": 0.478782
     },
     {
       "source_image": "data/Processed/ML1_20190108_192313_red.fits_full.png",
@@ -57,7 +81,14 @@
       "n_fn_post_patch": 0,
       "gt_pixels": 125940,
       "pixels_covered_pre": 124905,
-      "pixels_covered_post": 125938
+      "pixels_covered_post": 125938,
+      "pred_pixels_pre": 175583,
+      "pred_pixels_post": 304046,
+      "fp_pixels_pre": 50678,
+      "fp_pixels_post": 178108,
+      "hough_fp_added_pixels": 127430,
+      "pixel_precision_pre": 0.711373,
+      "pixel_precision_post": 0.414207
     },
     {
       "source_image": "data/Processed/ML1_20190121_194039_red.fits_full.png",
@@ -69,7 +100,14 @@
       "n_fn_post_patch": 0,
       "gt_pixels": 70255,
       "pixels_covered_pre": 69663,
-      "pixels_covered_post": 70255
+      "pixels_covered_post": 70255,
+      "pred_pixels_pre": 97326,
+      "pred_pixels_post": 205716,
+      "fp_pixels_pre": 27663,
+      "fp_pixels_post": 135461,
+      "hough_fp_added_pixels": 107798,
+      "pixel_precision_pre": 0.71577,
+      "pixel_precision_post": 0.341515
     },
     {
       "source_image": "data/Processed/ML1_20190806_172711_red.fits_full.png",
@@ -81,7 +119,14 @@
       "n_fn_post_patch": 0,
       "gt_pixels": 51044,
       "pixels_covered_pre": 49364,
-      "pixels_covered_post": 51039
+      "pixels_covered_post": 51039,
+      "pred_pixels_pre": 60712,
+      "pred_pixels_post": 150915,
+      "fp_pixels_pre": 11348,
+      "fp_pixels_post": 99876,
+      "hough_fp_added_pixels": 88528,
+      "pixel_precision_pre": 0.813085,
+      "pixel_precision_post": 0.338197
     },
     {
       "source_image": "data/Processed/ML1_20190930_185256_red.fits_full.png",
@@ -93,7 +138,14 @@
       "n_fn_post_patch": 0,
       "gt_pixels": 77937,
       "pixels_covered_pre": 72854,
-      "pixels_covered_post": 77937
+      "pixels_covered_post": 77937,
+      "pred_pixels_pre": 84566,
+      "pred_pixels_post": 214162,
+      "fp_pixels_pre": 11712,
+      "fp_pixels_post": 136225,
+      "hough_fp_added_pixels": 124513,
+      "pixel_precision_pre": 0.861505,
+      "pixel_precision_post": 0.363916
     },
     {
       "source_image": "data/Processed/ML1_20191103_190023_red.fits_full.png",
@@ -105,7 +157,14 @@
       "n_fn_post_patch": 0,
       "gt_pixels": 62991,
       "pixels_covered_pre": 60851,
-      "pixels_covered_post": 62991
+      "pixels_covered_post": 62991,
+      "pred_pixels_pre": 67136,
+      "pred_pixels_post": 132233,
+      "fp_pixels_pre": 6285,
+      "fp_pixels_post": 69242,
+      "hough_fp_added_pixels": 62957,
+      "pixel_precision_pre": 0.906384,
+      "pixel_precision_post": 0.476364
     },
     {
       "source_image": "data/Processed/ML1_20200306_185210_red.fits_full.png",
@@ -117,7 +176,14 @@
       "n_fn_post_patch": 0,
       "gt_pixels": 56771,
       "pixels_covered_pre": 50525,
-      "pixels_covered_post": 56771
+      "pixels_covered_post": 56771,
+      "pred_pixels_pre": 59277,
+      "pred_pixels_post": 157267,
+      "fp_pixels_pre": 8752,
+      "fp_pixels_post": 100496,
+      "hough_fp_added_pixels": 91744,
+      "pixel_precision_pre": 0.852354,
+      "pixel_precision_post": 0.360985
     },
     {
       "source_image": "data/Processed/ML1_20200328_002539_red.fits_full.png",
@@ -129,7 +195,14 @@
       "n_fn_post_patch": 0,
       "gt_pixels": 0,
       "pixels_covered_pre": 0,
-      "pixels_covered_post": 0
+      "pixels_covered_post": 0,
+      "pred_pixels_pre": 5485,
+      "pred_pixels_post": 10067,
+      "fp_pixels_pre": 5485,
+      "fp_pixels_post": 10067,
+      "hough_fp_added_pixels": 4582,
+      "pixel_precision_pre": 0.0,
+      "pixel_precision_post": 0.0
     },
     {
       "source_image": "data/Processed/ML1_20200617_174808_red.fits_full.png",
@@ -141,7 +214,14 @@
       "n_fn_post_patch": 0,
       "gt_pixels": 96204,
       "pixels_covered_pre": 95512,
-      "pixels_covered_post": 96154
+      "pixels_covered_post": 96154,
+      "pred_pixels_pre": 115597,
+      "pred_pixels_post": 220495,
+      "fp_pixels_pre": 20085,
+      "fp_pixels_post": 124341,
+      "hough_fp_added_pixels": 104256,
+      "pixel_precision_pre": 0.82625,
+      "pixel_precision_post": 0.436082
     },
     {
       "source_image": "data/Processed/ML1_20210217_185657_red.fits_full.png",
@@ -153,7 +233,14 @@
       "n_fn_post_patch": 0,
       "gt_pixels": 170150,
       "pixels_covered_pre": 168276,
-      "pixels_covered_post": 170046
+      "pixels_covered_post": 170046,
+      "pred_pixels_pre": 185930,
+      "pred_pixels_post": 297368,
+      "fp_pixels_pre": 17654,
+      "fp_pixels_post": 127322,
+      "hough_fp_added_pixels": 109668,
+      "pixel_precision_pre": 0.90505,
+      "pixel_precision_post": 0.571837
     },
     {
       "source_image": "data/Processed/ML1_20210223_005326_red.fits_full.png",
@@ -165,7 +252,14 @@
       "n_fn_post_patch": 0,
       "gt_pixels": 113324,
       "pixels_covered_pre": 100402,
-      "pixels_covered_post": 110504
+      "pixels_covered_post": 110504,
+      "pred_pixels_pre": 125149,
+      "pred_pixels_post": 265503,
+      "fp_pixels_pre": 24747,
+      "fp_pixels_post": 154999,
+      "hough_fp_added_pixels": 130252,
+      "pixel_precision_pre": 0.80226,
+      "pixel_precision_post": 0.416206
     },
     {
       "source_image": "data/Processed/ML1_20210423_180056_red.fits_full.png",
@@ -177,7 +271,14 @@
       "n_fn_post_patch": 0,
       "gt_pixels": 46183,
       "pixels_covered_pre": 42852,
-      "pixels_covered_post": 44621
+      "pixels_covered_post": 44621,
+      "pred_pixels_pre": 64769,
+      "pred_pixels_post": 166600,
+      "fp_pixels_pre": 21917,
+      "fp_pixels_post": 121979,
+      "hough_fp_added_pixels": 100062,
+      "pixel_precision_pre": 0.661613,
+      "pixel_precision_post": 0.267833
     },
     {
       "source_image": "data/Processed/ML1_20210430_173349_red.fits_full.png",
@@ -189,7 +290,14 @@
       "n_fn_post_patch": 0,
       "gt_pixels": 97657,
       "pixels_covered_pre": 91182,
-      "pixels_covered_post": 97652
+      "pixels_covered_post": 97652,
+      "pred_pixels_pre": 94283,
+      "pred_pixels_post": 179317,
+      "fp_pixels_pre": 3101,
+      "fp_pixels_post": 81665,
+      "hough_fp_added_pixels": 78564,
+      "pixel_precision_pre": 0.96711,
+      "pixel_precision_post": 0.544577
     },
     {
       "source_image": "data/Processed/ML1_20210619_171004_red.fits_full.png",
@@ -201,7 +309,14 @@
       "n_fn_post_patch": 0,
       "gt_pixels": 164773,
       "pixels_covered_pre": 130621,
-      "pixels_covered_post": 164679
+      "pixels_covered_post": 164679,
+      "pred_pixels_pre": 132167,
+      "pred_pixels_post": 269230,
+      "fp_pixels_pre": 1546,
+      "fp_pixels_post": 104551,
+      "hough_fp_added_pixels": 103005,
+      "pixel_precision_pre": 0.988303,
+      "pixel_precision_post": 0.611667
     },
     {
       "source_image": "data/Processed/ML1_20220227_215330_red.fits_full.png",
@@ -213,7 +328,14 @@
       "n_fn_post_patch": 0,
       "gt_pixels": 17386,
       "pixels_covered_pre": 17090,
-      "pixels_covered_post": 17173
+      "pixels_covered_post": 17173,
+      "pred_pixels_pre": 24372,
+      "pred_pixels_post": 49334,
+      "fp_pixels_pre": 7282,
+      "fp_pixels_post": 32161,
+      "hough_fp_added_pixels": 24879,
+      "pixel_precision_pre": 0.701215,
+      "pixel_precision_post": 0.348097
     },
     {
       "source_image": "data/Processed/ML1_20220302_010746_red.fits_full.png",
@@ -225,7 +347,14 @@
       "n_fn_post_patch": 14,
       "gt_pixels": 55474,
       "pixels_covered_pre": 49875,
-      "pixels_covered_post": 55443
+      "pixels_covered_post": 55443,
+      "pred_pixels_pre": 70574,
+      "pred_pixels_post": 175131,
+      "fp_pixels_pre": 20699,
+      "fp_pixels_post": 119688,
+      "hough_fp_added_pixels": 98989,
+      "pixel_precision_pre": 0.706705,
+      "pixel_precision_post": 0.31658
     },
     {
       "source_image": "data/Processed/ML1_20220427_174909_red.fits_full.png",
@@ -237,7 +366,14 @@
       "n_fn_post_patch": 75,
       "gt_pixels": 37613,
       "pixels_covered_pre": 36355,
-      "pixels_covered_post": 37445
+      "pixels_covered_post": 37445,
+      "pred_pixels_pre": 54812,
+      "pred_pixels_post": 144468,
+      "fp_pixels_pre": 18457,
+      "fp_pixels_post": 107023,
+      "hough_fp_added_pixels": 88566,
+      "pixel_precision_pre": 0.663267,
+      "pixel_precision_post": 0.259192
     },
     {
       "source_image": "data/Processed/ML1_20220524_040528_red.fits_full.png",
@@ -249,7 +385,14 @@
       "n_fn_post_patch": 0,
       "gt_pixels": 208371,
       "pixels_covered_pre": 191005,
-      "pixels_covered_post": 199454
+      "pixels_covered_post": 199454,
+      "pred_pixels_pre": 202972,
+      "pred_pixels_post": 345477,
+      "fp_pixels_pre": 11967,
+      "fp_pixels_post": 146023,
+      "hough_fp_added_pixels": 134056,
+      "pixel_precision_pre": 0.941041,
+      "pixel_precision_post": 0.577329
     },
     {
       "source_image": "data/Processed/ML1_20220525_200632_red.fits_full.png",
@@ -261,7 +404,14 @@
       "n_fn_post_patch": 0,
       "gt_pixels": 6949,
       "pixels_covered_pre": 6653,
-      "pixels_covered_post": 6711
+      "pixels_covered_post": 6711,
+      "pred_pixels_pre": 10202,
+      "pred_pixels_post": 18245,
+      "fp_pixels_pre": 3549,
+      "fp_pixels_post": 11534,
+      "hough_fp_added_pixels": 7985,
+      "pixel_precision_pre": 0.652127,
+      "pixel_precision_post": 0.367827
     },
     {
       "source_image": "data/Processed/ML1_20220530_174559_red.fits_full.png",
@@ -273,7 +423,14 @@
       "n_fn_post_patch": 0,
       "gt_pixels": 9247,
       "pixels_covered_pre": 4289,
-      "pixels_covered_post": 8577
+      "pixels_covered_post": 8577,
+      "pred_pixels_pre": 41374,
+      "pred_pixels_post": 88155,
+      "fp_pixels_pre": 37085,
+      "fp_pixels_post": 79578,
+      "hough_fp_added_pixels": 42493,
+      "pixel_precision_pre": 0.103664,
+      "pixel_precision_post": 0.097295
     },
     {
       "source_image": "data/Processed/ML1_20220531_190959_red.fits_full.png",
@@ -285,7 +442,14 @@
       "n_fn_post_patch": 2,
       "gt_pixels": 25416,
       "pixels_covered_pre": 20083,
-      "pixels_covered_post": 20631
+      "pixels_covered_post": 20631,
+      "pred_pixels_pre": 22528,
+      "pred_pixels_post": 32470,
+      "fp_pixels_pre": 2445,
+      "fp_pixels_post": 11839,
+      "hough_fp_added_pixels": 9394,
+      "pixel_precision_pre": 0.891468,
+      "pixel_precision_post": 0.635387
     },
     {
       "source_image": "data/Processed/ML1_20220531_191816_red.fits_full.png",
@@ -297,7 +461,14 @@
       "n_fn_post_patch": 0,
       "gt_pixels": 14085,
       "pixels_covered_pre": 13368,
-      "pixels_covered_post": 13478
+      "pixels_covered_post": 13478,
+      "pred_pixels_pre": 27507,
+      "pred_pixels_post": 56499,
+      "fp_pixels_pre": 14139,
+      "fp_pixels_post": 43021,
+      "hough_fp_added_pixels": 28882,
+      "pixel_precision_pre": 0.485985,
+      "pixel_precision_post": 0.238553
     },
     {
       "source_image": "data/Processed/ML1_20220601_195233_red.fits_full.png",
@@ -309,7 +480,14 @@
       "n_fn_post_patch": 0,
       "gt_pixels": 9454,
       "pixels_covered_pre": 9049,
-      "pixels_covered_post": 9396
+      "pixels_covered_post": 9396,
+      "pred_pixels_pre": 14991,
+      "pred_pixels_post": 30323,
+      "fp_pixels_pre": 5942,
+      "fp_pixels_post": 20927,
+      "hough_fp_added_pixels": 14985,
+      "pixel_precision_pre": 0.603629,
+      "pixel_precision_post": 0.309864
     },
     {
       "source_image": "data/Processed/ML1_20220605_222411_red.fits_full.png",
@@ -321,7 +499,14 @@
       "n_fn_post_patch": 0,
       "gt_pixels": 7283,
       "pixels_covered_pre": 7236,
-      "pixels_covered_post": 7283
+      "pixels_covered_post": 7283,
+      "pred_pixels_pre": 38780,
+      "pred_pixels_post": 78377,
+      "fp_pixels_pre": 31544,
+      "fp_pixels_post": 71094,
+      "hough_fp_added_pixels": 39550,
+      "pixel_precision_pre": 0.186591,
+      "pixel_precision_post": 0.092923
     },
     {
       "source_image": "data/Processed/ML1_20220629_171546_red.fits_full.png",
@@ -333,7 +518,14 @@
       "n_fn_post_patch": 0,
       "gt_pixels": 139273,
       "pixels_covered_pre": 120657,
-      "pixels_covered_post": 138829
+      "pixels_covered_post": 138829,
+      "pred_pixels_pre": 189213,
+      "pred_pixels_post": 521652,
+      "fp_pixels_pre": 68556,
+      "fp_pixels_post": 382823,
+      "hough_fp_added_pixels": 314267,
+      "pixel_precision_pre": 0.637678,
+      "pixel_precision_post": 0.266133
     },
     {
       "source_image": "data/Processed/ML1_20220727_175145_red.fits_full.png",
@@ -345,7 +537,14 @@
       "n_fn_post_patch": 0,
       "gt_pixels": 6694,
       "pixels_covered_pre": 6314,
-      "pixels_covered_post": 6430
+      "pixels_covered_post": 6430,
+      "pred_pixels_pre": 16715,
+      "pred_pixels_post": 41326,
+      "fp_pixels_pre": 10401,
+      "fp_pixels_post": 34896,
+      "hough_fp_added_pixels": 24495,
+      "pixel_precision_pre": 0.377745,
+      "pixel_precision_post": 0.155592
     },
     {
       "source_image": "data/Processed/ML1_20220727_180334_red.fits_full.png",
@@ -357,7 +556,14 @@
       "n_fn_post_patch": 0,
       "gt_pixels": 50091,
       "pixels_covered_pre": 42208,
-      "pixels_covered_post": 49888
+      "pixels_covered_post": 49888,
+      "pred_pixels_pre": 57421,
+      "pred_pixels_post": 143224,
+      "fp_pixels_pre": 15213,
+      "fp_pixels_post": 93336,
+      "hough_fp_added_pixels": 78123,
+      "pixel_precision_pre": 0.735062,
+      "pixel_precision_post": 0.348322
     },
     {
       "source_image": "data/Processed/ML1_20220727_185824_red.fits_full.png",
@@ -369,7 +575,14 @@
       "n_fn_post_patch": 0,
       "gt_pixels": 13959,
       "pixels_covered_pre": 13421,
-      "pixels_covered_post": 13789
+      "pixels_covered_post": 13789,
+      "pred_pixels_pre": 18585,
+      "pred_pixels_post": 40964,
+      "fp_pixels_pre": 5164,
+      "fp_pixels_post": 27175,
+      "hough_fp_added_pixels": 22011,
+      "pixel_precision_pre": 0.722142,
+      "pixel_precision_post": 0.336613
     },
     {
       "source_image": "data/Processed/ML1_20220906_032942_red.fits_full.png",
@@ -381,7 +594,14 @@
       "n_fn_post_patch": 0,
       "gt_pixels": 134264,
       "pixels_covered_pre": 128928,
-      "pixels_covered_post": 134258
+      "pixels_covered_post": 134258,
+      "pred_pixels_pre": 146042,
+      "pred_pixels_post": 306734,
+      "fp_pixels_pre": 17114,
+      "fp_pixels_post": 172476,
+      "hough_fp_added_pixels": 155362,
+      "pixel_precision_pre": 0.882815,
+      "pixel_precision_post": 0.437702
     },
     {
       "source_image": "data/Processed/ML1_20221122_193739_red.fits_full.png",
@@ -393,7 +613,14 @@
       "n_fn_post_patch": 0,
       "gt_pixels": 72980,
       "pixels_covered_pre": 72694,
-      "pixels_covered_post": 72905
+      "pixels_covered_post": 72905,
+      "pred_pixels_pre": 102210,
+      "pred_pixels_post": 234124,
+      "fp_pixels_pre": 29516,
+      "fp_pixels_post": 161219,
+      "hough_fp_added_pixels": 131703,
+      "pixel_precision_pre": 0.711222,
+      "pixel_precision_post": 0.311395
     },
     {
       "source_image": "data/Processed/ML1_20221127_194620_red.fits_full.png",
@@ -405,7 +632,14 @@
       "n_fn_post_patch": 0,
       "gt_pixels": 218057,
       "pixels_covered_pre": 207771,
-      "pixels_covered_post": 218051
+      "pixels_covered_post": 218051,
+      "pred_pixels_pre": 226102,
+      "pred_pixels_post": 388672,
+      "fp_pixels_pre": 18331,
+      "fp_pixels_post": 170621,
+      "hough_fp_added_pixels": 152290,
+      "pixel_precision_pre": 0.918926,
+      "pixel_precision_post": 0.561015
     }
   ]
 }

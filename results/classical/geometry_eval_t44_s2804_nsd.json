@@ -1,0 +1,606 @@
+{
+  "checkpoint": "results/checkpoints/unet_paper_arch_noise_topk_t44_s2804_best.pth",
+  "threshold": 0.45,
+  "threshold_source": "results/classical/threshold_sweep_winner_t44_s2804.json",
+  "split": "test",
+  "normalisation": "full_image",
+  "patch_dir": "data/patches",
+  "pixel_spacing": 1.0,
+  "taus_px": [
+    1.0,
+    2.0
+  ],
+  "aggregation": "canvas-level (per source image), micro over boundary counts",
+  "micro_all_images": {
+    "nsd_tau_1": 0.888299,
+    "nsd_tau_2": 0.952841
+  },
+  "micro_gt_positive_images": {
+    "nsd_tau_1": 0.888312,
+    "nsd_tau_2": 0.952855
+  },
+  "n_images_scored_both_nonempty": 31,
+  "n_images_excluded_empty_both": 0,
+  "n_images_empty_gt_nonempty_pred": 1,
+  "n_images_empty_pred_nonempty_gt": 0,
+  "metric_note": "NSD computed on per-source-image canvases (patch borders would create artificial boundary pixels). Pixel spacing is unity. With unit spacing and integer-pixel boundaries, NSD and surface Dice at tolerance tau (Nikolov et al. 2021) are the same quantity; both vocabularies map to these numbers. Empty-GT+empty-pred images are excluded; empty-GT+non-empty-pred images score 0 and are included in micro_all_images but not micro_gt_positive_images (counts above). On 1-3 px trails the mask boundary is essentially the mask, so NSD@1 is expected to track the existing +/-1 px boundary-tolerant F1 \u2014 equivalence, not independent confirmation.",
+  "per_image": [
+    {
+      "source_image": "data/Processed/ML1_20171023_002210_red.fits_full.png",
+      "category": "scored",
+      "nsd_tau_1": 0.820919,
+      "counts_tau_1": {
+        "pred_boundary_total": 25468,
+        "gt_boundary_total": 22650,
+        "pred_boundary_within_tau": 19736,
+        "gt_boundary_within_tau": 19765
+      },
+      "nsd_tau_2": 0.876969,
+      "counts_tau_2": {
+        "pred_boundary_total": 25468,
+        "gt_boundary_total": 22650,
+        "pred_boundary_within_tau": 21080,
+        "gt_boundary_within_tau": 21118
+      }
+    },
+    {
+      "source_image": "data/Processed/ML1_20181231_194444_red.fits_full.png",
+      "category": "scored",
+      "nsd_tau_1": 0.875572,
+      "counts_tau_1": {
+        "pred_boundary_total": 12773,
+        "gt_boundary_total": 12816,
+        "pred_boundary_within_tau": 11198,
+        "gt_boundary_within_tau": 11207
+      },
+      "nsd_tau_2": 0.988276,
+      "counts_tau_2": {
+        "pred_boundary_total": 12773,
+        "gt_boundary_total": 12816,
+        "pred_boundary_within_tau": 12625,
+        "gt_boundary_within_tau": 12664
+      }
+    },
+    {
+      "source_image": "data/Processed/ML1_20190108_192313_red.fits_full.png",
+      "category": "scored",
+      "nsd_tau_1": 0.671095,
+      "counts_tau_1": {
+        "pred_boundary_total": 42165,
+        "gt_boundary_total": 40187,
+        "pred_boundary_within_tau": 27489,
+        "gt_boundary_within_tau": 27777
+      },
+      "nsd_tau_2": 0.856312,
+      "counts_tau_2": {
+        "pred_boundary_total": 42165,
+        "gt_boundary_total": 40187,
+        "pred_boundary_within_tau": 35182,
+        "gt_boundary_within_tau": 35337
+      }
+    },
+    {
+      "source_image": "data/Processed/ML1_20190121_194039_red.fits_full.png",
+      "category": "scored",
+      "nsd_tau_1": 0.957564,
+      "counts_tau_1": {
+        "pred_boundary_total": 34013,
+        "gt_boundary_total": 32840,
+        "pred_boundary_within_tau": 31980,
+        "gt_boundary_within_tau": 32036
+      },
+      "nsd_tau_2": 0.979283,
+      "counts_tau_2": {
+        "pred_boundary_total": 34013,
+        "gt_boundary_total": 32840,
+        "pred_boundary_within_tau": 32723,
+        "gt_boundary_within_tau": 32745
+      }
+    },
+    {
+      "source_image": "data/Processed/ML1_20190806_172711_red.fits_full.png",
+      "category": "scored",
+      "nsd_tau_1": 0.949508,
+      "counts_tau_1": {
+        "pred_boundary_total": 22214,
+        "gt_boundary_total": 21100,
+        "pred_boundary_within_tau": 20593,
+        "gt_boundary_within_tau": 20534
+      },
+      "nsd_tau_2": 0.965161,
+      "counts_tau_2": {
+        "pred_boundary_total": 22214,
+        "gt_boundary_total": 21100,
+        "pred_boundary_within_tau": 20969,
+        "gt_boundary_within_tau": 20836
+      }
+    },
+    {
+      "source_image": "data/Processed/ML1_20190930_185256_red.fits_full.png",
+      "category": "scored",
+      "nsd_tau_1": 0.932404,
+      "counts_tau_1": {
+        "pred_boundary_total": 36466,
+        "gt_boundary_total": 36393,
+        "pred_boundary_within_tau": 33947,
+        "gt_boundary_within_tau": 33987
+      },
+      "nsd_tau_2": 0.980359,
+      "counts_tau_2": {
+        "pred_boundary_total": 36466,
+        "gt_boundary_total": 36393,
+        "pred_boundary_within_tau": 35649,
+        "gt_boundary_within_tau": 35779
+      }
+    },
+    {
+      "source_image": "data/Processed/ML1_20191103_190023_red.fits_full.png",
+      "category": "scored",
+      "nsd_tau_1": 0.987255,
+      "counts_tau_1": {
+        "pred_boundary_total": 22725,
+        "gt_boundary_total": 22547,
+        "pred_boundary_within_tau": 22384,
+        "gt_boundary_within_tau": 22311
+      },
+      "nsd_tau_2": 0.99545,
+      "counts_tau_2": {
+        "pred_boundary_total": 22725,
+        "gt_boundary_total": 22547,
+        "pred_boundary_within_tau": 22562,
+        "gt_boundary_within_tau": 22504
+      }
+    },
+    {
+      "source_image": "data/Processed/ML1_20200306_185210_red.fits_full.png",
+      "category": "scored",
+      "nsd_tau_1": 0.965272,
+      "counts_tau_1": {
+        "pred_boundary_total": 34942,
+        "gt_boundary_total": 34944,
+        "pred_boundary_within_tau": 33709,
+        "gt_boundary_within_tau": 33750
+      },
+      "nsd_tau_2": 0.99844,
+      "counts_tau_2": {
+        "pred_boundary_total": 34942,
+        "gt_boundary_total": 34944,
+        "pred_boundary_within_tau": 34864,
+        "gt_boundary_within_tau": 34913
+      }
+    },
+    {
+      "source_image": "data/Processed/ML1_20200328_002539_red.fits_full.png",
+      "category": "empty_gt_nonempty_pred",
+      "nsd_tau_1": 0.0,
+      "counts_tau_1": {
+        "pred_boundary_total": 25,
+        "gt_boundary_total": 0,
+        "pred_boundary_within_tau": 0,
+        "gt_boundary_within_tau": 0
+      },
+      "nsd_tau_2": 0.0,
+      "counts_tau_2": {
+        "pred_boundary_total": 25,
+        "gt_boundary_total": 0,
+        "pred_boundary_within_tau": 0,
+        "gt_boundary_within_tau": 0
+      }
+    },
+    {
+      "source_image": "data/Processed/ML1_20200617_174808_red.fits_full.png",
+      "category": "scored",
+      "nsd_tau_1": 0.962959,
+      "counts_tau_1": {
+        "pred_boundary_total": 36037,
+        "gt_boundary_total": 36099,
+        "pred_boundary_within_tau": 34706,
+        "gt_boundary_within_tau": 34758
+      },
+      "nsd_tau_2": 0.98166,
+      "counts_tau_2": {
+        "pred_boundary_total": 36037,
+        "gt_boundary_total": 36099,
+        "pred_boundary_within_tau": 35372,
+        "gt_boundary_within_tau": 35441
+      }
+    },
+    {
+      "source_image": "data/Processed/ML1_20210217_185657_red.fits_full.png",
+      "category": "scored",
+      "nsd_tau_1": 0.929282,
+      "counts_tau_1": {
+        "pred_boundary_total": 34485,
+        "gt_boundary_total": 33814,
+        "pred_boundary_within_tau": 31840,
+        "gt_boundary_within_tau": 31629
+      },
+      "nsd_tau_2": 0.975505,
+      "counts_tau_2": {
+        "pred_boundary_total": 34485,
+        "gt_boundary_total": 33814,
+        "pred_boundary_within_tau": 33439,
+        "gt_boundary_within_tau": 33187
+      }
+    },
+    {
+      "source_image": "data/Processed/ML1_20210223_005326_red.fits_full.png",
+      "category": "scored",
+      "nsd_tau_1": 0.808768,
+      "counts_tau_1": {
+        "pred_boundary_total": 41219,
+        "gt_boundary_total": 42151,
+        "pred_boundary_within_tau": 32773,
+        "gt_boundary_within_tau": 34654
+      },
+      "nsd_tau_2": 0.915161,
+      "counts_tau_2": {
+        "pred_boundary_total": 41219,
+        "gt_boundary_total": 42151,
+        "pred_boundary_within_tau": 37035,
+        "gt_boundary_within_tau": 39262
+      }
+    },
+    {
+      "source_image": "data/Processed/ML1_20210423_180056_red.fits_full.png",
+      "category": "scored",
+      "nsd_tau_1": 0.927876,
+      "counts_tau_1": {
+        "pred_boundary_total": 31516,
+        "gt_boundary_total": 32485,
+        "pred_boundary_within_tau": 29170,
+        "gt_boundary_within_tau": 30215
+      },
+      "nsd_tau_2": 0.968282,
+      "counts_tau_2": {
+        "pred_boundary_total": 31516,
+        "gt_boundary_total": 32485,
+        "pred_boundary_within_tau": 31150,
+        "gt_boundary_within_tau": 30821
+      }
+    },
+    {
+      "source_image": "data/Processed/ML1_20210430_173349_red.fits_full.png",
+      "category": "scored",
+      "nsd_tau_1": 0.983327,
+      "counts_tau_1": {
+        "pred_boundary_total": 29942,
+        "gt_boundary_total": 29437,
+        "pred_boundary_within_tau": 29199,
+        "gt_boundary_within_tau": 29190
+      },
+      "nsd_tau_2": 0.987672,
+      "counts_tau_2": {
+        "pred_boundary_total": 29942,
+        "gt_boundary_total": 29437,
+        "pred_boundary_within_tau": 29327,
+        "gt_boundary_within_tau": 29320
+      }
+    },
+    {
+      "source_image": "data/Processed/ML1_20210619_171004_red.fits_full.png",
+      "category": "scored",
+      "nsd_tau_1": 0.703106,
+      "counts_tau_1": {
+        "pred_boundary_total": 48576,
+        "gt_boundary_total": 48563,
+        "pred_boundary_within_tau": 34123,
+        "gt_boundary_within_tau": 34176
+      },
+      "nsd_tau_2": 0.982623,
+      "counts_tau_2": {
+        "pred_boundary_total": 48576,
+        "gt_boundary_total": 48563,
+        "pred_boundary_within_tau": 47718,
+        "gt_boundary_within_tau": 47733
+      }
+    },
+    {
+      "source_image": "data/Processed/ML1_20220227_215330_red.fits_full.png",
+      "category": "scored",
+      "nsd_tau_1": 0.867468,
+      "counts_tau_1": {
+        "pred_boundary_total": 8324,
+        "gt_boundary_total": 8389,
+        "pred_boundary_within_tau": 7227,
+        "gt_boundary_within_tau": 7271
+      },
+      "nsd_tau_2": 0.986358,
+      "counts_tau_2": {
+        "pred_boundary_total": 8324,
+        "gt_boundary_total": 8389,
+        "pred_boundary_within_tau": 8208,
+        "gt_boundary_within_tau": 8277
+      }
+    },
+    {
+      "source_image": "data/Processed/ML1_20220302_010746_red.fits_full.png",
+      "category": "scored",
+      "nsd_tau_1": 0.932267,
+      "counts_tau_1": {
+        "pred_boundary_total": 27688,
+        "gt_boundary_total": 26023,
+        "pred_boundary_within_tau": 24830,
+        "gt_boundary_within_tau": 25243
+      },
+      "nsd_tau_2": 0.956024,
+      "counts_tau_2": {
+        "pred_boundary_total": 27688,
+        "gt_boundary_total": 26023,
+        "pred_boundary_within_tau": 25423,
+        "gt_boundary_within_tau": 25926
+      }
+    },
+    {
+      "source_image": "data/Processed/ML1_20220427_174909_red.fits_full.png",
+      "category": "scored",
+      "nsd_tau_1": 0.922322,
+      "counts_tau_1": {
+        "pred_boundary_total": 26289,
+        "gt_boundary_total": 26609,
+        "pred_boundary_within_tau": 24056,
+        "gt_boundary_within_tau": 24733
+      },
+      "nsd_tau_2": 0.985274,
+      "counts_tau_2": {
+        "pred_boundary_total": 26289,
+        "gt_boundary_total": 26609,
+        "pred_boundary_within_tau": 25869,
+        "gt_boundary_within_tau": 26250
+      }
+    },
+    {
+      "source_image": "data/Processed/ML1_20220524_040528_red.fits_full.png",
+      "category": "scored",
+      "nsd_tau_1": 0.957256,
+      "counts_tau_1": {
+        "pred_boundary_total": 56736,
+        "gt_boundary_total": 58743,
+        "pred_boundary_within_tau": 55252,
+        "gt_boundary_within_tau": 55291
+      },
+      "nsd_tau_2": 0.97907,
+      "counts_tau_2": {
+        "pred_boundary_total": 56736,
+        "gt_boundary_total": 58743,
+        "pred_boundary_within_tau": 56508,
+        "gt_boundary_within_tau": 56554
+      }
+    },
+    {
+      "source_image": "data/Processed/ML1_20220525_200632_red.fits_full.png",
+      "category": "scored",
+      "nsd_tau_1": 0.946261,
+      "counts_tau_1": {
+        "pred_boundary_total": 2369,
+        "gt_boundary_total": 2432,
+        "pred_boundary_within_tau": 2275,
+        "gt_boundary_within_tau": 2268
+      },
+      "nsd_tau_2": 0.982295,
+      "counts_tau_2": {
+        "pred_boundary_total": 2369,
+        "gt_boundary_total": 2432,
+        "pred_boundary_within_tau": 2364,
+        "gt_boundary_within_tau": 2352
+      }
+    },
+    {
+      "source_image": "data/Processed/ML1_20220530_174559_red.fits_full.png",
+      "category": "scored",
+      "nsd_tau_1": 0.526131,
+      "counts_tau_1": {
+        "pred_boundary_total": 4432,
+        "gt_boundary_total": 3241,
+        "pred_boundary_within_tau": 2049,
+        "gt_boundary_within_tau": 1988
+      },
+      "nsd_tau_2": 0.620618,
+      "counts_tau_2": {
+        "pred_boundary_total": 4432,
+        "gt_boundary_total": 3241,
+        "pred_boundary_within_tau": 2442,
+        "gt_boundary_within_tau": 2320
+      }
+    },
+    {
+      "source_image": "data/Processed/ML1_20220531_190959_red.fits_full.png",
+      "category": "scored",
+      "nsd_tau_1": 0.785872,
+      "counts_tau_1": {
+        "pred_boundary_total": 3851,
+        "gt_boundary_total": 4770,
+        "pred_boundary_within_tau": 3393,
+        "gt_boundary_within_tau": 3382
+      },
+      "nsd_tau_2": 0.82183,
+      "counts_tau_2": {
+        "pred_boundary_total": 3851,
+        "gt_boundary_total": 4770,
+        "pred_boundary_within_tau": 3554,
+        "gt_boundary_within_tau": 3531
+      }
+    },
+    {
+      "source_image": "data/Processed/ML1_20220531_191816_red.fits_full.png",
+      "category": "scored",
+      "nsd_tau_1": 0.719128,
+      "counts_tau_1": {
+        "pred_boundary_total": 5157,
+        "gt_boundary_total": 3192,
+        "pred_boundary_within_tau": 3001,
+        "gt_boundary_within_tau": 3003
+      },
+      "nsd_tau_2": 0.734579,
+      "counts_tau_2": {
+        "pred_boundary_total": 5157,
+        "gt_boundary_total": 3192,
+        "pred_boundary_within_tau": 3067,
+        "gt_boundary_within_tau": 3066
+      }
+    },
+    {
+      "source_image": "data/Processed/ML1_20220601_195233_red.fits_full.png",
+      "category": "scored",
+      "nsd_tau_1": 0.849457,
+      "counts_tau_1": {
+        "pred_boundary_total": 4596,
+        "gt_boundary_total": 3787,
+        "pred_boundary_within_tau": 3544,
+        "gt_boundary_within_tau": 3577
+      },
+      "nsd_tau_2": 0.870571,
+      "counts_tau_2": {
+        "pred_boundary_total": 4596,
+        "gt_boundary_total": 3787,
+        "pred_boundary_within_tau": 3636,
+        "gt_boundary_within_tau": 3662
+      }
+    },
+    {
+      "source_image": "data/Processed/ML1_20220605_222411_red.fits_full.png",
+      "category": "scored",
+      "nsd_tau_1": 0.703678,
+      "counts_tau_1": {
+        "pred_boundary_total": 6403,
+        "gt_boundary_total": 3738,
+        "pred_boundary_within_tau": 3541,
+        "gt_boundary_within_tau": 3595
+      },
+      "nsd_tau_2": 0.725076,
+      "counts_tau_2": {
+        "pred_boundary_total": 6403,
+        "gt_boundary_total": 3738,
+        "pred_boundary_within_tau": 3650,
+        "gt_boundary_within_tau": 3703
+      }
+    },
+    {
+      "source_image": "data/Processed/ML1_20220629_171546_red.fits_full.png",
+      "category": "scored",
+      "nsd_tau_1": 0.855395,
+      "counts_tau_1": {
+        "pred_boundary_total": 78799,
+        "gt_boundary_total": 73699,
+        "pred_boundary_within_tau": 65287,
+        "gt_boundary_within_tau": 65159
+      },
+      "nsd_tau_2": 0.885907,
+      "counts_tau_2": {
+        "pred_boundary_total": 78799,
+        "gt_boundary_total": 73699,
+        "pred_boundary_within_tau": 67250,
+        "gt_boundary_within_tau": 67849
+      }
+    },
+    {
+      "source_image": "data/Processed/ML1_20220727_175145_red.fits_full.png",
+      "category": "scored",
+      "nsd_tau_1": 0.940201,
+      "counts_tau_1": {
+        "pred_boundary_total": 3488,
+        "gt_boundary_total": 3385,
+        "pred_boundary_within_tau": 3253,
+        "gt_boundary_within_tau": 3209
+      },
+      "nsd_tau_2": 0.954023,
+      "counts_tau_2": {
+        "pred_boundary_total": 3488,
+        "gt_boundary_total": 3385,
+        "pred_boundary_within_tau": 3300,
+        "gt_boundary_within_tau": 3257
+      }
+    },
+    {
+      "source_image": "data/Processed/ML1_20220727_180334_red.fits_full.png",
+      "category": "scored",
+      "nsd_tau_1": 0.698567,
+      "counts_tau_1": {
+        "pred_boundary_total": 22176,
+        "gt_boundary_total": 24574,
+        "pred_boundary_within_tau": 16357,
+        "gt_boundary_within_tau": 16301
+      },
+      "nsd_tau_2": 0.87538,
+      "counts_tau_2": {
+        "pred_boundary_total": 22176,
+        "gt_boundary_total": 24574,
+        "pred_boundary_within_tau": 20214,
+        "gt_boundary_within_tau": 20710
+      }
+    },
+    {
+      "source_image": "data/Processed/ML1_20220727_185824_red.fits_full.png",
+      "category": "scored",
+      "nsd_tau_1": 0.911449,
+      "counts_tau_1": {
+        "pred_boundary_total": 7207,
+        "gt_boundary_total": 7056,
+        "pred_boundary_within_tau": 6490,
+        "gt_boundary_within_tau": 6510
+      },
+      "nsd_tau_2": 0.961088,
+      "counts_tau_2": {
+        "pred_boundary_total": 7207,
+        "gt_boundary_total": 7056,
+        "pred_boundary_within_tau": 6841,
+        "gt_boundary_within_tau": 6867
+      }
+    },
+    {
+      "source_image": "data/Processed/ML1_20220906_032942_red.fits_full.png",
+      "category": "scored",
+      "nsd_tau_1": 0.983113,
+      "counts_tau_1": {
+        "pred_boundary_total": 61571,
+        "gt_boundary_total": 61422,
+        "pred_boundary_within_tau": 60450,
+        "gt_boundary_within_tau": 60466
+      },
+      "nsd_tau_2": 0.99439,
+      "counts_tau_2": {
+        "pred_boundary_total": 61571,
+        "gt_boundary_total": 61422,
+        "pred_boundary_within_tau": 61133,
+        "gt_boundary_within_tau": 61170
+      }
+    },
+    {
+      "source_image": "data/Processed/ML1_20221122_193739_red.fits_full.png",
+      "category": "scored",
+      "nsd_tau_1": 0.874655,
+      "counts_tau_1": {
+        "pred_boundary_total": 49254,
+        "gt_boundary_total": 49043,
+        "pred_boundary_within_tau": 42877,
+        "gt_boundary_within_tau": 43099
+      },
+      "nsd_tau_2": 0.995615,
+      "counts_tau_2": {
+        "pred_boundary_total": 49254,
+        "gt_boundary_total": 49043,
+        "pred_boundary_within_tau": 48917,
+        "gt_boundary_within_tau": 48949
+      }
+    },
+    {
+      "source_image": "data/Processed/ML1_20221127_194620_red.fits_full.png",
+      "category": "scored",
+      "nsd_tau_1": 0.967431,
+      "counts_tau_1": {
+        "pred_boundary_total": 48116,
+        "gt_boundary_total": 46423,
+        "pred_boundary_within_tau": 45870,
+        "gt_boundary_within_tau": 45590
+      },
+      "nsd_tau_2": 0.975386,
+      "counts_tau_2": {
+        "pred_boundary_total": 48116,
+        "gt_boundary_total": 46423,
+        "pred_boundary_within_tau": 46260,
+        "gt_boundary_within_tau": 45952
+      }
+    }
+  ],
+  "generated": "2026-06-12"
+}

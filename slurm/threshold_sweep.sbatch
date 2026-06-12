@@ -43,12 +43,14 @@ CHECKPOINT="${CHECKPOINT:-results/checkpoints/model-best.pth}"
 PATCH_DIR="${PATCH_DIR:-data/patches}"
 TAG="${TAG:-}"
 THRESHOLD="${THRESHOLD:-}"
+EVAL_THRESHOLD="${EVAL_THRESHOLD:-}"
 VAL_ONLY="${VAL_ONLY:-0}"
 
 echo "Checkpoint: $CHECKPOINT"
 echo "Patch dir:  $PATCH_DIR"
 echo "Tag:        ${TAG:-<auto-derived from checkpoint stem>}"
 echo "Threshold:  ${THRESHOLD:-<val PR sweep>}"
+echo "Eval thr.:  ${EVAL_THRESHOLD:-<none>}"
 echo "Val only:   $VAL_ONLY"
 
 TAG_ARG=()
@@ -58,6 +60,9 @@ fi
 THRESHOLD_ARG=()
 if [ -n "$THRESHOLD" ]; then
     THRESHOLD_ARG=(--threshold "$THRESHOLD")
+fi
+if [ -n "$EVAL_THRESHOLD" ]; then
+    THRESHOLD_ARG+=(--eval_threshold "$EVAL_THRESHOLD")
 fi
 VAL_ONLY_ARG=()
 if [ "$VAL_ONLY" = "1" ] || [ "$VAL_ONLY" = "true" ] || [ "$VAL_ONLY" = "TRUE" ]; then

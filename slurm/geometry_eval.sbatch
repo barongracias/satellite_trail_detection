@@ -46,6 +46,7 @@ THRESHOLD="${THRESHOLD:?must be set; the validation-optimal threshold for the ch
 PATCH_DIR="${PATCH_DIR:-data/patches}"
 TAG="${TAG:-}"
 THRESHOLD_SOURCE="${THRESHOLD_SOURCE:-}"
+SURFACE_NSD="${SURFACE_NSD:-0}"
 
 if [ ! -f "$CHECKPOINT" ]; then
     echo "ERROR: checkpoint not found: $CHECKPOINT" >&2
@@ -61,6 +62,9 @@ if [ -n "$TAG" ]; then
 fi
 if [ -n "$THRESHOLD_SOURCE" ]; then
     EXTRA_ARGS+=(--threshold-source "$THRESHOLD_SOURCE")
+fi
+if [ "$SURFACE_NSD" = "1" ] || [ "$SURFACE_NSD" = "true" ] || [ "$SURFACE_NSD" = "TRUE" ]; then
+    EXTRA_ARGS+=(--surface_nsd)
 fi
 
 python scripts/evaluation/geometry_eval.py \

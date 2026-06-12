@@ -136,3 +136,58 @@ def test_streaming_sweep_arithmetic_matches_known_counts() -> None:
     assert row_high["recall"] == 0.0   # tp/(tp+fn) = 0/8
     # When tp+fp=0, precision falls through _safe_divide to 0.0
     assert row_high["precision"] == 0.0
+
+
+def test_eval_threshold_diagnostic_out_path() -> None:
+    """--eval_threshold output must never collide with the locked
+    threshold_sweep_<tag>.json: 0.58 maps to the _t058 suffix."""
+    from scripts.evaluation.threshold_sweep import _diagnostic_out_path   # noqa: E402
+
+    p = _diagnostic_out_path("winner_t44_s2804", 0.58)
+    assert p.name == "threshold_sweep_winner_t44_s2804_t058.json"
+    assert _diagnostic_out_path("x", 0.45).name == "threshold_sweep_x_t045.json"
+    # Float-representation safety: 0.07*100 = 7.000000000000001 must still give 007.
+    assert _diagnostic_out_path("x", 0.07).name == "threshold_sweep_x_t007.json"
+
+
+def test_hough_fp_accounting_identities() -> None:
+    """schema_version 2 FP accounting: fp = predicted − TP per canvas, and the
+    combined canvas is a superset of the binary canvas so Hough-added FP ≥ 0."""
+    from src.classical.hough_runner import run_hough_on_canvas   # noqa: E402
+
+    h, w = 64, 256
+    prob = np.zeros((h, w), dtype=np.float32)
+    gt = np.zeros((h, w), dtype=np.uint8)
+    # GT trail: 1 px horizontal line; prediction: 2 px (one row overlapping GT,
+    # one row of pure FP), strong enough to clear the main threshold.
+    gt[30, 10:200] = 255
+    prob[30, 10:200] = 0.9
+    prob[31, 10:200] = 0.9
+
+    res = run_hough_on_canvas(
+        prob, gt,
+        threshold=0.45, hough_input_threshold=0.1,
+        hough_threshold=50, min_line_length=100, max_line_gap=250,
+        line_thickness=3,
+    )
+    binary_bool = res.binary_canvas > 0
+    combined_bool = res.combined_canvas > 0
+    pred_pre = int(binary_bool.sum())
+    pred_post = int(combined_bool.sum())
+
+    # Identities used by scripts/evaluation/hough_postprocess.py
+    fp_pre = pred_pre - res.pixels_pre
+    fp_post = pred_post - res.pixels_post
+    assert res.pixels_pre == 190          # TP = GT row covered
+    assert fp_pre == 190                  # FP = the extra predicted row
+    assert pred_pre == 380
+    # combined = binary | hough, so it can only add pixels
+    assert np.all(combined_bool[binary_bool])
+    assert pred_post >= pred_pre
+    assert res.pixels_post >= res.pixels_pre
+    # The 3 px Hough rasterisation adds FP mass; it must never be negative.
+    assert fp_post - fp_pre >= 0
+    # The long straight input must actually trigger a Hough detection here,
+    # otherwise this test is vacuous.
+    assert res.hough_canvas.any()
+    assert fp_post > fp_pre

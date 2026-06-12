@@ -997,11 +997,13 @@ def plot_mask_inspection_grid(
         display_image = _normalise_image_for_display(image_patch)
 
         axes_array[row, 0].imshow(display_image, cmap="gray", interpolation="nearest")
-        axes_array[row, 0].set_title(f"Image | density={patch.positive_pixel_fraction:.4f}")
+        if row == 0:
+            axes_array[row, 0].set_title("Image")
         axes_array[row, 0].axis("off")
 
         axes_array[row, 1].imshow(mask_patch, cmap="magma", interpolation="nearest")
-        axes_array[row, 1].set_title("Mask")
+        if row == 0:
+            axes_array[row, 1].set_title("Mask")
         axes_array[row, 1].axis("off")
 
         axes_array[row, 2].imshow(display_image, cmap="gray", interpolation="nearest")
@@ -1011,10 +1013,10 @@ def plot_mask_inspection_grid(
             alpha=0.45,
             interpolation="nearest",
         )
-        axes_array[row, 2].set_title("Overlay — visual completeness check")
+        if row == 0:
+            axes_array[row, 2].set_title("Overlay")
         axes_array[row, 2].axis("off")
 
-    fig.suptitle("Mask Completeness Inspection (full patch resolution)", fontsize=14)
     fig.tight_layout()
 
     output_path = _prepare_figure("eda_mask_inspection_grid.png", output_dir)

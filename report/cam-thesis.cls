@@ -279,6 +279,22 @@
 \newcommand{\@college}{}
 \newcommand{\college}[1]{\renewcommand{\@college}{#1}}
 
+% DOCVAR: departments (The departments printed on the DIS-style title page.)
+\newcommand{\@departments}{}
+\newcommand{\departments}[1]{\renewcommand{\@departments}{#1}}
+
+% DOCVAR: degree (The degree printed on the DIS-style title page.)
+\newcommand{\@degree}{}
+\newcommand{\degree}[1]{\renewcommand{\@degree}{#1}}
+
+% DOCVAR: supervision (The supervisor block printed on the DIS-style title page.)
+\newcommand{\@supervision}{}
+\newcommand{\supervision}[1]{\renewcommand{\@supervision}{#1}}
+
+% DOCVAR: wordcount (The visible word-count line printed below the contents.)
+\newcommand{\@wordcount}{}
+\newcommand{\wordcount}[1]{\renewcommand{\@wordcount}{#1}}
+
 % DOCVAR: keywords (These keywords will appear in the PDF meta-information
 % called `pdfkeywords`.)
 \newcommand{\@keywords}{}
@@ -389,91 +405,46 @@ This dissertation does not exceed the prescribed limit of 60\,000 words.}
 % used to calculate exactly how much space should be left between them
 % (vertically).
 
-%% LOGO box
-\newlength{\cam@logorightnudge}
-\setlength{\cam@logorightnudge}{-0.5\paperwidth+12mm}
-\newsavebox{\cam@logo}
-\begin{lrbox}{\cam@logo}
-\hspace*{\cam@logorightnudge}\includegraphics[width=73mm]{CollegeShields/CUni}
-\end{lrbox}
-
-%% THESIS TITLE box
-\newsavebox{\cam@title}
-\begin{lrbox}{\cam@title}
-    \begin{minipage}[c][\height][c]{.98\textwidth}
-        \begin{center}
-			\Huge%
-				\ifcam@times\else%
-				\bfseries%
-				\fi%
-			{\@title{}}%
-			\ifcam@firstyr\\%
-				{\vspace{5mm}\emph{\LARGE PhD Proposal}}%
-			\fi%
-			\ifcam@secondyr\\%
-				{\vspace{5mm}\emph{\LARGE Dissertation Schedule}}%
-			\fi
-		\end{center}
-    \end{minipage}
-\end{lrbox}
-
-%% COLLEGESHIELD box (optional):
-\ifcam@collegeshield%
-    \newsavebox{\cam@collegeshieldbox}
-    \begin{lrbox}{\cam@collegeshieldbox}
-    \includegraphics[height=20mm]{\@collegeshield}
-    \end{lrbox}
-\fi
-
-%% AUTHOR&COLLEGE box
-\newsavebox{\cam@authorcollege}
-\begin{lrbox}{\cam@authorcollege}
-    \begin{minipage}[c][\height][c]{.98\textwidth}
-        \begin{center}
-        {\large \@author{}~\\[1ex]}
-        \ifcam@collegeshield%
-            \vspace{2mm}{\usebox{\cam@collegeshieldbox}}\\
-        \fi
-        \@college{}
-        \end{center}
-    \end{minipage}
-\end{lrbox}
-
-%% SUBMISSION NOTICE box
-\newsavebox{\cam@submitnotice}
-\begin{lrbox}{\cam@submitnotice}
-    \begin{minipage}[c][\height][c]{.98\textwidth}
-        \begin{center}
-            \@submissionnotice{}
-        \end{center}
-    \end{minipage}
-\end{lrbox}
-
-% Now calculate the exact free vertical space
-\newlength{\cam@titlepagevspace}
-\setlength{\cam@titlepagevspace}{\textheight%
-	-\totalheightof{\usebox{\cam@logo}}%
-	-\totalheightof{\usebox{\cam@submitnotice}}%
-	-\totalheightof{\usebox{\cam@authorcollege}}%
-	-\totalheightof{\usebox{\cam@title}}}
-
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%
-%% Title Page: Put the components (logo, title, author, college and submit
-%% notice) onto the title page.
+%% Title Page: DIS-style presentation block modelled on the example report.
 %%
 %%%%%
+\begin{titlepage}
+\thispagestyle{empty}
 \begin{center}
-~\vspace{.02\cam@titlepagevspace}\\
-{\usebox{\cam@logo}}\\
-\vspace{.28\cam@titlepagevspace}
-{\usebox{\cam@title}}\\
-\vspace{.23\cam@titlepagevspace}
-{\usebox{\cam@authorcollege}}\\
-\null\vfill
-{\usebox{\cam@submitnotice}}
+\vspace*{1mm}
+\makebox[\textwidth]{%
+  \includegraphics[width=48mm]{CollegeShields/CUni}%
+  \hfill
+  \includegraphics[height=15mm]{CollegeShields/dis_logo}%
+}
+\vspace{10mm}
+
+{\LARGE\bfseries \@title{}\par}
+\vfill
+{\footnotesize\MakeUppercase{A report presented by}\par}
+\vspace{0.8em}
+{\large\textsc{\@author{}}\par}
+\vfill
+{\small\bfseries Departments}\\[0.15em]
+{\small\@departments{}\par}
+\vspace{0.7em}
+{\small\bfseries Degree}\\[0.15em]
+{\small\@degree{}\par}
+\vspace{0.7em}
+{\small\bfseries Supervisor}\\[0.15em]
+{\small\@supervision{}\par}
+\vfill
+\ifcam@collegeshield%
+  \includegraphics[height=13mm]{\@collegeshield}\par
+  \vspace{0.35em}
+\fi
+{\normalsize\textsc{\@college{}}}\\[0.25em]
+{\normalsize\textsc{University of Cambridge}}\\[0.25em]
+{\small\@date{}}
 \end{center}
+\end{titlepage}
 \hypersetup{pdfsubject={\@subjectline},pdfkeywords={\@keywords}}
 \fi
 
@@ -572,6 +543,13 @@ This dissertation does not exceed the prescribed limit of 60\,000 words.}
 \addtocontents{toc}{\protect\thispagestyle{empty}}
 \pagestyle{empty}
 \tableofcontents{}
+\ifx\@wordcount\@empty\else
+\vfill
+\begin{center}
+Total \LaTeX{} Word Count: \@wordcount{}/7000 (excluding Contents, Figures,
+Tables, Bibliography and Appendix)
+\end{center}
+\fi
 
 \ifcam@glossary%
     \cam@printthesisglossary

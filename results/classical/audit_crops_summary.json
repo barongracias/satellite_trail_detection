@@ -8,6 +8,7 @@
   },
   "n_distinct_images_interior": 20,
   "crop_size": 528,
+  "context_multiple": 3,
   "seed": 2804,
   "checkpoint": "results/checkpoints/model-best.pth",
   "threshold": 0.45,
@@ -15,7 +16,7 @@
   "fired_candidates": 67,
   "quiet_candidates": 2549,
   "components_json": "results/classical/faint_streak_t44_s2804.json",
-  "sealed_manifest_sha256": "9fb33fb14a6fd972e2f27c21d1274ad28d40590ad7e324d7ef0a7b44f853ac4b",
+  "sealed_manifest_sha256": "6a8eda5295754ffe371171df73b3aee2b015f11db147100dc8ec14cf90e31c8f",
   "blinding_note": "Crops contain raw 8-bit display pixels only; masks and predictions are never exported. The crop-to-frame mapping is sealed under data/gold/ (uncommitted); this summary intentionally has no mapping.",
-  "generated": "2026-06-12"
+  "generated": "2026-06-13"
 }

@@ -164,9 +164,14 @@ def main() -> None:
                 float(grp["image_mean"].iloc[0]), float(grp["image_std"].iloc[0])
             )
 
+    # Boundary aggregates are restricted to interior/endpoint crops (the
+    # label-noise / width analysis). FP/decoy crops are existence controls and
+    # are summarised separately, never mixed into these totals.
     totals_orig_vs_gold = {t: BoundaryTolerantCounts(0, 0, 0, 0) for t in TOLERANCES}
     totals_model_vs_gold = {t: BoundaryTolerantCounts(0, 0, 0, 0) for t in TOLERANCES}
     totals_model_vs_orig = {t: BoundaryTolerantCounts(0, 0, 0, 0) for t in TOLERANCES}
+    BOUNDARY_STRATA = ("interior", "endpoint")
+    existence: list[dict] = []  # fp/decoy: verdict vs model-fired vs gold-has-trail
     per_crop: list[dict] = []
     n_uncertain = 0
     n_not_visible = 0
@@ -225,16 +230,37 @@ def main() -> None:
                 "prediction": width_median(pred),
             },
         }
+        is_boundary = stratum in BOUNDARY_STRATA
         for label, ref, other, totals in (
             ("original_vs_gold", gold, original, totals_orig_vs_gold),
             ("model_vs_gold", gold, pred, totals_model_vs_gold),
             ("model_vs_original", original, pred, totals_model_vs_orig),
         ):
             counts = score_mask_pair(ref, other)
-            for t in TOLERANCES:
-                totals[t] = totals[t] + counts[t]
+            # Only interior/endpoint crops feed the boundary/label-noise
+            # aggregate; fp/decoy per-crop blocks are still recorded below.
+            if is_boundary:
+                for t in TOLERANCES:
+                    totals[t] = totals[t] + counts[t]
             row[label] = _metrics_block(counts)
+        if not is_boundary:
+            existence.append({
+                "crop_name": name, "stratum": stratum,
+                "verdict": verdicts.get(name),
+                "gold_has_trail": bool(gold.any()),
+                "model_fired": bool(pred.any()),
+            })
         per_crop.append(row)
+
+    def _existence_summary(stratum: str) -> dict:
+        rows = [e for e in existence if e["stratum"] == stratum]
+        return {
+            "n": len(rows),
+            "verdict_trail": sum(1 for e in rows if e["verdict"] == "trail"),
+            "verdict_no_trail": sum(1 for e in rows if e["verdict"] == "no_trail"),
+            "gold_has_trail": sum(1 for e in rows if e["gold_has_trail"]),
+            "model_fired": sum(1 for e in rows if e["model_fired"]),
+        }
 
     out = {
         "sealed_manifest": str(args.sealed_manifest),
@@ -245,15 +271,33 @@ def main() -> None:
         "n_scored": sum(1 for r in per_crop if r.get("scored")),
         "n_uncertain": n_uncertain,
         "n_not_visible": n_not_visible,
+        "aggregate_scope": "interior+endpoint crops only (boundary/label-noise)",
         "aggregate": {
             "original_vs_gold": _metrics_block(totals_orig_vs_gold),
             "model_vs_gold": _metrics_block(totals_model_vs_gold),
             "model_vs_original": _metrics_block(totals_model_vs_orig),
         },
+        "existence_controls": {
+            "fp": _existence_summary("fp"),
+            "decoy": _existence_summary("decoy"),
+            "note": (
+                "FP/decoy crops are existence controls, excluded from the "
+                "boundary aggregate. decoy verdict_trail > 0 flags a "
+                "trigger-happy annotator; fp gold_has_trail counts originals "
+                "that missed a real trail the gold annotator confirmed."
+            ),
+        },
         "evaluation_only_note": (
             "Gold masks are evaluation-only derivatives of MeerLICHT data: "
             "no retraining, no threshold re-selection, no mask replacement. "
             "Stored under data/gold/, never committed."
+        ),
+        "scaffold_status": (
+            "INCOMPLETE: reports point aggregates and existence controls only. "
+            "Still to implement before the real run (protocol analyses b/d): "
+            "component-level bootstrap intervals, and inter-/intra-annotator "
+            "agreement for NSD tau calibration (requires the second annotator's "
+            "masks). Point estimates here are not the full preregistered output."
         ),
         "per_crop": per_crop,
         "generated": str(date.today()),

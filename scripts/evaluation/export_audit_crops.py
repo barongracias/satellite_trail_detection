@@ -84,6 +84,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--n_fp", type=int, default=12)
     p.add_argument("--n_decoy", type=int, default=7)
     p.add_argument("--min_distinct_images", type=int, default=10)
+    p.add_argument("--context_multiple", type=int, default=3,
+                   help="Blinded context view side length as a multiple of the "
+                        "528 px crop (default 3 = 1584 px), centred on the same "
+                        "point; raw pixels only, no frame identity or mask.")
     return p.parse_args()
 
 
@@ -341,12 +345,29 @@ def main() -> None:
         Image.fromarray(crop, mode="L").save(out_dir / name)
         rec["crop_name"] = name
 
+        # Blinded context view: a larger window centred on the same point, for
+        # disambiguating trails from artefacts (the original annotators had
+        # frame context). It is raw pixels only under a parallel neutral name
+        # (c0NN_context.png) — no frame identity, stratum, mask, or prediction
+        # — so the annotator gains context without unsealing the mapping.
+        ctx_size = min(CROP_SIZE * args.context_multiple, raw.shape[0], raw.shape[1])
+        cy, cx = y0 + CROP_SIZE // 2, x0 + CROP_SIZE // 2
+        cy0, cx0 = crop_window(cy, cx, raw.shape, size=ctx_size)
+        context = raw[cy0 : cy0 + ctx_size, cx0 : cx0 + ctx_size]
+        ctx_name = f"c{new_idx:03d}_context.png"
+        Image.fromarray(context, mode="L").save(out_dir / ctx_name)
+        rec["context_name"] = ctx_name
+        rec["context_size"] = int(ctx_size)
+        # Where the primary crop sits inside the context view (sealed).
+        rec["context_offset_yx"] = [int(y0 - cy0), int(x0 - cx0)]
+
     sealed = {
         "blinding_note": (
             "SEALED: maps neutral crop names to frame coordinates and strata. "
             "The annotator must not open this file before annotation is complete."
         ),
         "crop_size": CROP_SIZE,
+        "context_multiple": args.context_multiple,
         "seed": args.seed,
         "checkpoint": str(args.checkpoint),
         "threshold": args.threshold,
@@ -367,6 +388,7 @@ def main() -> None:
         "stratum_counts": counts,
         "n_distinct_images_interior": len({c["source_image"] for c in interior}),
         "crop_size": CROP_SIZE,
+        "context_multiple": args.context_multiple,
         "seed": args.seed,
         "checkpoint": str(args.checkpoint),
         "threshold": args.threshold,

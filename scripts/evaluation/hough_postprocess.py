@@ -387,6 +387,7 @@ def main() -> None:
         "hough_threshold": args.hough_threshold,
         "min_line_length": args.min_line_length,
         "max_line_gap": args.max_line_gap,
+        "line_thickness": args.line_thickness,
         "n_test_images": len(rows),
         "n_positive_images": n_positive,
         "n_positive_patches": total_pos_patches,

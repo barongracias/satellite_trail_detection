@@ -1,0 +1,173 @@
+% Executive Summary -- standalone two-column brief.
+% Compile: pdflatex executive_summary.tex
+\documentclass[10pt,a4paper,twocolumn]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[a4paper,top=1.35cm,bottom=1.5cm,left=1.45cm,right=1.45cm,columnsep=0.65cm]{geometry}
+\usepackage{caption}
+\usepackage{graphicx}
+\usepackage{microtype}
+\usepackage{xcolor}
+\usepackage{titlesec}
+
+\definecolor{rulegray}{HTML}{555555}
+
+\pagestyle{plain}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.24em}
+\titlespacing*{\section}{0pt}{0.65em}{0.25em}
+\titleformat{\section}{\large\bfseries}{}{0pt}{}
+\captionsetup{font=footnotesize,labelfont=bf,skip=2pt}
+
+\newcommand{\summaryfigure}[3]{%
+  \begin{center}
+    \includegraphics[width=#1\linewidth]{#2}
+    \captionof{figure}{#3}
+  \end{center}
+  \vspace{-0.35em}
+}
+
+\begin{document}
+\normalsize
+
+\twocolumn[
+\begin{center}
+{\large\bfseries AUTOMATED DETECTION OF SATELLITE TRAILS IN}\par
+\vspace{0.05em}
+{\large\bfseries GROUND-BASED OBSERVATIONS}\par
+\vspace{0.25em}
+{\normalsize U-Net segmentation with probabilistic Hough post-processing}\par
+\vspace{0.3em}
+{\small Baron Gracias \,|\, MPhil Data Intensive Science \,|\, University of Cambridge \,|\, Supervisor: Dr Eduardo Gonzalez-Solares}
+\end{center}
+\vspace{-0.35em}
+\noindent\textcolor{rulegray}{\rule{\textwidth}{0.4pt}}
+\vspace{0.55em}
+]
+
+\section*{Motivation \& Scientific Justification}
+Low-Earth-orbit satellite constellations increasingly cross wide-field
+astronomical exposures, leaving bright linear trails that corrupt photometry,
+astrometry, and transient-source catalogues. Manual inspection does not scale
+to survey operation, so observatories need automated trail masks that are
+reliable at the pixel level and cheap enough to run inside reduction pipelines.
+
+This project replicates the satellite-trail detector of Stoppa et al. (2024):
+a U-Net trained on labelled MeerLICHT image patches, followed by a probabilistic
+Hough transform that reconnects linear trail evidence missed by the network. The
+replication is used as a diagnostic tool: the aim is not only to reproduce a
+headline score, but to identify where the residual error comes from.
+
+\section*{Methodology}
+The study uses 178 labelled MeerLICHT image/mask pairs split at image level into
+122 training, 24 validation, and 32 test images, avoiding same-image leakage.
+Images are tiled into $528\times528$ patches. The U-Net is reimplemented in
+PyTorch from the released Keras model configuration, preserving average pooling,
+LeakyReLU activations, in-block dropout, Keras-style initialisation, and a
+combined binary cross-entropy plus squared-Dice loss.
+
+Hyperparameters are selected by validation-only Optuna search, the top trials
+are retrained across five seeds, and the final threshold is chosen from a
+validation precision--recall sweep before test metrics are inspected. Hough
+post-processing is evaluated on a reconstructed patch canvas, so its numbers are
+reported as patch-canvas approximations to dense full-image inference with
+separate precision and completeness caveats.
+
+\summaryfigure{0.96}{../results/figures/predictions/overlay_grid_winner_t44_s2804.png}{Representative
+test-patch predictions for the locked U-Net: ground truth in green, prediction
+in magenta, and overlap inside the green band.}
+
+\section*{Key Findings}
+The replication reproduces the target paper's recall closely: five-seed
+sampled-test recall is $0.923\pm0.006$ against the paper's reported $0.94$.
+Strict precision is lower, at $0.848\pm0.009$ on the sampled test set and
+$0.780$ on the parity set that restores the natural negative-patch prevalence.
+This shows that precision is prevalence-sensitive, whereas recall is the cleaner
+like-for-like comparison across the two test populations.
+
+The Hough stage reproduces the paper's intended completeness behaviour. On the
+canonical patch canvas, trail-pixel recall rises from $0.918$ to $0.990$,
+equivalently reducing the pixel-level false-negative rate from $0.082$ to
+$0.0105$. This does not make the Hough mask a better strict pixel classifier:
+post-Hough line drawing increases false-positive area, reducing strict precision
+from $0.780$ to $0.410$.
+
+\summaryfigure{0.94}{../results/figures/hough_gap_bridge_example.pdf}{Hough
+bridging a U-Net gap over a bright star. The example illustrates the mechanism:
+linear post-processing recovers ground-truth trail pixels missed by the
+thresholded U-Net.}
+
+The strict precision gap is localised to boundary scale. False-positive
+decomposition shows that only $17.5\,\%$ of false-positive pixels occur in
+trail-free patches; the remaining $82.5\,\%$ are over-painting within
+trail-bearing patches. A one-pixel boundary tolerance raises five-seed precision
+from $0.848$ to $0.946$, and $57\,\%$ of all false positives lie within one
+pixel of a labelled trail. These diagnostics are consistent with boundary
+placement and mask granularity dominating the residual error, although a
+gold-standard re-annotation audit is needed to prove that interpretation.
+
+\summaryfigure{0.88}{../results/figures/thesis_2_boundary_tolerance.pdf}{A
+one-pixel tolerance largely closes the strict precision gap, indicating that
+the residual error is concentrated around thin mask boundaries.}
+
+\section*{Extensions}
+Follow-up experiments test whether the residual can be moved by model or
+inference changes. A classifier-gated detector shifts precision by only
+$+1.2$ percentage points, consistent with the $17.5\,\%$ inter-patch upper
+bound. An attention-gated U-Net at matched capacity is a null result, clDice
+shows no hidden topology gain, hard-negative mining adds only $+0.007$
+precision, and ensembling with test-time augmentation sits within seed noise.
+
+\summaryfigure{0.95}{../results/figures/thesis_1_multiseed_replication.pdf}{Five-seed
+replication performance for the locked U-Net compared with the Stoppa et al.\
+reference. Recall is closely reproduced, while strict precision remains lower,
+motivating the boundary-scale error analysis.}
+
+\summaryfigure{1.0}{../results/figures/decam_cold_raw_vs_overlay.pdf}{Cold-domain
+DECam examples: raw measured-streak frames and the locked MeerLICHT-trained
+U-Net contour. This is a qualitative transfer illustration, not a benchmark.}
+
+\section*{Recommendation \& Next Steps}
+The decisive next experiment is a gold-standard re-annotation audit of a small
+test subset, with explicit mask-width conventions. That would separate true
+detector error from label-boundary convention. A labelled cross-instrument test,
+especially on DECam-like data, is the next generalisation check; the current
+DECam application is qualitative only.
+
+A threshold-$0.58$ row is useful only as a diagnostic symmetry check, not a new
+selection result. A resolution experiment is feasible as a synthetic resampling
+stress test, but should not be presented as cross-instrument evidence without
+new labels.
+
+\newpage
+
+\section*{Research Impact \& Conclusion}
+The U-Net plus Hough pipeline faithfully recovers the target detector's recall
+and Hough completeness. The remaining strict-precision gap is not explained by
+capacity, training protocol, or post-processing; it is bounded and concentrated
+near one-pixel label boundaries. For operational masking, this means reporting
+strict scores alongside boundary-tolerant scores and annotation conventions is
+more informative than another architecture tweak.
+
+\section*{References}
+{\scriptsize
+[1] F. Stoppa et al., ``Automated detection of satellite trails in ground-based
+observations using U-Net and Hough transform,'' \emph{Astronomy \& Astrophysics},
+692, A199, 2024.
+[2] O. Ronneberger, P. Fischer, and T. Brox, ``U-Net: Convolutional networks for
+biomedical image segmentation,'' MICCAI, 2015.
+[3] J. Matas, C. Galambos, and J. Kittler, ``Robust detection of lines using the
+progressive probabilistic Hough transform,'' \emph{Computer Vision and Image
+Understanding}, 78(1), 2000.
+}
+
+\section*{Declaration of Use of Autogeneration Tools}
+{\scriptsize
+Codex (ChatGPT) and Claude Code supported library usage, plotting and scripting
+boilerplate, function docstrings, and project-structure review. All prose and
+reported numbers were manually reviewed, and all metrics derive from the
+repository artefacts.
+}
+
+\end{document}

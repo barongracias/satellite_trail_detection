@@ -23,7 +23,7 @@
   "n_images_excluded_empty_both": 0,
   "n_images_empty_gt_nonempty_pred": 1,
   "n_images_empty_pred_nonempty_gt": 0,
-  "metric_note": "NSD computed on per-source-image canvases (patch borders would create artificial boundary pixels). Pixel spacing is unity. With unit spacing and integer-pixel boundaries, NSD and surface Dice at tolerance tau (Nikolov et al. 2021) are the same quantity; both vocabularies map to these numbers. Empty-GT+empty-pred images are excluded; empty-GT+non-empty-pred images score 0 and are included in micro_all_images but not micro_gt_positive_images (counts above). On 1-3 px trails the mask boundary is essentially the mask, so NSD@1 is expected to track the existing +/-1 px boundary-tolerant F1 \u2014 equivalence, not independent confirmation.",
+  "metric_note": "NSD computed on per-source-image canvases (patch borders would create artificial boundary pixels). Pixel spacing is unity. With unit spacing and integer-pixel boundaries, NSD and surface Dice at tolerance tau (Nikolov et al. 2021) are the same quantity; both vocabularies map to these numbers. Empty-GT+empty-pred images are excluded; empty-GT+non-empty-pred images score 0 and are included in micro_all_images but not micro_gt_positive_images (counts above). On 1-3 px trails the mask boundary is essentially the mask, but this implementation uses Euclidean distance while the thesis +/-1 px tolerant metric uses a Chebyshev neighbourhood. NSD@1 is therefore stricter than the +/-1 px tolerant score; NSD@2 brackets that result from above. This is a vocabulary/aggregation diagnostic, not independent model confirmation.",
   "per_image": [
     {
       "source_image": "data/Processed/ML1_20171023_002210_red.fits_full.png",

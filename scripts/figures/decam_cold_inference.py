@@ -138,7 +138,9 @@ def json_default(value: Any) -> Any:
 def write_json(payload: dict[str, Any] | list[dict[str, Any]], path: str | Path) -> None:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True, default=json_default) + "\n")
+    path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True, default=json_default, allow_nan=False) + "\n"
+    )
 
 
 def sha256_file(path: str | Path) -> str:

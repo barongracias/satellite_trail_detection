@@ -16,6 +16,10 @@ The pipeline:
 4. **Hough post-processing** to recover gaps the U-Net misses.
 5. **Classical Hough baseline** as a non-learned reference point.
 
+## Live demo
+
+[**trail-scope**](https://github.com/barongracias/trail-scope) — an inference demo of this thesis's locked satellite-trail detector (FastAPI + Next.js). Upload an astronomical image (or try examples) to see the locked U-Net + Hough overlay and a predicted mask.
+
 ## Repository Layout
 
 ```text
@@ -138,12 +142,15 @@ N_TRIALS=45 SKIP_RETRAIN=1 \
 CONFIG=configs/experiments/restudy_topk/topk_t44_s2804.yaml \
   sbatch slurm/train_unet_ampere_long.sbatch
 
-# 4. Evaluate the locked winner: test threshold sweep + Hough post-processing
+# 4. Recreate the locked validation sweep/test eval, then run Hough at the locked threshold.
+#    Do not set THRESHOLD on the sweep command: that skips the validation PR sweep
+#    and would overwrite threshold_sweep_winner_t44_s2804.json with fixed-threshold output.
 CHECKPOINT=results/checkpoints/model-best.pth \
-THRESHOLD=0.45 \
+TAG=winner_t44_s2804 \
   sbatch slurm/threshold_sweep.sbatch
 CHECKPOINT=results/checkpoints/model-best.pth \
 THRESHOLD=0.45 \
+OUT=results/classical/hough_postprocess_winner_t44_s2804.json \
   sbatch slurm/hough_postprocess.sbatch
 
 # 5. Prediction figures for the report

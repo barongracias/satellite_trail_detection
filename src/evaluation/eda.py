@@ -871,6 +871,28 @@ def _component_principal_axes(
     return major, minor
 
 
+def _component_local_width(component_mask: np.ndarray) -> float:
+    """Median local stroke width (px): 2x the median centre-to-edge distance.
+
+    Sampled from the distance transform along the component skeleton, over the
+    padded component bounding box for speed. Unlike the covariance minor axis it
+    is not inflated by trail curvature, so it reflects the actual mask thickness.
+    """
+    from scipy.ndimage import distance_transform_edt
+    from skimage.morphology import skeletonize
+
+    ys, xs = np.nonzero(component_mask)
+    if ys.size == 0:
+        return 0.0
+    sub = component_mask[ys.min() : ys.max() + 1, xs.min() : xs.max() + 1]
+    sub = np.pad(sub, 1)
+    skeleton = skeletonize(sub)
+    if not skeleton.any():
+        return 0.0
+    half_widths = distance_transform_edt(sub)[skeleton]
+    return 2.0 * float(np.median(half_widths))
+
+
 def compute_mask_component_stats(
     root_dir: str | Path | PatchDatasetConfig,
     min_area: int = 10,
@@ -909,6 +931,7 @@ def compute_mask_component_stats(
                     "area": area,
                     "major_axis": major,
                     "minor_axis": minor,
+                    "local_width": _component_local_width(component_mask),
                     "aspect_ratio": aspect_ratio,
                 }
             )
@@ -922,9 +945,9 @@ def plot_mask_thickness_distribution(
     show: bool = True,
     logger: logging.Logger | None = None,
 ) -> Path:
-    """Plot trail thickness (minor-axis) and aspect-ratio distributions.
+    """Plot trail thickness (local stroke width) and aspect-ratio distributions.
 
-    Very low minor-axis values combined with very high aspect ratios indicate
+    Very low width values combined with very high aspect ratios indicate
     long thin masks — consistent with undermasking of trails that should be
     broader. The figure surfaces the population shape so a threshold for
     follow-up visual inspection can be picked.
@@ -939,8 +962,9 @@ def plot_mask_thickness_distribution(
     ).dropna()
 
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
-    axes[0].hist(component_df["minor_axis"], bins=40, color="#1f77b4")
-    axes[0].set_xlabel("Minor axis (px) ≈ trail thickness")
+    width_col = "local_width" if "local_width" in component_df.columns else "minor_axis"
+    axes[0].hist(component_df[width_col], bins=40, color="#1f77b4")
+    axes[0].set_xlabel("Local stroke width (px), distance-transform")
     axes[0].set_ylabel("Component count")
     axes[0].set_title("Trail thickness distribution")
 

@@ -275,6 +275,7 @@ def test_mask_component_stats_capture_simple_components(tmp_path: Path) -> None:
     row = component_df.iloc[0]
     assert row["area"] == 8
     assert row["major_axis"] > row["minor_axis"]
+    assert 1.5 <= row["local_width"] <= 2.5  # distance-transform width of the 2 px-wide strip
 
 
 def test_observation_date_dataframe_parses_meerlicht_filenames(tmp_path: Path) -> None:

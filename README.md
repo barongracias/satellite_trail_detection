@@ -107,8 +107,8 @@ pip install -e .
 
 ### Docker
 
-The image builds a portable CPU environment from `local-requirements.txt` and
-runs the test suite:
+The image builds a portable CPU environment from `docker-requirements.txt`
+(runtime deps + pytest/ruff, no Jupyter stack) and runs the test suite:
 
 ```bash
 docker build -t satellite-trails .

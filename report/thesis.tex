@@ -85,22 +85,6 @@
   capacity, training protocol, or Hough post-processing alone.
 }
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Acknowledgements — omitted. The previous text is preserved below because the
-%% CSD3/EPSRC usage acknowledgement is normally required by the Tier-2 facility
-%% terms; restore before submission if needed.
-%%%%%
-% \acknowledgements{%
-%   I would like to thank my supervisor, Dr Eduardo Gonzalez-Solares, for
-%   providing the MeerLICHT data subset and for his guidance throughout this
-%   project.
-%   This work was performed using resources provided by the Cambridge Service for
-%   Data Driven Discovery (CSD3) operated by the University of Cambridge Research
-%   Computing Service, provided by Dell EMC and Intel using Tier-2 funding from
-%   the Engineering and Physical Sciences Research Council (capital grant
-%   EP/T022159/1), and DiRAC funding from the Science and Technology Facilities
-%   Council.
-% }
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \begin{document}
@@ -161,8 +145,6 @@ Chapter~\ref{ch:analysis}.
 \section{Background and related work}
 \label{sec:related}
 
-% Scope: a compact, current survey -- classical line/Radon detectors, deep
-% segmentation in astronomy, and the target pipeline. Detail kept to context.
 
 \subsection{Classical trail detection}
 \label{sec:related_classical}
@@ -767,10 +749,6 @@ finely tuned.
 \section{Hough improves pixel completeness}
 \label{sec:hough_results}
 
-% Scope: pre/post-Hough recovery on the patch canvas.
-% CHECKLIST: report the PIXEL-level FNR (0.082 -> 0.0105) for the paper-style
-% comparison, NOT the image-level FNR (which is 0/0 here and uninformative).
-% State that this is a patch-canvas approximation, not dense full-image inference.
 Probabilistic Hough post-processing of the reconstructed patch canvas raises
 sampled-support trail-pixel recall from $0.918$ to $0.990$ for the canonical
 seed, equivalently reducing the pixel-level false-negative rate from $0.082$
@@ -855,9 +833,6 @@ cross-dataset benchmark.
 \section{The strict precision gap is boundary-scale}
 \label{sec:ext_error}
 
-% Scope: the core contribution -- decompose and localise the residual error to
-% explain the precision gap. Present the FP decomposition FIRST, as it bounds
-% what the two-stage gate can recover.
 The diagnostics below give a consistent pattern: most false-positive pixels
 lie close to labelled trails, consistent with thin or imperfect mask
 boundaries, while a smaller whole-patch component remains genuine background
@@ -867,8 +842,6 @@ re-annotation set is available.
 \subsection{False-positive decomposition}
 \label{sec:ext_fpdecomp}
 
-% CHECKLIST: ~17.5% of FP pixels are inter-patch (empty-patch) and therefore
-% gate-recoverable; the remainder are intra-patch. This bounds the two-stage gain.
 Decomposing the false-positive pixels of the winning model shows that only
 $17.5\,\%$ are inter-patch (the network lighting up in trail-free patches), while
 $82.5\,\%$ are intra-patch (over-painting inside trail-bearing patches)
@@ -895,10 +868,6 @@ bound on what either strategy can recover.
 \subsection{Boundary-tolerant evaluation}
 \label{sec:ext_boundary}
 
-% CHECKLIST: frame as "the gap LARGELY CLOSES under tolerance", NOT "approximately
-% equal to the paper's 0.94/0.94". Use the RECT +/-1px figure. The boundary-
-% placement interpretation is SUGGESTIVE, not proof (a gold-standard re-annotation
-% set is deferred), so phrase as "consistent with", never "demonstrates".
 Re-scoring under a symmetric boundary tolerance of $k\in\{0,1,2,3\}$\,px (RECT
 structuring element; a predicted pixel within $k$\,px of ground truth counts
 towards precision, and a ground-truth pixel within $k$\,px of a prediction
@@ -929,10 +898,6 @@ paper's strict $0.94/0.94$.
 \subsection{False-positive distance to mask}
 \label{sec:ext_fpdist}
 
-% CHECKLIST: report BOTH denominators -- "57% of ALL FP within 1px" and "69% of
-% DISTANCE-DEFINED FP within 1px"; the 69% figure alone overstates the global
-% story (whole-patch FP, ~17%, have undefined distance and are genuine
-% background). Phrase as "consistent with" a boundary-placement-dominated error.
 The distance from each false-positive pixel to the nearest ground-truth trail
 pixel concentrates at small values (Figure~\ref{fig:fp_distance}). Of all false
 positives, $57\,\%$ lie within $1$\,px; of the distance-defined false positives
@@ -975,8 +940,6 @@ evidence of label error.
 \subsection{Topology-aware comparison (clDice)}
 \label{sec:ext_cldice}
 
-% CHECKLIST: clDice tracks pixel Dice and base >= attention, reinforcing the null
-% attention result.
 The centreline Dice (clDice) tracks pixel Dice and preserves the architecture
 ordering: $0.847$ for the base model versus $0.838$ for the attention variant
 ($-0.009$), against pixel Dice $0.884$ and $0.879$ ($-0.005$). Topology
@@ -1065,10 +1028,6 @@ reveals no hidden connectivity or faint-trail advantage on this dataset.
 \subsection{Data efficiency}
 \label{sec:ext_dataeff}
 
-% Scope: 30/50/70/100% nested stratified training-fraction study, fixed (winner)
-% config transferred -> lower bound per data size; val/test held constant.
-% CHECKLIST: performance plateaus past ~50%; figure is single-seed/indicative
-% (no CI band) -- label it as such.
 Retraining the winning configuration on nested $30/50/70/100\,\%$ subsets of the
 training images (validation and test held fixed) shows validation Dice plateauing
 beyond roughly $50\,\%$ of the data (Figure~\ref{fig:data_efficiency}). Because
@@ -1095,8 +1054,6 @@ reading of Section~\ref{sec:replication}.
 \subsection{Hard-negative mining}
 \label{sec:ext_hardneg}
 
-% CHECKLIST: bounded, small precision gain (order +0.007 P, recall ~unchanged),
-% consistent with the ~17.5% inter-patch FP bound. Single-seed confirmation.
 Appending 150 mined hard-negative (false-positive empty) patches to the training
 set yields a small precision gain in this single-seed confirmation: $+0.007$
 precision ($0.852\rightarrow0.859$) at essentially unchanged recall ($-0.001$),
@@ -1106,10 +1063,6 @@ consistent with, the $17.5\,\%$ inter-patch false-positive share.
 \subsection{Soft-label (dilated-target) pilot}
 \label{sec:ext_softlabel}
 
-% CHECKLIST: NEGATIVE/neutral result -- dilated-soft targets improve no metric;
-% the soft model predicts wider (threshold shifts up) and the boundary band is
-% absorbed rather than sharpened. Report as a single-seed pilot, NOT a method
-% replacement.
 A single-seed pilot replacing the hard targets with $1$\,px dilated soft-edged
 targets (training only; validation and test masks unchanged) does not improve any
 metric (Table~\ref{tab:soft_label}). The soft model predicts wider trails, with
@@ -1142,8 +1095,6 @@ consistent with the boundary-placement interpretation.
 \subsection{Ensembling with test-time augmentation}
 \label{sec:ext_ensemble}
 
-% CHECKLIST: Dice ~0.8885, within seed noise of the single-model result -- report
-% as within-noise, no significant gain.
 A five-checkpoint ensemble with test-time augmentation reaches Dice $0.8885$
 (precision $0.852$, recall $0.929$ at threshold $0.44$), against the single-model
 $0.8836$. The $+0.005$ Dice improvement is comparable to the five-seed dispersion
@@ -1152,9 +1103,6 @@ of the single model, so it is not treated as a material gain.
 \subsection{Probability-stratified Hough}
 \label{sec:ext_probhough}
 
-% CHECKLIST: clean NULL -- pixel recall ~unchanged (0.9895 -> 0.9896), patch-FNR
-% identical, only adds FP pixels; the locked binary Hough already saturates
-% recoverable recall.
 Replacing the binary Hough input with a probability-stratified canvas is a
 clean null: pixel recall changes by $+0.00003$, the patch-level
 false-negative rate is identical, and Hough false-positive pixels rise from
@@ -1404,7 +1352,6 @@ metric.
 \section{Future work}
 \label{sec:future}
 
-% Scope: forward-looking directions, including remediation framed as future work.
 Several directions follow from the findings. The most decisive is a
 \emph{gold-standard re-annotation audit} of a sample of test trails: it would
 convert the suggestive boundary-placement reading into a measured label-noise

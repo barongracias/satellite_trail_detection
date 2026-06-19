@@ -1,0 +1,23 @@
+# Minimal CPU dependency set for the Docker test image. Mirrors the package's
+# runtime dependencies (pyproject.toml [project.dependencies]) plus pytest and
+# ruff for the in-image test/lint commands. Deliberately excludes the
+# Jupyter/notebook stack carried by local-requirements.txt, which the test
+# suite never imports. CPU torch/vision wheels are installed separately in the
+# Dockerfile so the CUDA build is never pulled.
+torch>=2.7.1
+torchvision>=0.22.1
+torchmetrics>=1.8.2
+numpy>=2.3.5
+scipy>=1.17.1
+pandas>=3.0.1
+opencv-python>=4.13.0.92
+scikit-image>=0.26.0
+scikit-learn>=1.8.0
+matplotlib>=3.10.8
+pillow>=12.0.0
+PyYAML>=6.0.3
+optuna>=4.0
+einops>=0.8.2
+astropy>=7.2.0
+pytest>=8.0.0
+ruff>=0.14.0

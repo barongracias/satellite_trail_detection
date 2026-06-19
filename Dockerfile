@@ -1,7 +1,8 @@
 # Portable CPU image for reproducing the test suite and figure generation.
 #
-# This image installs local-requirements.txt (relaxed floors, CPU wheels) so it
-# builds and runs `pytest -q` on any x86_64 or arm64 host without a GPU.
+# This image installs docker-requirements.txt (the package runtime deps plus
+# pytest/ruff, no Jupyter stack) on CPU torch wheels, so it builds and runs
+# `pytest -q` on any x86_64 or arm64 host without a GPU.
 #
 # The CSD3 GPU training environment is pinned separately in hpc-requirements.txt
 # (CUDA 11.8 PyTorch wheels). Those wheels resolve only on an x86_64 CUDA host, so
@@ -19,9 +20,14 @@ RUN apt-get update \
 WORKDIR /app
 
 # Install dependencies first so the layer caches across source edits.
-COPY local-requirements.txt .
+COPY docker-requirements.txt .
+# Install CPU torch/vision wheels explicitly so the default CUDA build (and its
+# ~1 GB of nvidia-* deps) is never pulled into this CPU-only image; the versions
+# pinned in docker-requirements.txt are then already satisfied.
 RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -r local-requirements.txt
+    && pip install --no-cache-dir torch torchvision \
+        --index-url https://download.pytorch.org/whl/cpu \
+    && pip install --no-cache-dir -r docker-requirements.txt
 
 # Copy the project (see .dockerignore for what is excluded).
 COPY . .

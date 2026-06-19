@@ -206,6 +206,10 @@ cross-dataset metrics.
 - Model and threshold selection are **validation-only**; test metrics are never used
   for selection or tie-breaking.
 - Every experiment is reproducible from a `configs/` file plus runtime overrides.
+- Signal-dependent noise augmentation uses the tracked calibration
+  `results/classical/background_noise_calibration.json` (`alpha=0.0209200478`,
+  `beta=0.0885920600`, 9,894 empty train patches; manifest SHA-256
+  `e4082a0c16fd58aeaafb061baf846555fe76543700058bd7119f08063c7cf24b`).
 - `results/` and `*.pth` are gitignored; selected deliverable JSONs, figures, and the
   locked model (`results/checkpoints/model-best.pth`) are force-added. Other checkpoints
   are kept local only.

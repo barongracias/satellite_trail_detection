@@ -1,0 +1,17 @@
+{
+  "manifest": "data/patches/manifest.csv",
+  "split": "train",
+  "selection": "positive_pixel_fraction == 0",
+  "empty_patch_count": 9894,
+  "pixel_count": 2758288896,
+  "mu_bg": 0.3751689841462192,
+  "sigma_bg": 0.12528809272755145,
+  "alpha": 0.020920047821956556,
+  "beta": 0.0885920599695806,
+  "formula": "noise_std(p) = multiplier * sqrt(alpha * p + beta**2)",
+  "verification": "at p = mu_bg, noise_std = multiplier * sigma_bg",
+  "generated_at": "2026-06-18T08:46:56.041062+00:00",
+  "manifest_sha256": "e4082a0c16fd58aeaafb061baf846555fe76543700058bd7119f08063c7cf24b",
+  "csd3_output_sha256": "01bea0ed684a09a60a41cf4d538d1be9ba0cb1cd683b56ecefc9d4bb46f5efad",
+  "provenance_note": "Generated on CSD3 with venv/bin/python; extra sha256 fields added to the tracked copy for submission provenance."
+}

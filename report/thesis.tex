@@ -39,10 +39,12 @@
 
 \date{July 2026}
 
-% Main-text count from texcount under the example-report convention:
-% excludes contents, figure/table captions, bibliography, and appendix.
-% The stricter Instructions.md convention currently gives 8090.
-\wordcount{6938}
+% Word count per Course Handbook 4.3.2: includes summary/abstract, tables,
+% footnotes, and non-auto-generation appendices; excludes table of contents,
+% equations, figure captions, bibliography, and the auto-generation appendix.
+% Handbook basis ~6,900 with section headings excluded (texcount body 6,494
+% + abstract ~175 + table cells ~300 - auto-generation appendix 75).
+\wordcount{6900}
 
 \subjectline{Data Intensive Science}
 \keywords{satellite trails, U-Net, Hough transform, deep learning, MeerLICHT,
@@ -56,38 +58,31 @@
 %% Abstract (concise framing only; headline metrics are deferred to drafting)
 %%%%%
 \abstract{%
-  The proliferation of low-Earth-orbit satellite constellations has made the
+  The proliferation of low-Earth-orbit satellite constellations has made
   automated detection and masking of satellite trails a routine requirement for
-  wide-field ground-based observatories.
+  wide-field observatories.
   %
   This dissertation replicates the U-Net plus probabilistic Hough transform
-  detection pipeline of \citet{stoppa2024} on a labelled subset of MeerLICHT
-  telescope imagery, reimplemented in PyTorch as a patch-based binary
-  segmentation workflow with an architecture-faithful network, a combined
-  binary cross-entropy and squared-Dice loss, validation-only model and
-  threshold selection, and Hough post-processing of the U-Net probability map.
+  pipeline of \citet{stoppa2024} on a labelled MeerLICHT subset, reimplemented in
+  PyTorch with an architecture-faithful network, a combined binary cross-entropy
+  and squared-Dice loss, validation-only model and threshold selection, and Hough
+  post-processing of the probability map. The replication is then examined
+  through four analyses: residual error, model variants, training-protocol
+  sensitivity, and inference-time strategies.
   %
-  The replication is then examined through four groups of follow-up
-  analyses: a characterisation of the residual error, model variants,
-  training-protocol sensitivity, and inference-time strategies.
+  It reproduces the paper's recall (five-seed test recall $0.923$ against $0.94$)
+  and its Hough completeness (trail-pixel recall $0.918\rightarrow0.990$; a
+  pixel-level false-negative rate $0.082\rightarrow0.0105$ comparable to the
+  paper's $6.98\,\%\rightarrow3.38\,\%$), while strict pixel precision sits below
+  the paper and is prevalence-dependent.
   %
-  The replication reproduces the target paper's recall (five-seed test recall
-  $0.923$ against the reported $0.94$) and its Hough completeness (trail-pixel
-  recall rising from $0.918$ to $0.990$, a pixel-level false-negative rate of
-  $0.082\rightarrow0.0105$ comparable to the paper's $6.98\,\%\rightarrow3.38\,\%$),
-  while strict pixel precision sits below the paper and is shown to be
-  prevalence-dependent.
-  %
-  The residual-error analysis localises the precision gap. False-positive
-  decomposition gives $82.5\,\%$ intra-patch error; a one-pixel tolerance raises
-  five-seed precision from $0.847$ to $0.946$; and $57\,\%$ of false positives lie
-  within one pixel of the mask. Together, these results are consistent with
-  residual error dominated by boundary placement rather than by spurious
-  detection.
-  %
-  The model, training, and inference variants change the residual error only
-  slightly. On this dataset, the remaining gap is therefore unlikely to be
-  explained by model capacity, training protocol, or Hough post-processing alone.
+  The residual-error analysis localises the gap: $82.5\,\%$ of false positives
+  are intra-patch, a one-pixel tolerance raises five-seed precision from $0.847$
+  to $0.946$, and $57\,\%$ of false positives lie within one pixel of the mask ---
+  consistent with error dominated by boundary placement rather than spurious
+  detection. The model, training, and inference variants move the residual only
+  slightly, so on this dataset the remaining gap is unlikely to stem from model
+  capacity, training protocol, or Hough post-processing alone.
 }
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -160,7 +155,7 @@ satellite trail is globally linear, to connect fragmented detections and
 extend partially recovered trails. The published pipeline reaches precision
 and recall both approaching $0.94$ and was applied at scale to around
 200{,}000 full MeerLICHT fields; its reported behaviour is detailed in
-Section~\ref{sec:related_target}, and this work's own numbers are deferred to
+Section~\ref{sec:related_target}, and this work's numbers are deferred to
 Chapter~\ref{ch:analysis}.
 
 \section{Background and related work}
@@ -172,45 +167,37 @@ Chapter~\ref{ch:analysis}.
 \subsection{Classical trail detection}
 \label{sec:related_classical}
 
-Classical satellite-trail detection has largely treated trails as geometric line
-features. The Hough transform \citep{hough1962}, generalised to the bounded
-$(\rho,\theta)$ line parameterisation by \citet{duda1972} and made tractable for
-noisy line segments by the progressive probabilistic variant of
-\citet{matas2000}, maps image pixels into a line-parameter space and is a natural
-tool for long, straight artefacts. Early astronomical applications used
-Hough-style voting and renewal-string methods to clean survey databases of
-satellite and aircraft tracks \citep{storkey2004}, while later algorithms masked
-stars and galaxies before applying Hough validation to reduce false positives in
-crowded fields \citep{bektesevic2017}. \citet{nir2018} instead cast streak
-detection as a near-optimal Radon-style matched filter and recover faint
-satellite and {GPS} streaks in real data. Dedicated space-debris pipelines
-\citep{virtanen2016} and survey-archive workflows for {DECam} \citep{serrano2026}
-combine these classical detectors with astrometric or photometric
-characterisation, and a modified Radon transform recovers faint trails in
-Hubble ACS imaging \citep{stark2026}. The shared limitation is sensitivity to
-faint, fragmented, or background-confused trails, where per-pixel
-signal-to-noise falls below the threshold for reliable voting and the
-preprocessing is instrument-dependent; this motivates data-driven segmentation
-that preserves weak contextual evidence before geometric post-processing.
+Classical satellite-trail detection usually treats trails as geometric line
+features. The Hough transform \citep{hough1962}, its bounded
+$(\rho,\theta)$ parameterisation \citep{duda1972}, and the progressive
+probabilistic variant for noisy segments \citep{matas2000} map image pixels into
+line-parameter space, making them natural tools for long, straight artefacts.
+Astronomical applications include Hough-style voting and renewal strings for
+survey cleaning \citep{storkey2004}, masked-star Hough validation in crowded
+fields \citep{bektesevic2017}, Radon-style matched filtering for faint streaks
+\citep{nir2018}, space-debris and {DECam} survey workflows
+\citep{virtanen2016,serrano2026}, and modified Radon recovery in Hubble ACS
+imaging \citep{stark2026}. Their shared limitation is sensitivity to faint,
+fragmented, or background-confused trails, where reliable voting and
+instrument-specific preprocessing become difficult; this motivates learned
+segmentation before geometric post-processing.
 
 \subsection{Deep learning for astronomical segmentation}
 \label{sec:related_dl}
 
 The U-Net architecture \citep{ronneberger2015}, an encoder--decoder with skip
 connections that preserve spatial resolution, was designed for biomedical
-segmentation and has been widely adopted in astronomical imaging. The closest
-precedents for thin, sparse artefacts are deepCR \citep{zhang2020}, a U-Net for
-cosmic-ray rejection, and the Cosmic-CoNN framework \citep{xu2023}, which extends
-the same design to multi-instrument generalisation. For
-contaminant masking specifically, MaxiMask \citep{paillassa2020} flags multiple
-contaminant classes including satellite and aircraft trails. Trails have since
-been targeted directly with a U-Net plus line-segment detector \citep{chen2025},
-multi-band attention U-Nets \citep{yu2025}, end-to-end streak cataloguing
-\citep{carrillo2026}, and frequency-domain alert-stream classification
-\citep{carvajal2025}. No published trail-detection pipeline was found
-that gates a segmentation U-Net with a lightweight patch classifier, although
-deep-learning classifiers already operate elsewhere in the MeerLICHT
-ecosystem \citep{hosenie2021}.
+segmentation and is now common in astronomical imaging. Close precedents for
+thin, sparse artefacts are deepCR \citep{zhang2020} and Cosmic-CoNN
+\citep{xu2023}, both cosmic-ray segmentation systems. MaxiMask
+\citep{paillassa2020} covers contaminant masking including satellite and
+aircraft trails, and trails have since been targeted with U-Net plus
+line-segment detection \citep{chen2025}, multi-band attention U-Nets
+\citep{yu2025}, end-to-end streak cataloguing \citep{carrillo2026}, and
+frequency-domain alert-stream classification \citep{carvajal2025}. No published
+trail-detection pipeline was found that gates a segmentation U-Net with a
+lightweight patch classifier, although deep-learning classifiers already operate
+elsewhere in the MeerLICHT ecosystem \citep{hosenie2021}.
 Section~\ref{sec:ext_twostage} therefore treats this as a narrow follow-up test.
 
 \subsection{The target pipeline: Stoppa et al.\ (2024)}
@@ -222,7 +209,7 @@ Hough transform to the U-Net probability map as a post-processing step. On a
 20{,}000-patch test set at threshold $0.58$ the pipeline reported precision and
 recall both approaching $0.94$, with the Hough step reducing the pixel-level
 false-negative rate from $6.98\,\%$ to $3.38\,\%$. The paper does not report the
-training hyperparameters, which makes faithful replication a non-trivial
+training hyperparameters, making faithful replication a non-trivial
 search (Chapter~\ref{ch:pipeline}).
 
 \section{Aims, scope, and contributions}
@@ -230,7 +217,7 @@ search (Chapter~\ref{ch:pipeline}).
 
 This dissertation has three aims. The first is a faithful PyTorch replication
 of the \citet{stoppa2024} pipeline on the labelled MeerLICHT subset, with the
-network architecture recovered from the released model rather than from the
+network architecture recovered from the released model, not the
 paper's text alone, and with model and threshold selection locked on
 validation data before any test metric is inspected. The second is to
 diagnose the residual error of that replication: to establish where the
@@ -380,21 +367,18 @@ widens confidence intervals, and splits are seeded (seed $2804$).
   \label{fig:mask_quality}
 \end{figure}
 
-Connected-component analysis serves as a mask-quality check: components have
+Connected-component analysis is a mask-quality check: components have
 high aspect ratios and small minor-axis widths, confirming genuinely linear
-structures, and the densest patches show adequate coverage of the visible
+structures, and the densest patches adequately cover the visible
 trails (Figure~\ref{fig:mask_quality}).
 
-The masks are accepted as sufficient for supervised training, with one
-characterised caveat: full-frame overlay inspection shows occasional
-undercoverage at faint endpoints and along low-contrast stretches. The effect
-is asymmetric: a
-model that detects a genuine but unlabelled faint extension is penalised as a
-false positive, so metrics referenced to these labels are lower bounds on true
-performance where the labels undercover. Section~\ref{sec:ext_boundary}
-quantifies this boundary disagreement with boundary-tolerant metrics;
-interpretations that rest on these labels are phrased as `consistent with'
-boundary disagreement, not as proof of label error.
+The masks are sufficient for supervised training, with one characterised caveat:
+full-frame overlays show occasional undercoverage at faint endpoints and
+low-contrast stretches. A model that detects a genuine but unlabelled extension
+is penalised as a false positive, so strict label-referenced metrics are lower
+bounds where labels undercover. Section~\ref{sec:ext_boundary} quantifies this
+boundary disagreement; interpretations are therefore phrased as `consistent
+with' boundary disagreement, not as proof of label error.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% CHAPTER 3 -- Methodology (why this method)
@@ -424,9 +408,9 @@ revisited in Section~\ref{sec:implications}.
 The pipeline pairs a learned segmentation stage with a classical geometric stage.
 A U-Net produces a soft-detection map that preserves the weak, spatially extended
 evidence of a faint trail. A classical Hough detector applied directly to the
-raw image, by contrast, responds mainly to stars, galaxies, and diffraction
+raw image responds mainly to stars, galaxies, and diffraction
 structure; in the preliminary baseline it produced precision of
-order $10^{-3}$, which is not usable for masking. The probabilistic Hough
+order $10^{-3}$, unusable for masking. The probabilistic Hough
 transform is therefore used after the U-Net, where the input is already a
 trail-probability canvas rather than a crowded sky image, and where it can
 exploit the prior that a trail is globally linear to recover coherent extent
@@ -436,7 +420,7 @@ across gaps in the probability map.
 \label{sec:why_unet}
 
 The U-Net encoder--decoder with skip connections \citep{ronneberger2015}
-preserves full spatial resolution through the network, which is essential for
+preserves full spatial resolution, essential for
 thin, elongated, sparse targets. A trail must be localised at the pixel boundary
 while still drawing on enough context to distinguish it from stellar structure
 or background gradients. The same architecture underpins the closest
@@ -462,20 +446,17 @@ is given in Section~\ref{sec:loss}.
 \section{Evaluation philosophy}
 \label{sec:eval_philosophy}
 
-Four principles govern the evaluation. First, model and threshold selection are
-pre-registered and use the validation set only; no test metric is inspected before
-the configuration is locked, guarding against selection bias on a small test set.
-Second, sampled and all-negative test metrics are kept distinct. The sampled
-test set matches the validation prior, while the all-negative test set restores
-the natural empty-patch prevalence and is the closer comparison to the target
-paper. Third, uncertainty treats the source image, not the patch, as the
-independent sampling unit, because patches from one frame share background,
-seeing, and annotation structure; a cluster bootstrap over images is therefore
-the primary interval. Fourth, because the labels undercover
-(Section~\ref{sec:mask_quality}), a single strict pixel-overlap score conflates
-genuine misses with boundary disagreement, so topology-aware (clDice),
-false-positive distance, and boundary-tolerant metrics are reported alongside
-the strict scores (Section~\ref{sec:metrics}).
+Four principles govern the evaluation. Model and threshold selection are
+pre-registered and validation-only, so no test metric is inspected before the
+configuration is locked. Sampled and all-negative test metrics are kept distinct:
+the sampled set matches the validation prior, while the all-negative set restores
+the natural empty-patch prevalence and is closer to the target paper. Uncertainty
+treats the source image, not the patch, as the independent unit, because patches
+from one frame share background, seeing, and annotation structure. Finally,
+because the labels undercover (Section~\ref{sec:mask_quality}), strict
+pixel-overlap scores are complemented by topology-aware (clDice),
+false-positive distance, and boundary-tolerant metrics
+(Section~\ref{sec:metrics}).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% CHAPTER 4 -- Training, architecture, and data pipeline
@@ -493,9 +474,9 @@ The on-disk patch builder extracts $528\times528$ patches at stride $528$
 sampling ratio. The builder records
 the source image, split, patch coordinates, positive-pixel fraction, and
 full-image display-space mean and standard deviation in the manifest. The last
-two fields implement the final \texttt{full\_image} normalisation mode: each
+two fields implement the \texttt{full\_image} normalisation mode: each
 patch is converted to $[0,1]$ and normalised with the statistics of its parent
-image, matching the paper's per-image standardisation more closely than a
+image, matching the paper's per-image standardisation better than a
 per-patch z-score.
 
 \subsection{Data augmentation}
@@ -505,7 +486,7 @@ Training patches receive random horizontal flips, vertical flips, and
 $k\times90^{\circ}$ rotations applied identically to image and mask at load
 time, so stored patches keep their canonical orientation and can appear in
 different orientations across epochs; validation and test patches are not
-geometrically augmented. Training images additionally receive signal-dependent
+geometrically augmented. Training images also receive signal-dependent
 stochastic noise (images only, never masks or evaluation splits). For a
 patch-pixel value $p\in[0,1]$ the augmentation samples
 \[
@@ -516,7 +497,9 @@ patch-pixel value $p\in[0,1]$ the augmentation samples
 where $m$ is the noise multiplier and $\alpha,\beta$ are calibrated once from
 empty-mask training patches by
 \texttt{scripts/data/compute\_background\_noise\_stats.py}, so the injected
-noise matches the measured background variation. It is described as
+noise matches the measured background variation. The locked calibration uses
+$9{,}894$ empty train patches, giving $\alpha=0.0209$ and $\beta=0.0886$.
+It is described as
 signal-dependent stochastic noise rather than Poisson--Gaussian CCD noise
 because the inputs are display renders, not calibrated electron counts. The
 active configuration fixes $m=1.0$: a three-seed
@@ -587,21 +570,19 @@ forward pass uses BF16 autocast \citep{micikevicius2018,kalamkar2019}.
 \label{sec:optuna}
 
 Hyperparameter search uses Optuna \citep{akiba2019} with a tree-structured
-Parzen estimator and a median pruner ($n_{\mathrm{startup}}=15$, 10 warm-up
-epochs per trial). Forty-five trials are balanced evenly across batch sizes
-$\{8,16,32\}$ (fifteen each); the balanced allocation corrects two confounds
-observed in a preliminary free-sampling sweep, in which the sampler
-concentrated 36 of 50 trials on one batch size and pruned large-batch trials
-disproportionately under a higher conditional learning-rate ceiling. Two
-continuous hyperparameters are searched:
-learning rate (log-uniform in $[10^{-4},10^{-3}]$) and the BCE weight
+Parzen estimator and median pruner ($n_{\mathrm{startup}}=15$, 10 warm-up
+epochs). Forty-five trials are balanced across batch sizes $\{8,16,32\}$
+(fifteen each) after a preliminary free-sampling sweep concentrated 36 of 50
+trials on one batch size and pruned large-batch trials under a higher
+conditional learning-rate ceiling. The searched continuous hyperparameters are
+learning rate (log-uniform in $[10^{-4},10^{-3}]$) and BCE weight
 $\lambda_{\mathrm{BCE}}$ (uniform in $[0.2,0.8]$); dropout, normalisation, and
-the noise multiplier are fixed, not searched. Each trial runs for 20 epochs and is scored by
-threshold-swept validation $F_1$, aligning the search objective with the final
-selection criterion. Pruning within the 20-epoch search uses the in-epoch
-validation Dice at the fixed training threshold as an efficiency heuristic; only
-completed trials are then rescored by threshold-swept validation $F_1$. The top
-five trials by validation $F_1$ are retrained for 75 epochs at five seeds
+noise multiplier are fixed. Each trial runs for 20 epochs and is scored by
+threshold-swept validation $F_1$, matching the final selection criterion.
+Pruning uses in-epoch validation Dice at the fixed training threshold as an
+efficiency heuristic, while only completed trials are rescored by swept
+validation $F_1$. The top five trials by validation $F_1$ are retrained for 75
+epochs at five seeds
 ($2804, 1234, 42, 7, 13$), and the winner is chosen by mean threshold-swept
 validation $F_1$ across seeds \emph{before any test metric is inspected}. The
 preregistered tie-breaker, applied when trial means fall within $0.001$
@@ -685,21 +666,17 @@ retraining of the top trials and seed-averaged reporting.
 \section{Software engineering}
 \label{sec:software}
 
-The code is an installable Python package with a command-line entry point for
-each pipeline stage, and every experiment is driven by a YAML configuration
-plus runtime overrides, so a run is reproducible from its configuration file
-and recorded seed.
+The code is an installable Python package with command-line entry points for
+each pipeline stage. Experiments use YAML configuration plus runtime overrides,
+so runs are reproducible from configuration and seed.
 
-Correctness is checked by a \texttt{pytest} suite covering image and
-mask pairing, patch geometry, the recovered architecture, the loss and
-segmentation metrics, the shared Hough runner, and the training entry points;
-static checks are enforced with Ruff. A pinned CUDA environment
-(\texttt{hpc-requirements.txt}) and a relaxed CPU set
-(\texttt{local-requirements.txt}) are both maintained, and a portable CPU
-Docker image runs the test suite as its default command. The public API
-carries NumPy-style docstrings rendered with Sphinx and served on
-ReadTheDocs. Individual routines are referenced by file, for example
-\texttt{src/training/train\_unet.py}.
+Correctness is checked by a \texttt{pytest} suite covering image and mask
+pairing, patch geometry, the recovered architecture, loss and segmentation
+metrics, the shared Hough runner, and training entry points; Ruff handles static
+checks. Separate CUDA and CPU requirement files are maintained, and a portable
+CPU Docker image runs the tests by default. NumPy-style docstrings are rendered
+with Sphinx and served on ReadTheDocs; routines are referenced by file, for
+example \texttt{src/training/train\_unet.py}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% CHAPTER 5 -- Analysis and comparison
@@ -713,7 +690,7 @@ ReadTheDocs. Individual routines are referenced by file, for example
 \label{sec:replication}
 
 The validation-selected winner (trial~44; Section~\ref{sec:selection}) is
-evaluated on the held-out test images at its validation-selected threshold of
+evaluated on the held-out test images at its selected threshold of
 $0.45$. On the sampled test set ($1{:}3$ positive:negative) the single-seed model
 reaches precision $0.852$, recall $0.918$, and Dice $0.884$, with a five-seed mean
 of precision $0.847$ and recall $0.923$ (Table~\ref{tab:replication},
@@ -721,8 +698,8 @@ Figure~\ref{fig:replication}). On the parity test set, precision falls to
 $0.780$ at unchanged recall ($0.918$), as expected once the negative base rate
 is restored. Recall is therefore reproduced at close
 to the paper's level, while strict precision sits below the paper's $0.94$. The
-rest of the chapter analyses where that precision gap comes from, instead of
-treating it as a single optimisation target.
+rest of the chapter analyses where that gap comes from, not
+treating it as an optimisation target.
 
 \begin{table}[htbp]
   \centering
@@ -766,7 +743,7 @@ unchanged into the canonical seed-2804 test evaluation. Across the five reported
 the validation-selected thresholds range from $0.41$ to $0.50$, and each seed is
 evaluated at its own validation-selected threshold. Figure~\ref{fig:pr_curve}
 shows the validation sweep for the canonical seed; the $F_1$ plateau is flat
-between thresholds of roughly $0.4$ and $0.6$, so the operating point is not
+between roughly $0.4$ and $0.6$, so the operating point is not
 finely tuned.
 
 \begin{figure}[htbp]
@@ -801,7 +778,7 @@ to $0.0105$ (five-seed mean $0.077\rightarrow0.0099$). This
 pixel-completeness rate is the quantity comparable to the paper's reported
 $6.98\,\%\rightarrow3.38\,\%$. The image-level detection false-negative rate is
 degenerate here: every positive test image is already hit by at least one
-predicted pixel, so it is $0$ both before and after Hough and is not comparable
+predicted pixel, so it is $0$ before and after Hough and is not comparable
 to the paper. At patch level, the rate falls only from $0.122$ to $0.103$,
 since this stricter diagnostic counts trail-bearing patches with no recovered
 pixel. Because the canvas is assembled from sampled test patches, all Hough
@@ -848,22 +825,20 @@ uncertainty but still visible.
   \label{fig:predictions}
 \end{figure}
 
-A representative selection of test-patch predictions for the locked winner is
-shown in Figure~\ref{fig:predictions}, with false-positive galleries for the
-winning U-Net (Figure~\ref{fig:fp_fn_gallery_winner}) and the attention variant
-(Figure~\ref{fig:fp_fn_gallery_attn}) on the same eight patches, collected in
-Appendix~\ref{app:supplementary}. The galleries include
-bright-star diffraction-spike examples: low-Dice false positives on stellar
-structure alongside high-Dice cases where bright stars are correctly ignored.
+A representative selection of locked-winner test predictions is shown in
+Figure~\ref{fig:predictions}; false-positive galleries for the winning U-Net and
+attention variant on the same eight patches are in
+Appendix~\ref{app:supplementary}. They include diffraction-spike examples:
+low-Dice false positives on stellar structure and high-Dice cases where bright
+stars are correctly ignored.
 
 As a final qualitative check, the locked model was applied cold to nine
 predeclared DECam frames with RECA-measured streaks
-(Figure~\ref{fig:decam_cold_montage}). No masks exist, so no metric is
-reported; on author review, eight of the nine visible streaks are fully
-traced, while the ninth (SORCE), a very faint streak crossing the full frame,
-is traced along only about a tenth of its length and is counted as a miss.
-That failure sits where Section~\ref{sec:ext_faint} predicts, at the
-low-contrast end. This is an illustration of out-of-domain behaviour, not a
+(Figure~\ref{fig:decam_cold_montage}). With no masks, no metric is reported; on
+author review, eight of nine visible streaks are fully traced, while the very
+faint full-frame SORCE streak is traced along only about a tenth of its length
+and counted as a miss. This sits at the low-contrast end predicted by
+Section~\ref{sec:ext_faint}, illustrating out-of-domain behaviour rather than a
 cross-dataset benchmark.
 
 \begin{figure}[htbp]
@@ -886,7 +861,7 @@ cross-dataset benchmark.
 The diagnostics below give a consistent pattern: most false-positive pixels
 lie close to labelled trails, consistent with thin or imperfect mask
 boundaries, while a smaller whole-patch component remains genuine background
-confusion. The interpretation stays provisional because no independent
+confusion. The interpretation stays provisional: no independent
 re-annotation set is available.
 
 \subsection{False-positive decomposition}
@@ -984,22 +959,18 @@ minority.
 The locked winner was rescored post hoc on the 31 positive test images using
 raw 8-bit PNG intensities as a \emph{relative display-contrast proxy}, not
 calibrated flux or signal-to-noise (Appendix
-Figures~\ref{fig:faint_streak}--\ref{fig:fp_intensity}). Median perpendicular
-cross-sections through labelled trails make the proxy concrete
-(Figure~\ref{fig:faint_profiles}): a high-contrast trail shows a sharp peaked
-profile above the local background, while a low-contrast example is nearly
-flat. The natural follow-on, fitting each profile and integrating flux within
-an aperture, requires calibrated counts that the 8-bit renders do not carry
-(Section~\ref{sec:meerlicht}). Across 55 cleaned
-trail components, the low-contrast tertile has the lowest pre-Hough recall
-($0.853$) and the largest Hough-added ground-truth fraction ($0.092$), with
-post-Hough recall at least $0.945$ in every tier, so Hough acts exactly where
-the network evidence is weakest. Near-trail false positives (within $2$\,px of
-the label) have median display excess $74$, between background ($0$) and
-labelled trail pixels ($138$), and far false positives (median $64$) also sit
-on elevated structure: consistent with boundary under-capture near labels and
-trail-like background further away, and descriptive rather than evidence of
-label error.
+Figures~\ref{fig:faint_streak}--\ref{fig:fp_intensity}); median cross-sections
+through labelled trails make the proxy concrete
+(Figure~\ref{fig:faint_profiles}), and fitting calibrated flux in an aperture
+would need counts the 8-bit renders do not carry (Section~\ref{sec:meerlicht}).
+Across 55 cleaned trail components, the low-contrast tertile has the lowest
+pre-Hough recall ($0.853$) and the largest Hough-added ground-truth fraction
+($0.092$), with post-Hough recall at least $0.945$ in every tier, so Hough acts
+exactly where the network evidence is weakest. Near-trail false positives sit at
+intermediate display excess between background and labelled-trail pixels
+(Figure~\ref{fig:fp_intensity}): consistent with boundary under-capture near
+labels and trail-like background further away, and descriptive rather than
+evidence of label error.
 
 \subsection{Topology-aware comparison (clDice)}
 \label{sec:ext_cldice}
@@ -1008,25 +979,9 @@ label error.
 % attention result.
 The centreline Dice (clDice) tracks pixel Dice and preserves the architecture
 ordering: $0.847$ for the base model versus $0.838$ for the attention variant
-(against pixel Dice $0.884$ and $0.879$; Table~\ref{tab:cldice}). Topology
+($-0.009$), against pixel Dice $0.884$ and $0.879$ ($-0.005$). Topology
 therefore agrees with the null attention result and shows no hidden connectivity
 advantage.
-
-\begin{table}[htbp]
-  \centering
-  \caption{Topology-aware and exact overlap comparison. clDice is
-           patch-averaged over target-positive patches; exact Dice is
-           micro-averaged over test pixels.}
-  \label{tab:cldice}
-  \begin{tabular}{lrrr}
-    \toprule
-    Metric & Base U-Net t44 & Attention U-Net t7 & Delta \\
-    \midrule
-    clDice     & 0.847 & 0.838 & -0.009 \\
-    Exact Dice & 0.884 & 0.879 & -0.005 \\
-    \bottomrule
-  \end{tabular}
-\end{table}
 
 %% ----- Model variants as tests of the error diagnosis -----
 \section{Model variants are bounded by the error decomposition}
@@ -1059,8 +1014,7 @@ operating point) as a hard recall ceiling. The gate gives a bounded precision
 gain and a real compute saving at this operating point, but not an
 order-of-magnitude saving: it skips $24.7\,\%$ of sampled-test U-Net forwards.
 Larger savings would require a more aggressive gate on a denser, naturally
-empty-dominated patch stream. It does not explain most of the strict-precision
-gap.
+empty-dominated patch stream.
 
 \begin{figure}[htbp]
   \centering
@@ -1085,7 +1039,7 @@ threshold $0.48$, against the base Dice of $0.884$
 $0.854$ for the base model ($90\,\%$ interval $[0.851,\,0.856]$) and $0.851$ for
 the attention model ($[0.850,\,0.852]$), so the comparison is best read as
 matched-protocol null evidence rather than as a decisive architectural ranking.
-Together with the clDice result (Table~\ref{tab:cldice}), skip attention
+Together with the clDice result (Section~\ref{sec:ext_cldice}), the attention variant
 reveals no hidden connectivity or faint-trail advantage on this dataset.
 
 \begin{table}[htbp]
@@ -1218,19 +1172,14 @@ positives.
 \section{Deviations from the target paper}
 \label{sec:deviations}
 
-Faithful replication is a matter of degree, and the departures that remain
-from \citet{stoppa2024} should be visible rather than implicit.
-Table~\ref{tab:deviations} lists those that survive in the final pipeline, in
-three classes. The first is forced: the paper does not publish its training
-hyperparameters, so learning rate, loss weighting, and batch size were
-re-derived by a validation-only search. The second is deliberate methodology:
-image-level stratified splits, a validation-swept threshold in place of the
-fixed $0.58$, and the sampled-plus-parity test design, each chosen so that
-selection discipline and comparability could be audited. The third is
-implementation convention, such as the PyTorch port and the
-logits-with-external-sigmoid output. Where a choice is aligned only in
-spirit, as with the squared-denominator Dice and the stride-528 tiling, it is
-not described as paper-faithful.
+Faithful replication is a matter of degree, so Table~\ref{tab:deviations} makes
+the remaining departures from \citet{stoppa2024} explicit. They are forced
+choices where the paper omits training hyperparameters; deliberate methodology
+choices such as image-level stratified splits, a validation-swept threshold, and
+sampled-plus-parity testing; and implementation conventions such as the PyTorch
+port and logits-with-external sigmoid output. Alignment only in spirit, as with
+the squared-denominator Dice and stride-528 tiling, is not described as
+paper-faithful.
 
 \begin{table}[htbp]
   \centering
@@ -1264,51 +1213,43 @@ not described as paper-faithful.
   \end{tabular}
 \end{table}
 
-\noindent Three deviations are methodologically significant because they
-change what the headline comparison means: the swept threshold and the
-different test population confound precision comparisons, leaving recall as
-the like-for-like quantity (Section~\ref{sec:replication}), and the
-patch-canvas Hough makes the completeness figures approximations to the
-paper's dense-image setting (Section~\ref{sec:hough_results}). The remainder
-are incidental: the framework port and output convention are locked by
-architecture tests, the stricter split discipline is conservative because it
-removes the upward bias of patch-level leakage rather than adding one, and the
-calibrated noise augmentation was screened on
-validation data and found neutral before adoption.
+\noindent Three deviations change the headline comparison: the swept threshold
+and different test population confound precision, leaving recall as the closest
+like-for-like quantity (Section~\ref{sec:replication}); the patch-canvas Hough
+makes completeness figures approximations to the paper's dense-image setting
+(Section~\ref{sec:hough_results}). The rest are incidental: architecture tests
+lock the framework port and output convention, image-level splitting removes
+patch-level leakage, and calibrated noise was validation-screened before
+adoption.
 
 \section{Interpreting the headline comparison}
 \label{sec:interpretation}
 
 Section~\ref{sec:deviations} leaves recall as the like-for-like quantity, and
-even that comparison spans different populations: the five-seed recall of
-$0.923\pm0.006$ against the paper's $0.94$ is measured on $3{,}488$ sampled
-test patches ($12{,}800$ at parity) drawn from 32 images, against the paper's
-20{,}000 patches of unreported class balance. For precision, the prevalence
-confound is measured rather than assumed. The fall from $0.852$ to $0.780$ at
-identical recall and a fixed threshold is the direct size of the base-rate
-effect on this data; the third confound, the annotation convention, is bounded
-at the one-pixel scale by Section~\ref{sec:ext_error}. Evaluating the locked
-model at the paper's fixed $0.58$ rather than the validation-swept $0.45$ raises
-precision by only $0.025$ on both the sampled and parity test sets, at the
-expected cost in recall, so the threshold choice is a minor contributor to the
-gap. A precision deficit
-read off Table~\ref{tab:replication} alone would therefore mix detector
-behaviour with population and labelling differences that a single headline
-figure cannot separate.
+even that spans different populations: five-seed recall $0.923\pm0.006$ against
+the paper's $0.94$ is measured on $3{,}488$ sampled patches ($12{,}800$ at
+parity) from 32 images, against the paper's 20{,}000 of unreported class
+balance. For precision the prevalence confound is measured, not assumed: the
+fall from $0.852$ to $0.780$ at identical recall and a fixed threshold is the
+direct size of the base-rate effect, while the annotation confound is bounded at
+one pixel by Section~\ref{sec:ext_error}. Evaluating at the paper's fixed $0.58$
+rather than the swept $0.45$ raises precision by only $0.025$ on both test sets,
+so the threshold is a minor contributor. A single headline precision figure
+therefore mixes detector behaviour with population and labelling differences it
+cannot separate.
 
 The Hough comparison is favourable for completeness but not for strict
 precision. The pixel-level false-negative rate falls from $0.082$ to $0.0105$,
-a relative reduction of approximately $87\,\%$ against the paper's $51\,\%$
+an approximately $87\,\%$ reduction against the paper's $51\,\%$
 ($0.0698\rightarrow0.0338$): comparable before the geometric stage, stronger
-after it. The same run increases strict false-positive area, reducing strict
-pixel precision from $0.780$ to $0.410$, partly because Hough lines are drawn
-thicker than the $1$--$3$ px masks. Because the canvas is reconstructed from
-patches rather than native dense full-frame inference (Section~\ref{sec:hough}),
-this is reported as comparable completeness behaviour, not superiority. The
-same discipline applies to the tolerant scores: the $\pm1$\,px precision of
-$0.946$ and recall of $0.980$ locate the residual at the boundary scale, but a
-relaxed metric is never set against the paper's strict $0.94/0.94$ as an
-equivalent operating point.
+after. The same run raises strict false-positive area, cutting strict pixel
+precision from $0.780$ to $0.410$, partly because Hough lines are drawn thicker
+than the $1$--$3$ px masks; with the canvas reconstructed from patches rather
+than dense full-frame inference (Section~\ref{sec:hough}), this is comparable
+completeness, not superiority. The same discipline applies to the tolerant
+scores: the $\pm1$\,px precision $0.946$ and recall $0.980$ locate the residual
+at the boundary scale, but a relaxed metric is never set against the paper's
+strict $0.94/0.94$.
 
 \section{Limitations}
 \label{sec:limitations}
@@ -1464,7 +1405,7 @@ metric.
 \label{sec:future}
 
 % Scope: forward-looking directions, including remediation framed as future work.
-Several directions follow directly from the findings. The most decisive is a
+Several directions follow from the findings. The most decisive is a
 \emph{gold-standard re-annotation audit} of a sample of test trails: it would
 convert the suggestive boundary-placement reading into a measured label-noise
 floor and establish how much of the strict precision gap is attributable to mask

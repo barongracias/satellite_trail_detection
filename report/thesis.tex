@@ -350,8 +350,9 @@ widens confidence intervals, and splits are seeded (seed $2804$).
 \end{figure}
 
 Connected-component analysis is a mask-quality check: components have
-high aspect ratios and small minor-axis widths, confirming genuinely linear
-structures, and the densest patches adequately cover the visible
+high aspect ratios and a median stroke width near $6$\,px (distance transform),
+confirming genuinely linear structures, and the densest patches adequately cover
+the visible
 trails (Figure~\ref{fig:mask_quality}).
 
 The masks are sufficient for supervised training, with one characterised caveat:
@@ -1191,8 +1192,8 @@ precision. The pixel-level false-negative rate falls from $0.082$ to $0.0105$,
 an approximately $87\,\%$ reduction against the paper's $51\,\%$
 ($0.0698\rightarrow0.0338$): comparable before the geometric stage, stronger
 after. The same run raises strict false-positive area, cutting strict pixel
-precision from $0.780$ to $0.410$, partly because Hough lines are drawn thicker
-than the $1$--$3$ px masks; with the canvas reconstructed from patches rather
+precision from $0.780$ to $0.410$, partly because the $3$\,px Hough lines
+extend beyond the labelled trail extent; with the canvas reconstructed from patches rather
 than dense full-frame inference (Section~\ref{sec:hough}), this is comparable
 completeness, not superiority. The same discipline applies to the tolerant
 scores: the $\pm1$\,px precision $0.946$ and recall $0.980$ locate the residual

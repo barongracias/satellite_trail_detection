@@ -351,8 +351,8 @@ def false_positive_distances(
 
 def _mask_boundary(mask: np.ndarray) -> np.ndarray:
     """8-connected inner boundary: mask pixels with at least one background
-    neighbour. For 1–3 px trail masks this is essentially the mask itself,
-    which is the expected behaviour on thin structures."""
+    neighbour. On the ~6 px-wide trail masks this returns the boundary rim,
+    the expected inner boundary for thin elongated structures."""
     from scipy.ndimage import binary_erosion
 
     if not mask.any():

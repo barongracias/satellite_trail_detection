@@ -323,8 +323,8 @@ images are stratified by total trail-pixel count into four quartile groups,
 and the nominal $0.70/0.15/0.15$ ratios are applied within each group with
 flooring; the remainder goes to test. The realised split is therefore
 \textbf{122 train / 24 validation / 32 test} ($0.685/0.135/0.180$), quoted
-throughout. This is leakage-safe and conservative, since a larger test set
-widens confidence intervals, and splits are seeded (seed $2804$).
+throughout. This is leakage-safe and conservative, reserving a relatively large
+held-out fraction for evaluation, and splits are seeded (seed $2804$).
 
 \begin{figure}[htbp]
   \centering
@@ -358,8 +358,8 @@ trails (Figure~\ref{fig:mask_quality}).
 The masks are sufficient for supervised training, with one characterised caveat:
 full-frame overlays show occasional undercoverage at faint endpoints and
 low-contrast stretches. A model that detects a genuine but unlabelled extension
-is penalised as a false positive, so strict label-referenced metrics are lower
-bounds where labels undercover. Section~\ref{sec:ext_boundary} quantifies this
+is penalised as a false positive, so strict label-referenced precision is a lower
+bound where labels undercover. Section~\ref{sec:ext_boundary} quantifies this
 boundary disagreement; interpretations are therefore phrased as `consistent
 with' boundary disagreement, not as proof of label error.
 
@@ -486,9 +486,9 @@ It is described as
 signal-dependent stochastic noise rather than Poisson--Gaussian CCD noise
 because the inputs are display renders, not calibrated electron counts. The
 active configuration fixes $m=1.0$: a three-seed
-validation-only screen over multipliers $\{0.5, 1.0, 2.0\}$ showed no
-significant $F_1$ effect, so the setting is a robustness choice rather than a
-tuned gain.
+validation-only screen over multipliers $\{0.5, 1.0, 2.0\}$ yielded no
+validation-$F_1$ gain meeting the preregistered adoption criterion, so the
+setting is a robustness choice rather than a tuned gain.
 
 \section{Network architecture}
 \label{sec:architecture}
@@ -517,7 +517,7 @@ decoder block are
   0.1,\ 0.1,\ 0.2,\ 0.2,\ 0.3,\ 0.2,\ 0.2,\ 0.1,\ 0.1 .
 \]
 The network uses no batch normalisation. The $3\times3$ convolutions use He-normal initialisation
-\citep{he2016}; the transposed convolutions and the final $1\times1$ head use
+\citep{he2015delving}; the transposed convolutions and the final $1\times1$ head use
 Glorot-uniform initialisation; all biases are initialised to zero. Inputs are
 $528\times528$ single-channel patches and the output is a single-channel logit
 map of identical spatial dimensions: the model returns logits, and the sigmoid
@@ -846,9 +846,9 @@ re-annotation set is available.
 Decomposing the false-positive pixels of the winning model shows that only
 $17.5\,\%$ are inter-patch (the network lighting up in trail-free patches), while
 $82.5\,\%$ are intra-patch (over-painting inside trail-bearing patches)
-(Table~\ref{tab:fp_decomposition}). Since a patch-level gate or hard-negative
-mining can only address the inter-patch share, this $17.5\,\%$ is a hard upper
-bound on what either strategy can recover.
+(Table~\ref{tab:fp_decomposition}). A patch-level gate addresses only the
+inter-patch share, so this $17.5\,\%$ is a hard upper bound for such a gate;
+hard-negative mining retrains and is only loosely bounded by it.
 
 \begin{table}[htbp]
   \centering
@@ -1030,8 +1030,8 @@ reveals no hidden connectivity or faint-trail advantage on this dataset.
 \label{sec:ext_dataeff}
 
 Retraining the winning configuration on nested $30/50/70/100\,\%$ subsets of the
-training images (validation and test held fixed) shows validation Dice plateauing
-beyond roughly $50\,\%$ of the data (Figure~\ref{fig:data_efficiency}). Because
+training images (validation and test held fixed) shows validation Dice flat to
+$50\,\%$, rising at $70\,\%$, then near-constant (Figure~\ref{fig:data_efficiency}). Because
 the hyperparameters are transferred from the $100\,\%$-tuned winner rather than
 re-tuned per fraction, the curve is a lower bound at each data size; it is a
 single-seed, indicative result, plotted without a confidence band. The fixed
@@ -1065,8 +1065,8 @@ consistent with, the $17.5\,\%$ inter-patch false-positive share.
 \label{sec:ext_softlabel}
 
 A single-seed pilot replacing the hard targets with $1$\,px dilated soft-edged
-targets (training only; validation and test masks unchanged) does not improve any
-metric (Table~\ref{tab:soft_label}). The soft model predicts wider trails, with
+targets (training only; validation and test masks unchanged) improves no overlap,
+precision or topology metric (Table~\ref{tab:soft_label}). The soft model predicts wider trails, with
 its validation-optimal threshold rising from $0.45$ to $0.62$, giving recall
 $+0.008$ but precision $-0.022$, exact Dice $-0.009$, clDice $-0.013$, and a tied
 $\pm1$\,px $F_1$: the boundary band is absorbed into wider predictions rather
@@ -1211,8 +1211,8 @@ The findings above are bounded by seven limitations.
         (Section~\ref{sec:mask_quality}). The effect is asymmetric: a correct
         detection of an unlabelled trail pixel scores as a false positive,
         and a model trained on such labels also learns to suppress faint
-        extensions. Label-referenced precision and recall are therefore lower
-        bounds where the labels undercover. The re-annotation audit of
+        extensions. Label-referenced precision is therefore a lower
+        bound where the labels undercover. The re-annotation audit of
         Section~\ref{sec:future} is the direct mitigation.
   \item \textbf{Dataset size.} The subset holds 178 images, of which 32 form
         the test set. Image-level bootstrap intervals are accordingly several
@@ -1330,9 +1330,9 @@ within one pixel of a labelled trail. The variants behave as that
 decomposition predicts: the classifier gate shifts precision $+1.2$\,pp,
 bounded by the $17.5\,\%$ inter-patch share; the attention-gated U-Net is a
 null at matched capacity, with clDice confirming no hidden topology
-advantage; validation Dice plateaus beyond roughly half the training images;
+advantage; validation Dice plateaus beyond roughly $70\,\%$ of the training images;
 hard-negative mining adds $+0.007$ precision; the soft-label pilot improves
-no metric; and ensembling with test-time augmentation and
+no overlap, precision or topology metric; and ensembling with test-time augmentation and
 probability-stratified Hough sit within seed noise. The residual error is
 bounded by the error decomposition: none of the tested architecture,
 training-protocol, or inference changes moves it materially, and these bounded

@@ -263,8 +263,8 @@ def _run_surface_nsd(
             "both vocabularies map to these numbers. Empty-GT+empty-pred "
             "images are excluded; empty-GT+non-empty-pred images score 0 and "
             "are included in micro_all_images but not micro_gt_positive_images "
-            "(counts above). On 1-3 px trails the mask boundary is essentially "
-            "the mask, so NSD@1 is expected to track the existing +/-1 px "
+            "(counts above). On the ~6 px-wide trail masks the boundary is the "
+            "rim, so NSD@1 is expected to track the existing +/-1 px "
             "boundary-tolerant F1 — equivalence, not independent confirmation."
         ),
         "per_image": per_image,

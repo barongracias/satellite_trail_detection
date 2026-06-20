@@ -418,8 +418,9 @@ def main() -> None:
             "images (negative images contribute FP with no TP); the recall/"
             "coverage aggregates above keep their original positive-image-only "
             "scope for backwards compatibility. Post-Hough strict precision is "
-            "depressed partly by the 3 px line-drawing convention rasterised "
-            "onto 1-3 px masks; report alongside tolerant metrics."
+            "depressed partly by the 3 px line-drawing convention drawing detected "
+            "lines beyond the labelled trail extent (masks are ~6 px median); "
+            "report alongside tolerant metrics."
         ),
         "opencv_rng_note": (
             "cv2.HoughLinesP is the probabilistic Hough variant and the global "

@@ -70,9 +70,9 @@ combined binary cross-entropy plus squared-Dice loss.
 Hyperparameters are selected by validation-only Optuna search, the top trials
 are retrained across five seeds, and the final threshold is chosen from a
 validation precision--recall sweep before test metrics are inspected. Hough
-post-processing is evaluated on a reconstructed patch canvas, so its numbers are
-reported as patch-canvas approximations to dense full-image inference with
-separate precision and completeness caveats.
+post-processing is evaluated on a full-coverage canvas that reproduces native
+dense full-image inference pixel-for-pixel, with separate precision and
+completeness caveats.
 
 \summaryfigure{0.96}{../results/figures/predictions/overlay_grid_winner_t44_s2804.png}{Representative
 test-patch predictions for the locked U-Net: ground truth in green, prediction
@@ -87,7 +87,7 @@ This shows that precision is prevalence-sensitive, whereas recall is the cleaner
 like-for-like comparison across the two test populations.
 
 The Hough stage reproduces the paper's intended completeness behaviour. On the
-canonical patch canvas, trail-pixel recall rises from $0.918$ to $0.990$,
+dense full-frame canvas, trail-pixel recall rises from $0.918$ to $0.990$,
 equivalently reducing the pixel-level false-negative rate from $0.082$ to
 $0.0105$. This does not make the Hough mask a better strict pixel classifier:
 post-Hough line drawing increases false-positive area, reducing strict precision

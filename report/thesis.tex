@@ -1195,9 +1195,9 @@ cutting strict pixel precision from $0.780$ to $0.410$, partly because the
 $3$\,px Hough lines extend beyond the labelled trail extent: a line-thickness
 sweep ($1$/$2$/$3$\,px gives $0.588$/$0.478$/$0.410$ at completeness
 $\geq0.97$) attributes about half of this fall to rasterisation convention
-rather than genuine false detection (Figure~\ref{fig:supp_hough_thickness}). With the canvas reconstructed from patches
-rather than dense full-frame inference (Section~\ref{sec:hough}), this is
-comparable completeness, not superiority. The same discipline applies to the tolerant
+rather than genuine false detection (Figure~\ref{fig:supp_hough_thickness}). On this full-coverage canvas---verified
+pixel-for-pixel against a native dense full-frame inference
+(Section~\ref{sec:hough})---this is comparable completeness, not superiority. The same discipline applies to the tolerant
 scores: the $\pm1$\,px precision $0.946$ and recall $0.980$ locate the residual
 at the boundary scale, but a relaxed metric is never set against the paper's
 strict $0.94/0.94$. These boundary diagnostics hold across the five retraining
@@ -1232,12 +1232,13 @@ The findings above are bounded by seven limitations.
         sampled-validation threshold. The sampled-to-parity precision drop
         ($0.852$ to $0.780$) bounds the size of this bias; recall is
         unaffected because all positive patches are retained.
-  \item \textbf{Patch-canvas Hough.} Hough runs on canvases reconstructed from
-        patch predictions, not on native dense full-frame inference. The parity
-        evaluation restores all test patches for false-positive accounting, but
-        the post-Hough precision remains sensitive to line rasterisation
-        thickness and patch-canvas reconstruction. The pixel-completeness
-        comparison remains meaningful because every positive patch is retained.
+  \item \textbf{Hough rasterisation convention.} The parity Hough canvas is a
+        dense full-frame prediction---full $528$\,px tiling over every test image,
+        verified pixel-for-pixel against an independent native full-image
+        inference---so the comparison is not a patch-sampling or seam artefact.
+        The one residual is the $3$\,px line-drawing convention, which accounts
+        for about half of the post-Hough precision fall; completeness is
+        unaffected.
   \item \textbf{Single telescope.} All training and quantitative evaluation
         use MeerLICHT data; transfer to another instrument's pixel scale,
         point-spread function, or background is untested, and the DECam

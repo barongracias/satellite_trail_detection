@@ -108,8 +108,8 @@ placement and mask granularity dominating the residual error, although a
 gold-standard re-annotation audit is needed to prove that interpretation.
 
 \summaryfigure{0.88}{../results/figures/thesis_2_boundary_tolerance.pdf}{A
-one-pixel tolerance largely closes the strict precision gap, indicating that
-the residual error is concentrated around thin mask boundaries.}
+one-pixel tolerance largely closes the strict precision gap, consistent with
+residual disagreement concentrated near labelled boundaries.}
 
 \section*{Extensions}
 Follow-up experiments test whether the residual can be moved by model or
@@ -143,10 +143,10 @@ new labels.
 \newpage
 
 \section*{Research Impact \& Conclusion}
-The U-Net plus Hough pipeline faithfully recovers the target detector's recall
+The U-Net plus Hough pipeline closely reproduces the target detector's recall
 and Hough completeness. The tested capacity, training-protocol and
 post-processing changes do not materially reduce the remaining strict-precision
-gap; it is bounded and concentrated within about one pixel of the labelled boundary. For operational masking, this means reporting
+gap; the diagnostics place a majority of false positives within one pixel of a labelled trail. For operational masking, this means reporting
 strict scores alongside boundary-tolerant scores and annotation conventions is
 more informative than another architecture tweak.
 

@@ -42,9 +42,9 @@
 % Word count per Course Handbook 4.3.2: includes summary/abstract, tables,
 % footnotes, and non-auto-generation appendices; excludes table of contents,
 % equations, figure captions, bibliography, and the auto-generation appendix.
-% Handbook basis ~6,900 with section headings excluded (texcount body 6,494
-% + abstract ~175 + table cells ~300 - auto-generation appendix 75).
-\wordcount{6900}
+% Handbook basis ~6,945 with section headings excluded (texcount body ~6,520
+% + abstract ~175 + table cells ~315 - auto-generation appendix 75).
+\wordcount{6950}
 
 \subjectline{Data Intensive Science}
 \keywords{satellite trails, U-Net, Hough transform, deep learning, MeerLICHT,
@@ -118,7 +118,7 @@ indicate that approximately $10\,\%$ of LSST images would contain at least one
 trail under a 40{,}000-satellite scenario \citep{rubin2026}; wide-field
 twilight exposures can reach $30$--$40\,\%$ contamination
 \citep{hainaut2020,bassa2022}; and $4.3\pm0.4\,\%$ of Hubble ACS/WFC images
-already contain trails \citep{kruk2023}. At these
+taken in 2018--2021 contained trails \citep{kruk2023}. At these
 rates manual flagging does not scale: a survey instrument such as MeerLICHT
 \citep{bloemen2016} produces $10{,}560\times10{,}560$-pixel frames throughout
 the night, so identifying and masking affected pixels must be automated,
@@ -689,7 +689,7 @@ treating it as an optimisation target.
   \caption{Replication comparison against Stoppa et al.\ (2024). Paper metrics
            are at threshold $0.58$ on a 20{,}000-patch test set; this work uses
            the realised $122/24/32$ image split and the validation-selected
-           threshold $0.45$. Cluster-bootstrap intervals are in
+           threshold $0.45$ (per-seed $0.41$--$0.50$). Cluster-bootstrap intervals are in
            Section~\ref{sec:bootstrap}.}
   \label{tab:replication}
   \small
@@ -700,7 +700,7 @@ treating it as an optimisation target.
     Stoppa et al.\ (2024)              & 0.58 & 0.94  & 0.94  & ---   & ---   \\
     \midrule
     This work, sampled (single seed)   & 0.45 & 0.852 & 0.918 & 0.884 & 0.791 \\
-    This work, sampled (5-seed mean)   & 0.45 & 0.847 & 0.923 & 0.884 & 0.792 \\
+    This work, sampled (5-seed mean)   & $0.41$--$0.50$ & 0.847 & 0.923 & 0.884 & 0.792 \\
     This work, parity (single seed)    & 0.45 & 0.780 & 0.918 & 0.843 & 0.729 \\
     \bottomrule
   \end{tabular}
@@ -853,8 +853,8 @@ hard-negative mining retrains and is only loosely bounded by it.
 \begin{table}[htbp]
   \centering
   \caption{Decomposition of false-positive pixels. Only the inter-patch
-           component is addressable by a patch-level gate or hard-negative
-           mining.}
+           component is directly removable by a patch-level gate (a looser
+           reference for hard-negative mining).}
   \label{tab:fp_decomposition}
   \begin{tabular}{lrr}
     \toprule
@@ -1166,7 +1166,7 @@ paper-faithful.
 and different test population confound precision, leaving recall as the closest
 like-for-like quantity (Section~\ref{sec:replication}); the patch-canvas Hough
 makes completeness figures approximations to the paper's dense-image setting
-(Section~\ref{sec:hough_results}). The rest are incidental: architecture tests
+(Section~\ref{sec:hough_results}). The remaining departures were not individually isolated: architecture tests
 lock the framework port and output convention, image-level splitting removes
 patch-level leakage, and calibrated noise was validation-screened before
 adoption.
@@ -1180,8 +1180,8 @@ the paper's $0.94$ is measured on $3{,}488$ sampled patches ($12{,}800$ at
 parity) from 32 images, against the paper's 20{,}000 of unreported class
 balance. For precision the prevalence confound is measured, not assumed: the
 fall from $0.852$ to $0.780$ at identical recall and a fixed threshold is the
-direct size of the base-rate effect, while the annotation confound is bounded at
-one pixel by Section~\ref{sec:ext_error}. Evaluating at the paper's fixed $0.58$
+direct size of the base-rate effect, while the annotation confound is localised at
+about one pixel by Section~\ref{sec:ext_error}. Evaluating at the paper's fixed $0.58$
 rather than the swept $0.45$ raises precision by only $0.025$ on both test sets,
 so the threshold is a minor contributor. A single headline precision figure
 therefore mixes detector behaviour with population and labelling differences it
@@ -1285,12 +1285,13 @@ alongside the strict score, so that boundary convention and detection failure
 are separated rather than summed.
 
 In practice, the decomposition reads as deployment guidance. Pipelines that
-dilate detected masks before stacking are insensitive to a residual confined
-within about one pixel of the boundary, so the strict-precision gap does not
-block the masking use case. The classifier gate is best treated as a compute
-feature: at the natural $\sim$$94\,\%$-empty prevalence it skips most U-Net
-inference, while its precision headroom is capped by the $17.5\,\%$
-inter-patch share and its false-negative rate sets a hard recall ceiling.
+dilate detected masks before stacking would be less sensitive to a residual
+confined within about one pixel of the boundary, so the strict-precision gap may
+matter less for masking, though this was not tested. The classifier gate is best
+treated as a compute feature: it skips $24.7\,\%$ of U-Net forwards on the sampled
+test set, and would skip more at the natural $\sim$$93\,\%$-empty prevalence (not
+evaluated); its precision headroom is capped by the $17.5\,\%$ inter-patch share
+and its false-negative rate sets a hard recall ceiling.
 Thresholds likewise do not transfer across class prevalence: the
 sampled-to-parity fall occurs at a fixed threshold, so a deployed detector
 should re-select its operating point on data at the deployment prevalence.
@@ -1492,7 +1493,8 @@ the following areas: advice and usage support for libraries such as PyTorch
 and PIL; boilerplate code for plotting, testing, and scripting; function
 docstrings; and review and audit of the project structure for completeness,
 consistency, accuracy, and software-engineering best practice. All committed
-code and all prose were reviewed and manually approved, and every
-reported number derives from the experiment artefacts in the repository.
+code and all prose were reviewed and manually approved; all reported experimental
+metrics were checked against the repository artefacts, and external contextual
+statistics derive from the cited sources.
 
 \end{document}

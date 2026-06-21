@@ -103,9 +103,10 @@ decomposition shows that only $17.5\,\%$ of false-positive pixels occur in
 trail-free patches; the remaining $82.5\,\%$ are over-painting within
 trail-bearing patches. A one-pixel boundary tolerance raises five-seed precision
 from $0.847$ to $0.946$, and $57\,\%$ of all false positives lie within one
-pixel of a labelled trail. These diagnostics are consistent with boundary
-placement and mask granularity dominating the residual error, although a
-gold-standard re-annotation audit is needed to prove that interpretation.
+pixel of a labelled trail. These diagnostics are consistent with the residual error
+being concentrated near labelled trail boundaries; whether that reflects
+thin-label convention or a systematic one-pixel over-paint cannot be separated
+without a gold-standard re-annotation audit.
 
 \summaryfigure{0.88}{../results/figures/thesis_2_boundary_tolerance.pdf}{A
 one-pixel tolerance largely closes the strict precision gap, consistent with

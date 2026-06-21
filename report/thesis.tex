@@ -485,10 +485,10 @@ $9{,}894$ empty train patches, giving $\alpha=0.0209$ and $\beta=0.0886$.
 It is described as
 signal-dependent stochastic noise rather than Poisson--Gaussian CCD noise
 because the inputs are display renders, not calibrated electron counts. The
-active configuration fixes $m=1.0$: a three-seed
-validation-only screen over multipliers $\{0.5, 1.0, 2.0\}$ yielded no
-validation-$F_1$ gain meeting the preregistered adoption criterion, so the
-setting is a robustness choice rather than a tuned gain.
+active configuration fixes $m=1.0$ as a calibrated,
+robustness-motivated choice rather than a tuned gain; a preliminary three-seed
+screen over multipliers $\{0.5, 1.0, 2.0\}$ found no gain meeting the
+preregistered adoption criterion.
 
 \section{Network architecture}
 \label{sec:architecture}
@@ -555,7 +555,7 @@ forward pass uses BF16 autocast \citep{micikevicius2018,kalamkar2019}.
 Hyperparameter search uses Optuna \citep{akiba2019} with a tree-structured
 Parzen estimator and median pruner ($n_{\mathrm{startup}}=15$, 10 warm-up
 epochs). Forty-five trials are balanced across batch sizes $\{8,16,32\}$
-(fifteen each) after a preliminary free-sampling sweep concentrated 36 of 50
+(fifteen each) after a preliminary free-sampling sweep concentrated most of its
 trials on one batch size and pruned large-batch trials under a higher
 conditional learning-rate ceiling. The searched continuous hyperparameters are
 learning rate (log-uniform in $[10^{-4},10^{-3}]$) and BCE weight

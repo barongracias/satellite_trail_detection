@@ -74,11 +74,13 @@ subset with hand-verified trail masks, provided through the MeerLICHT consortium
 
 The single locked winning model is committed, so the repository is self-contained:
 
-- `results/checkpoints/model-best.pth` (5.7 MB) — the reported model, evaluated at
-  threshold `0.45` with `full_image` normalisation. It is a byte-identical copy of the
-  canonical `unet_paper_arch_noise_topk_t44_s2804_best.pth`, whose descriptive name
-  encodes the provenance (architecture-faithful, noise-augmented, top-K trial 44, seed
-  2804). Pass it to any pipeline stage with `CHECKPOINT=results/checkpoints/model-best.pth`.
+- `results/checkpoints/model-best.pth` (5.7 MB; SHA-256
+  `ff680804f6cf66d6948dcd76af4958c4427099ecdb45bab0140ac80314b8e55b`) — the reported
+  model, evaluated at threshold `0.45` with `full_image` normalisation. It is a
+  byte-identical copy of `unet_paper_arch_noise_topk_t44_s2804_best.pth`, the descriptive
+  filename the result JSONs reference (architecture-faithful, noise-augmented, top-K trial
+  44, seed 2804); the SHA-256 lets any reader verify the committed copy against that
+  original. Pass it to any pipeline stage with `CHECKPOINT=results/checkpoints/model-best.pth`.
 
 All other intermediate checkpoints (`*.pth`, ~120 MB) are gitignored and kept local.
 
@@ -213,6 +215,11 @@ cross-dataset metrics.
 - `results/` and `*.pth` are gitignored; selected deliverable JSONs, figures, and the
   locked model (`results/checkpoints/model-best.pth`) are force-added. Other checkpoints
   are kept local only.
+- The preliminary three-seed noise-multiplier screen and the early free-sampling Optuna
+  sweep referenced in the report are **intentionally not committed**: the noise screen
+  predates the architecture-faithful model, and the free-sampling study was superseded by
+  the committed 45-trial balanced study (`unet_paper_arch_noise_f1.db`). The tracked
+  calibration and that balanced study are the artefacts of record.
 
 ### Computational requirements
 

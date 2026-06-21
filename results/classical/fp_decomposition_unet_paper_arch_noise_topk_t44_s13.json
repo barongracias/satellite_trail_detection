@@ -1,0 +1,11 @@
+{
+  "checkpoint": "results/checkpoints/unet_paper_arch_noise_topk_t44_s13_best.pth",
+  "threshold": 0.44,
+  "n_patches": 3488,
+  "inter_patch_fp_pixels": 86974,
+  "intra_patch_fp_pixels": 348530,
+  "inter_patch_fp_fraction": 0.199709,
+  "empty_patch_fp_rate": 0.038226,
+  "interpretation": "gate-limited",
+  "generated": "2026-06-21"
+}

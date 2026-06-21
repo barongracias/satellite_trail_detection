@@ -1,0 +1,160 @@
+{
+  "description": "5-seed mean +/- sample SD bands for the three load-bearing locked-model diagnostics. Inference-only aggregation over already-written per-seed JSONs; no retraining/reselection. Each seed uses its own validation-optimal threshold.",
+  "seeds": [
+    7,
+    13,
+    42,
+    1234,
+    2804
+  ],
+  "anchor_seed": 2804,
+  "anchor_note": "anchor_seed (2804) == results/checkpoints/model-best.pth; its single-seed value is the one reported in the thesis. anchor_within_band = whether that value lies in [mean-SD, mean+SD].",
+  "sd_convention": "sample standard deviation (n-1), matching restudy_topk_summary.json",
+  "generated": "2026-06-21",
+  "diagnostics": {
+    "fp_decomposition_inter_patch_fp_fraction": {
+      "per_seed": [
+        {
+          "seed": 7,
+          "threshold": 0.41,
+          "value": 0.178607,
+          "source_json": "results/classical/fp_decomposition_unet_paper_arch_noise_topk_t44_s7.json",
+          "available": true
+        },
+        {
+          "seed": 13,
+          "threshold": 0.44,
+          "value": 0.199709,
+          "source_json": "results/classical/fp_decomposition_unet_paper_arch_noise_topk_t44_s13.json",
+          "available": true
+        },
+        {
+          "seed": 42,
+          "threshold": 0.5,
+          "value": 0.204433,
+          "source_json": "results/classical/fp_decomposition_unet_paper_arch_noise_topk_t44_s42.json",
+          "available": true
+        },
+        {
+          "seed": 1234,
+          "threshold": 0.45,
+          "value": 0.146697,
+          "source_json": "results/classical/fp_decomposition_unet_paper_arch_noise_topk_t44_s1234.json",
+          "available": true
+        },
+        {
+          "seed": 2804,
+          "threshold": 0.45,
+          "value": 0.1747,
+          "source_json": "results/classical/fp_decomposition_unet_paper_arch_noise_topk_t44_s2804.json",
+          "available": true
+        }
+      ],
+      "n_seeds_used": 5,
+      "n_seeds_missing": 0,
+      "mean": 0.180829,
+      "sample_sd": 0.023028,
+      "anchor_seed": 2804,
+      "anchor_value": 0.1747,
+      "anchor_within_band": true,
+      "metric": "fp_decomposition.inter_patch_fp_fraction",
+      "target_single_seed": 0.175
+    },
+    "boundary_tolerant_1px_precision": {
+      "per_seed": [
+        {
+          "seed": 7,
+          "threshold": 0.41,
+          "value": 0.951341,
+          "source_json": "results/classical/boundary_tolerant_unet_paper_arch_noise_topk_t44_s7.json",
+          "available": true
+        },
+        {
+          "seed": 13,
+          "threshold": 0.44,
+          "value": 0.934119,
+          "source_json": "results/classical/boundary_tolerant_unet_paper_arch_noise_topk_t44_s13.json",
+          "available": true
+        },
+        {
+          "seed": 42,
+          "threshold": 0.5,
+          "value": 0.943249,
+          "source_json": "results/classical/boundary_tolerant_unet_paper_arch_noise_topk_t44_s42.json",
+          "available": true
+        },
+        {
+          "seed": 1234,
+          "threshold": 0.45,
+          "value": 0.951595,
+          "source_json": "results/classical/boundary_tolerant_unet_paper_arch_noise_topk_t44_s1234.json",
+          "available": true
+        },
+        {
+          "seed": 2804,
+          "threshold": 0.45,
+          "value": 0.948763,
+          "source_json": "results/classical/boundary_tolerant_unet_paper_arch_noise_topk_t44_s2804.json",
+          "available": true
+        }
+      ],
+      "n_seeds_used": 5,
+      "n_seeds_missing": 0,
+      "mean": 0.945813,
+      "sample_sd": 0.007349,
+      "anchor_seed": 2804,
+      "anchor_value": 0.948763,
+      "anchor_within_band": true,
+      "metric": "boundary_tolerant.per_tolerance['1'].precision (+-1 px)",
+      "target_single_seed": 0.946
+    },
+    "fp_distance_fraction_within_1px_all_fp": {
+      "per_seed": [
+        {
+          "seed": 7,
+          "threshold": 0.41,
+          "value": 0.580855,
+          "source_json": "results/classical/geometry_eval_t44_s7.json",
+          "available": true
+        },
+        {
+          "seed": 13,
+          "threshold": 0.44,
+          "value": 0.534144,
+          "source_json": "results/classical/geometry_eval_t44_s13.json",
+          "available": true
+        },
+        {
+          "seed": 42,
+          "threshold": 0.5,
+          "value": 0.542696,
+          "source_json": "results/classical/geometry_eval_t44_s42.json",
+          "available": true
+        },
+        {
+          "seed": 1234,
+          "threshold": 0.45,
+          "value": 0.599441,
+          "source_json": "results/classical/geometry_eval_t44_s1234.json",
+          "available": true
+        },
+        {
+          "seed": 2804,
+          "threshold": 0.45,
+          "value": 0.57233,
+          "source_json": "results/classical/geometry_eval_t44_s2804.json",
+          "available": true
+        }
+      ],
+      "n_seeds_used": 5,
+      "n_seeds_missing": 0,
+      "mean": 0.565893,
+      "sample_sd": 0.027096,
+      "anchor_seed": 2804,
+      "anchor_value": 0.57233,
+      "anchor_within_band": true,
+      "metric": "geometry_eval.fp_distance.fraction_within_1px_all_fp",
+      "target_single_seed": 0.57
+    }
+  }
+}

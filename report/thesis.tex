@@ -44,7 +44,7 @@
 % equations, figure captions, bibliography, and the auto-generation appendix.
 % Handbook basis ~6,945 with section headings excluded (texcount body ~6,520
 % + abstract ~175 + table cells ~315 - auto-generation appendix 75).
-\wordcount{6950}
+\wordcount{6995}
 
 \subjectline{Data Intensive Science}
 \keywords{satellite trails, U-Net, Hough transform, deep learning, MeerLICHT,
@@ -1190,15 +1190,20 @@ cannot separate.
 The Hough comparison is favourable for completeness but not for strict
 precision. The pixel-level false-negative rate falls from $0.082$ to $0.0105$,
 an approximately $87\,\%$ reduction against the paper's $51\,\%$
-($0.0698\rightarrow0.0338$): comparable before the geometric stage, stronger
-after. The same run raises strict false-positive area, cutting strict pixel
-precision from $0.780$ to $0.410$, partly because the $3$\,px Hough lines
-extend beyond the labelled trail extent; with the canvas reconstructed from patches rather
-than dense full-frame inference (Section~\ref{sec:hough}), this is comparable
-completeness, not superiority. The same discipline applies to the tolerant
+($0.0698\rightarrow0.0338$). The same run raises strict false-positive area,
+cutting strict pixel precision from $0.780$ to $0.410$, partly because the
+$3$\,px Hough lines extend beyond the labelled trail extent: a line-thickness
+sweep ($1$/$2$/$3$\,px gives $0.588$/$0.478$/$0.410$ at completeness
+$\geq0.97$) attributes about half of this fall to rasterisation convention
+rather than genuine false detection (Figure~\ref{fig:supp_hough_thickness}). With the canvas reconstructed from patches
+rather than dense full-frame inference (Section~\ref{sec:hough}), this is
+comparable completeness, not superiority. The same discipline applies to the tolerant
 scores: the $\pm1$\,px precision $0.946$ and recall $0.980$ locate the residual
 at the boundary scale, but a relaxed metric is never set against the paper's
-strict $0.94/0.94$.
+strict $0.94/0.94$. These boundary diagnostics hold across the five retraining
+seeds---inter-patch FP share $0.181\pm0.023$, $\pm1$\,px precision
+$0.946\pm0.007$, and false positives within $1$\,px $0.566\pm0.027$---each band
+containing its single-seed value (Figure~\ref{fig:supp_multiseed}).
 
 \section{Limitations}
 \label{sec:limitations}
@@ -1461,6 +1466,31 @@ training choices are fixed by the methodology in Chapter~\ref{ch:pipeline}.
            background pixels. The KS distances are consistent with boundary
            under-capture and background confusion, but remain descriptive.}
   \label{fig:fp_intensity}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.9\textwidth]{../results/figures/supp_1_hough_thickness_recovery.pdf}
+  \caption{Post-Hough strict pixel precision (left) and completeness (right) on
+           the parity canvas as the drawn Hough line thickness varies over
+           $1$--$3$\,px. Thinning the line from $3$ to $1$\,px recovers roughly
+           half of the $0.780\rightarrow0.410$ precision fall while completeness
+           stays above $0.97$, consistent with about half the fall arising from
+           the $3$\,px rasterisation convention over the roughly $6$\,px masks
+           and the remainder from a genuine off-trail false-positive floor.}
+  \label{fig:supp_hough_thickness}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.9\textwidth]{../results/figures/supp_2_diagnostics_multiseed_bands.pdf}
+  \caption{The three load-bearing boundary diagnostics across the five
+           retraining seeds: inter-patch false-positive share, $\pm1$\,px
+           precision, and false positives within $1$\,px. Markers are per-seed
+           values; the line and shaded band give the five-seed mean $\pm1$\,SD;
+           the diamond marks the locked winner (seed $2804$, \texttt{model-best}),
+           which lies inside every band.}
+  \label{fig:supp_multiseed}
 \end{figure}
 
 \clearpage

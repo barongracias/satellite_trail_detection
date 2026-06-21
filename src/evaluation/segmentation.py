@@ -365,11 +365,14 @@ def _mask_boundary(mask: np.ndarray) -> np.ndarray:
 class SurfaceDistanceCounts:
     """Boundary-pixel agreement counts for NSD / surface Dice at one tolerance.
 
-    NSD@τ = (pred_boundary_within_tau + gt_boundary_within_tau)
-            / (pred_boundary_total + gt_boundary_total).
+    NSD at tolerance ``tau`` is::
+
+        (pred_boundary_within_tau + gt_boundary_within_tau)
+        / (pred_boundary_total + gt_boundary_total)
+
     Counts are micro-aggregatable across images by summing fields. With unit
     pixel spacing and integer-pixel boundaries, "normalised surface distance"
-    and "surface Dice at tolerance τ" (Nikolov et al. 2021) are the same
+    and "surface Dice at tolerance tau" (Nikolov et al. 2021) are the same
     quantity; both names map to this count structure.
     """
 

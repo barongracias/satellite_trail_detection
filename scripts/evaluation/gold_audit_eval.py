@@ -1,28 +1,9 @@
 #!/usr/bin/env python
-"""Score the M9.4 gold-standard re-annotation audit (SCAFFOLD).
+"""Score the locked model against a blinded single-author reannotation.
 
-Runs for real only after annotation is complete. Ingests the annotator's
-binary PNG masks (drawn on the blinded crops exported by
-export_audit_crops.py), maps them back to frame coordinates via the sealed
-manifest, and computes the preregistered analyses:
-
-  (a) original-vs-gold strict and +/-1 px P/R/F1   — the label-noise floor;
-  (b) model-vs-gold (same tolerances) on the same crops, next to
-      model-vs-original — does the detector agree with careful annotation
-      better than the original labels do;
-  (c) per-component width medians (original mask, gold mask, prediction) —
-      the thin-labels vs over-paint discriminator.
-
-Annotation contract: one PNG per crop, same name (c001.png ...), same
-528x528 grid, containing at most two distinct pixel values (background and
-trail; an all-background PNG has one value, which must be 0). FP/decoy
-verdicts ("trail" / "no_trail" / "uncertain") go in a separate CSV
-(--verdicts_csv, columns crop_name,verdict); "uncertain" crops are reported
-separately and never scored.
-
-Gold masks are evaluation-only: no retraining, no threshold re-selection,
-no replacement of original masks. Everything here is post-hoc measurement
-of the locked pipeline.
+The 64 new masks are an evaluation-only reference, not an independent gold
+standard. Boundary crops are compared at strict and +/-1-pixel tolerance;
+false-positive and decoy crops are reported separately as existence controls.
 """
 
 from __future__ import annotations
@@ -50,48 +31,37 @@ from src.utils.seed import seed_everything
 
 CROP_SIZE = 528
 TOLERANCES = (0, 1)
+BOUNDARY_STRATA = ("interior", "endpoint")
+CONTROL_STRATA = ("fp", "decoy")
 
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--annotation_dir", required=True,
-                   help="Directory of the annotator's binary PNGs (c001.png ...).")
-    p.add_argument("--sealed_manifest", default="data/gold/sealed_crop_manifest.json")
-    p.add_argument("--verdicts_csv", default=None,
-                   help="CSV with crop_name,verdict for FP/decoy crops "
-                        "(trail / no_trail / uncertain).")
-    p.add_argument("--checkpoint", default="results/checkpoints/model-best.pth")
-    p.add_argument("--threshold", type=float, default=0.45)
-    p.add_argument("--patch_dir", default="data/patches",
-                   help="Manifest source for per-image normalisation stats.")
-    p.add_argument("--out", default="results/classical/gold_audit_eval.json")
-    return p.parse_args()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--annotation_dir", required=True)
+    parser.add_argument("--verdicts_csv", required=True)
+    parser.add_argument("--crop_dir", default="data/gold/audit_crops")
+    parser.add_argument(
+        "--sealed_manifest", default="data/gold/sealed_crop_manifest.json"
+    )
+    parser.add_argument("--checkpoint", default="results/checkpoints/model-best.pth")
+    parser.add_argument("--threshold", type=float, default=0.45)
+    parser.add_argument("--patch_dir", default="data/patches")
+    parser.add_argument("--out", default="results/classical/gold_audit_eval.json")
+    return parser.parse_args()
 
 
 def load_annotation_mask(path: str | Path) -> np.ndarray:
-    """Load one annotation PNG as a boolean mask.
-
-    Enforces the annotation contract: at most two distinct pixel values; the
-    higher value is trail. A single-valued PNG must be all-zero (empty
-    annotation). Raises ValueError otherwise (e.g. anti-aliased brushes or
-    accidental greyscale exports).
-    """
-    with Image.open(path) as img:
-        arr = np.asarray(img.convert("L"), dtype=np.uint8)
-    values = np.unique(arr)
-    if len(values) > 2:
+    """Load a 0/255 PNG as a boolean mask and reject soft-edged exports."""
+    with Image.open(path) as image:
+        array = np.asarray(image.convert("L"), dtype=np.uint8)
+    values = set(np.unique(array).tolist())
+    if not values.issubset({0, 255}):
         raise ValueError(
-            f"{path}: annotation must be binary, found {len(values)} distinct "
-            f"pixel values {values[:10].tolist()} — re-export without anti-aliasing"
+            f"{path}: annotation must be binary 0/255; found {sorted(values)}"
         )
-    if len(values) == 1:
-        if int(values[0]) != 0:
-            raise ValueError(
-                f"{path}: single-valued annotation must be all-background (0), "
-                f"found constant value {int(values[0])}"
-            )
-        return np.zeros_like(arr, dtype=bool)
-    return arr == values.max()
+    if values == {255}:
+        raise ValueError(f"{path}: single-valued annotation must be all-background (0)")
+    return array == 255
 
 
 def score_mask_pair(
@@ -99,42 +69,84 @@ def score_mask_pair(
     other: np.ndarray,
     tolerances: tuple[int, ...] = TOLERANCES,
 ) -> dict[int, BoundaryTolerantCounts]:
-    """Boundary-tolerant counts of `other` scored against `reference` at each
-    tolerance (0 = strict). Counts are micro-aggregatable by addition."""
-    return {t: boundary_tolerant_counts(other, reference, tolerance=t)
-            for t in tolerances}
+    """Score ``other`` against ``reference`` at each pixel tolerance."""
+    return {
+        tolerance: boundary_tolerant_counts(other, reference, tolerance=tolerance)
+        for tolerance in tolerances
+    }
 
 
 def width_median(mask: np.ndarray) -> float | None:
-    """Median perpendicular width of a thin structure: 2x the Euclidean
-    distance-to-background sampled on the skeleton. None for empty masks."""
+    """Estimate median structure width as twice skeleton-to-edge distance."""
     from scipy.ndimage import distance_transform_edt
     from skimage.morphology import skeletonize
 
     if not mask.any():
         return None
-    skel = skeletonize(mask)
-    if not skel.any():
+    skeleton = skeletonize(mask)
+    if not skeleton.any():
         return None
-    return float(np.median(2.0 * distance_transform_edt(mask)[skel]))
+    return float(np.median(2.0 * distance_transform_edt(mask)[skeleton]))
 
 
 def load_verdicts(path: str | Path) -> dict[str, str]:
-    """crop_name -> verdict (trail / no_trail / uncertain)."""
+    """Load one trail/no_trail/uncertain verdict for each crop."""
     allowed = {"trail", "no_trail", "uncertain"}
-    out: dict[str, str] = {}
-    with open(path, newline="") as f:
-        for row in csv.DictReader(f):
+    verdicts: dict[str, str] = {}
+    with open(path, newline="") as handle:
+        reader = csv.DictReader(handle)
+        if reader.fieldnames is None or not {"crop_name", "verdict"}.issubset(
+            reader.fieldnames
+        ):
+            raise ValueError(f"{path}: expected crop_name,verdict columns")
+        for row in reader:
+            name = row["crop_name"].strip()
             verdict = row["verdict"].strip()
+            if name in verdicts:
+                raise ValueError(f"{path}: duplicate crop name {name}")
             if verdict not in allowed:
-                raise ValueError(f"Unknown verdict {verdict!r} for {row['crop_name']}")
-            out[row["crop_name"].strip()] = verdict
-    return out
+                raise ValueError(f"Unknown verdict {verdict!r} for {name}")
+            verdicts[name] = verdict
+    return verdicts
 
 
-def _metrics_block(totals: dict[int, BoundaryTolerantCounts]) -> dict:
-    return {f"tolerance_{t}px": boundary_tolerant_metrics(c)
-            for t, c in totals.items()}
+def _empty_totals() -> dict[int, BoundaryTolerantCounts]:
+    return {tolerance: BoundaryTolerantCounts(0, 0, 0, 0) for tolerance in TOLERANCES}
+
+
+def _metrics_block(totals: dict[int, BoundaryTolerantCounts]) -> dict[str, dict]:
+    return {
+        f"tolerance_{tolerance}px": boundary_tolerant_metrics(counts)
+        for tolerance, counts in totals.items()
+    }
+
+
+def _median_or_none(values: list[float]) -> float | None:
+    return float(np.median(values)) if values else None
+
+
+def classify_mechanism(
+    original_reference_f1: float,
+    model_original_f1: float,
+    original_width: float | None,
+    reference_width: float | None,
+    model_width: float | None,
+) -> str:
+    """Apply the protocol's fixed diagnostic interpretation rules."""
+    if any(value is None for value in (original_width, reference_width, model_width)):
+        return "mixed/inconclusive"
+    assert original_width is not None
+    assert reference_width is not None
+    assert model_width is not None
+    if (
+        original_reference_f1 <= model_original_f1 + 0.02
+        and reference_width - original_width >= 1.0
+        and abs(model_width - reference_width) <= 1.0
+    ):
+        return "thin-original support"
+    if abs(reference_width - original_width) < 1.0 and model_width - reference_width >= 1.0:
+        return "model-overpaint support"
+    return "mixed/inconclusive"
 
 
 def main() -> None:
@@ -142,173 +154,185 @@ def main() -> None:
 
     from scripts.evaluation.hough_postprocess import _infer_batch, _load_normalised_patch
     from scripts.figures._locked_winner_canvases import load_raw_mask
+    from src.models.loading import load_segmentation_model
 
     args = parse_args()
     logger = get_logger("gold_audit_eval")
     seed_everything()
 
     sealed = json.loads(Path(args.sealed_manifest).read_text())
+    records = sealed["crops"]
+    expected_names = [record["crop_name"] for record in records]
+    if len(expected_names) != len(set(expected_names)):
+        raise ValueError("Sealed manifest contains duplicate crop names")
+
     annotation_dir = Path(args.annotation_dir)
-    verdicts = load_verdicts(args.verdicts_csv) if args.verdicts_csv else {}
+    actual_names = sorted(path.name for path in annotation_dir.glob("*.png"))
+    if actual_names != sorted(expected_names):
+        raise ValueError("Annotation filenames do not exactly match the sealed manifest")
+    verdicts = load_verdicts(args.verdicts_csv)
+    if sorted(verdicts) != sorted(expected_names):
+        raise ValueError("Verdict crop names do not exactly match the sealed manifest")
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    from src.models.loading import load_segmentation_model
     model, normalisation = load_segmentation_model(args.checkpoint, device)
-    logger.info("Loaded %s (normalisation=%s) on %s", args.checkpoint, normalisation, device)
+    logger.info("Loaded %s with %s normalisation on %s", args.checkpoint, normalisation, device)
 
-    manifest = pd.read_csv(Path(args.patch_dir) / "manifest.csv")
+    patch_manifest = pd.read_csv(Path(args.patch_dir) / "manifest.csv")
     stats_by_image: dict[str, tuple[float, float]] = {}
-    if {"image_mean", "image_std"}.issubset(manifest.columns):
-        for src, grp in manifest.groupby("source_image"):
-            stats_by_image[str(src)] = (
-                float(grp["image_mean"].iloc[0]), float(grp["image_std"].iloc[0])
+    if {"image_mean", "image_std"}.issubset(patch_manifest.columns):
+        for source, group in patch_manifest.groupby("source_image"):
+            stats_by_image[str(source)] = (
+                float(group["image_mean"].iloc[0]),
+                float(group["image_std"].iloc[0]),
             )
 
-    # Boundary aggregates are restricted to interior/endpoint crops (the
-    # label-noise / width analysis). FP/decoy crops are existence controls and
-    # are summarised separately, never mixed into these totals.
-    totals_orig_vs_gold = {t: BoundaryTolerantCounts(0, 0, 0, 0) for t in TOLERANCES}
-    totals_model_vs_gold = {t: BoundaryTolerantCounts(0, 0, 0, 0) for t in TOLERANCES}
-    totals_model_vs_orig = {t: BoundaryTolerantCounts(0, 0, 0, 0) for t in TOLERANCES}
-    BOUNDARY_STRATA = ("interior", "endpoint")
-    existence: list[dict] = []  # fp/decoy: verdict vs model-fired vs gold-has-trail
+    totals = {
+        "original_vs_reference": _empty_totals(),
+        "model_vs_reference": _empty_totals(),
+        "model_vs_original": _empty_totals(),
+    }
+    widths: dict[str, list[float]] = {"original": [], "reference": [], "model": []}
     per_crop: list[dict] = []
+    controls: list[dict] = []
+    mask_cache: dict[str, np.ndarray] = {}
     n_uncertain = 0
     n_not_visible = 0
-    mask_cache: dict[str, np.ndarray] = {}
 
-    for rec in sealed["crops"]:
-        name = rec["crop_name"]
-        stratum = rec["stratum"]
-        ann_path = annotation_dir / name
-        if not ann_path.exists():
-            raise FileNotFoundError(f"Missing annotation for {name} in {annotation_dir}")
-        gold = load_annotation_mask(ann_path)
-        if gold.shape != (CROP_SIZE, CROP_SIZE):
-            raise ValueError(f"{name}: annotation shape {gold.shape} != crop grid")
+    for record in records:
+        name = record["crop_name"]
+        stratum = record["stratum"]
+        verdict = verdicts[name]
+        reference = load_annotation_mask(annotation_dir / name)
+        if reference.shape != (CROP_SIZE, CROP_SIZE):
+            raise ValueError(f"{name}: shape {reference.shape} != {(CROP_SIZE, CROP_SIZE)}")
 
-        if stratum in ("fp", "decoy") and verdicts.get(name) == "uncertain":
+        if verdict == "uncertain":
             n_uncertain += 1
-            per_crop.append({"crop_name": name, "stratum": stratum,
-                             "verdict": "uncertain", "scored": False})
-            continue
-        # Interior/endpoint crops where the gold annotator saw nothing are a
-        # label-error category, excluded from boundary statistics.
-        if stratum in ("interior", "endpoint") and not gold.any():
-            n_not_visible += 1
-            per_crop.append({"crop_name": name, "stratum": stratum,
-                             "verdict": "not_visible", "scored": False})
-            continue
-
-        src = rec["source_image"]
-        y0, x0 = rec["y0"], rec["x0"]
-        if src not in mask_cache:
-            mask_cache[src] = load_raw_mask(src)
-        original = mask_cache[src][y0 : y0 + CROP_SIZE, x0 : x0 + CROP_SIZE]
-
-        # Locked-model prediction on exactly this crop window. Crop windows are
-        # patch-aligned for fp/decoy strata but arbitrary for interior/endpoint;
-        # full_image normalisation stats come from the manifest per source image.
-        mean, std = stats_by_image.get(src, (None, None))
-        crop_png = Path(args.annotation_dir).parent / "audit_crops" / name
-        crop_source = crop_png if crop_png.exists() else None
-        if crop_source is None:
-            raise FileNotFoundError(
-                f"Raw crop {name} not found next to annotations; pass the "
-                f"audit_crops directory exported by export_audit_crops.py"
+            per_crop.append(
+                {"crop_name": name, "stratum": stratum, "verdict": verdict, "scored": False}
             )
-        patch = _load_normalised_patch(str(crop_source), normalisation, mean, std)
-        prob = _infer_batch([patch], model, device)[0]
-        pred = prob >= args.threshold
+            continue
+        if stratum in BOUNDARY_STRATA and not reference.any():
+            n_not_visible += 1
+            per_crop.append(
+                {"crop_name": name, "stratum": stratum, "verdict": "not_visible", "scored": False}
+            )
+            continue
+
+        source = record["source_image"]
+        if source not in mask_cache:
+            mask_cache[source] = load_raw_mask(source)
+        y0, x0 = int(record["y0"]), int(record["x0"])
+        original = mask_cache[source][y0 : y0 + CROP_SIZE, x0 : x0 + CROP_SIZE]
+
+        crop_path = Path(args.crop_dir) / name
+        if not crop_path.exists():
+            raise FileNotFoundError(f"Missing audit crop {crop_path}")
+        mean, std = stats_by_image.get(source, (None, None))
+        patch = _load_normalised_patch(str(crop_path), normalisation, mean, std)
+        probability = _infer_batch([patch], model, device)[0]
+        prediction = probability >= args.threshold
 
         row = {
-            "crop_name": name, "stratum": stratum, "scored": True,
-            "original_vs_gold": {}, "model_vs_gold": {}, "model_vs_original": {},
+            "crop_name": name,
+            "stratum": stratum,
+            "verdict": verdict,
+            "scored": True,
             "width_median_px": {
                 "original": width_median(original),
-                "gold": width_median(gold),
-                "prediction": width_median(pred),
+                "reference": width_median(reference),
+                "model": width_median(prediction),
             },
         }
-        is_boundary = stratum in BOUNDARY_STRATA
-        for label, ref, other, totals in (
-            ("original_vs_gold", gold, original, totals_orig_vs_gold),
-            ("model_vs_gold", gold, pred, totals_model_vs_gold),
-            ("model_vs_original", original, pred, totals_model_vs_orig),
-        ):
-            counts = score_mask_pair(ref, other)
-            # Only interior/endpoint crops feed the boundary/label-noise
-            # aggregate; fp/decoy per-crop blocks are still recorded below.
-            if is_boundary:
-                for t in TOLERANCES:
-                    totals[t] = totals[t] + counts[t]
+        comparisons = (
+            ("original_vs_reference", reference, original),
+            ("model_vs_reference", reference, prediction),
+            ("model_vs_original", original, prediction),
+        )
+        for label, target, candidate in comparisons:
+            counts = score_mask_pair(target, candidate)
             row[label] = _metrics_block(counts)
-        if not is_boundary:
-            existence.append({
-                "crop_name": name, "stratum": stratum,
-                "verdict": verdicts.get(name),
-                "gold_has_trail": bool(gold.any()),
-                "model_fired": bool(pred.any()),
-            })
+            if stratum in BOUNDARY_STRATA:
+                for tolerance in TOLERANCES:
+                    totals[label][tolerance] = totals[label][tolerance] + counts[tolerance]
+
+        if stratum in BOUNDARY_STRATA:
+            for label, value in row["width_median_px"].items():
+                if value is not None:
+                    widths[label].append(value)
+        elif stratum in CONTROL_STRATA:
+            controls.append(
+                {
+                    "crop_name": name,
+                    "stratum": stratum,
+                    "verdict": verdict,
+                    "reference_has_trail": bool(reference.any()),
+                    "model_fired": bool(prediction.any()),
+                }
+            )
         per_crop.append(row)
 
-    def _existence_summary(stratum: str) -> dict:
-        rows = [e for e in existence if e["stratum"] == stratum]
+    aggregate = {label: _metrics_block(counts) for label, counts in totals.items()}
+    width_summary = {label: _median_or_none(values) for label, values in widths.items()}
+    mechanism = classify_mechanism(
+        aggregate["original_vs_reference"]["tolerance_0px"]["f1"],
+        aggregate["model_vs_original"]["tolerance_0px"]["f1"],
+        width_summary["original"],
+        width_summary["reference"],
+        width_summary["model"],
+    )
+
+    def control_summary(stratum: str) -> dict[str, int]:
+        rows = [row for row in controls if row["stratum"] == stratum]
         return {
             "n": len(rows),
-            "verdict_trail": sum(1 for e in rows if e["verdict"] == "trail"),
-            "verdict_no_trail": sum(1 for e in rows if e["verdict"] == "no_trail"),
-            "gold_has_trail": sum(1 for e in rows if e["gold_has_trail"]),
-            "model_fired": sum(1 for e in rows if e["model_fired"]),
+            "verdict_trail": sum(row["verdict"] == "trail" for row in rows),
+            "verdict_no_trail": sum(row["verdict"] == "no_trail" for row in rows),
+            "reference_has_trail": sum(row["reference_has_trail"] for row in rows),
+            "model_fired": sum(row["model_fired"] for row in rows),
         }
 
-    out = {
-        "sealed_manifest": str(args.sealed_manifest),
+    output = {
+        "schema_version": 2,
+        "generated": str(date.today()),
+        "annotation_design": "blinded single-author self-reannotation",
+        "limitation": (
+            "The reference is not an independent gold standard; no second annotator "
+            "or inter-annotator agreement is available."
+        ),
         "checkpoint": str(args.checkpoint),
+        "sealed_manifest": str(args.sealed_manifest),
         "threshold": args.threshold,
         "tolerances_px": list(TOLERANCES),
-        "n_crops": len(sealed["crops"]),
-        "n_scored": sum(1 for r in per_crop if r.get("scored")),
+        "n_crops": len(records),
+        "n_scored_boundary": sum(
+            row["scored"] and row["stratum"] in BOUNDARY_STRATA for row in per_crop
+        ),
         "n_uncertain": n_uncertain,
         "n_not_visible": n_not_visible,
-        "aggregate_scope": "interior+endpoint crops only (boundary/label-noise)",
-        "aggregate": {
-            "original_vs_gold": _metrics_block(totals_orig_vs_gold),
-            "model_vs_gold": _metrics_block(totals_model_vs_gold),
-            "model_vs_original": _metrics_block(totals_model_vs_orig),
-        },
+        "aggregate_scope": "interior and endpoint crops only",
+        "aggregate": aggregate,
+        "width_median_px": width_summary,
+        "diagnostic_interpretation": mechanism,
         "existence_controls": {
-            "fp": _existence_summary("fp"),
-            "decoy": _existence_summary("decoy"),
-            "note": (
-                "FP/decoy crops are existence controls, excluded from the "
-                "boundary aggregate. decoy verdict_trail > 0 flags a "
-                "trigger-happy annotator; fp gold_has_trail counts originals "
-                "that missed a real trail the gold annotator confirmed."
-            ),
+            "fp": control_summary("fp"),
+            "decoy": control_summary("decoy"),
         },
-        "evaluation_only_note": (
-            "Gold masks are evaluation-only derivatives of MeerLICHT data: "
-            "no retraining, no threshold re-selection, no mask replacement. "
-            "Stored under data/gold/, never committed."
-        ),
-        "scaffold_status": (
-            "INCOMPLETE: reports point aggregates and existence controls only. "
-            "Still to implement before the real run (protocol analyses b/d): "
-            "component-level bootstrap intervals, and inter-/intra-annotator "
-            "agreement for NSD tau calibration (requires the second annotator's "
-            "masks). Point estimates here are not the full preregistered output."
+        "evaluation_only": (
+            "No retraining, threshold reselection, or replacement of original masks."
         ),
         "per_crop": per_crop,
-        "generated": str(date.today()),
     }
-    out_path = Path(args.out)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(json.dumps(out, indent=2, allow_nan=False))
-    logger.info("Saved to %s", out_path)
-    print(f"Gold audit eval -> {out_path}")
-    for label in ("original_vs_gold", "model_vs_gold", "model_vs_original"):
-        print(f"  {label}: {out['aggregate'][label]}")
+    output_path = Path(args.out)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(output, indent=2, allow_nan=False))
+    logger.info("Saved %s", output_path)
+    print(f"Reannotation audit -> {output_path}")
+    for label, block in aggregate.items():
+        print(f"  {label}: {block}")
+    print(f"  width_median_px: {width_summary}")
+    print(f"  diagnostic_interpretation: {mechanism}")
 
 
 if __name__ == "__main__":

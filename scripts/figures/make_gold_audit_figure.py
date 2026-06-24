@@ -1,21 +1,25 @@
 #!/usr/bin/env python
 """Supplementary qualitative figure for the blinded gold audit (thesis section 6.2).
 
-Visualises the gold-audit result (results/classical/gold_audit_eval.json) on two
-illustrative crops: the original mask, the blinded single-author REFERENCE
-re-annotation, and the locked MODEL prediction (>= 0.45) overlaid in three
-distinct colours on the audit crop image, showing the close three-way agreement.
+For two illustrative crops, shows the audit crop image next to a contour overlay
+of the ORIGINAL mask, the blinded single-author REFERENCE re-annotation, and the
+locked MODEL prediction (>= 0.45). The masks are drawn as thin contour outlines
+(in the spirit of the decam raw-vs-overlay figure) with nested line widths so the
+three near-coincident masks read as a layered colour band; an empty mask draws no
+contour, so its absence is visible.
 
 INFERENCE-ONLY on the locked model: no retraining, re-tuning, reselection, or
 threshold change. Reuses gold_audit_eval.py's exact loaders (_load_normalised_patch
 + _infer_batch at threshold 0.45, load_raw_mask, load_annotation_mask) so the
 rendered masks match the scored JSON.
 
-The two crops (c027, c060) are author-chosen illustrative examples, not a blind
-selection: c027 is an interior "trail" crop (a normal streak) and c060 is an
-"fp"-stratum control crop the blinded annotator judged to be a real trail. The
-reference is a blinded single-author self-reannotation, NOT an independent gold
-standard. Saves a single PDF (no SVG).
+The two crops (c027, c060) are author-chosen illustrative examples: c027 is an
+interior "trail" crop (a normal streak with three-way agreement) and c060 is an
+"fp"-stratum control crop the blinded annotator judged to be a real trail (so its
+original mask is empty while reference and model both fire). The reference is a
+blinded single-author self-reannotation, NOT an independent gold standard. Any
+explanatory prose belongs in the thesis figure caption, not baked into the image.
+Saves a single PDF (no SVG).
 """
 
 from __future__ import annotations
@@ -34,8 +38,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
-from matplotlib.colors import to_rgb
-from matplotlib.patches import Patch
+from matplotlib.lines import Line2D
 from PIL import Image
 
 from scripts.evaluation.gold_audit_eval import CROP_SIZE, load_annotation_mask, width_median
@@ -59,18 +62,13 @@ EXAMPLES = ["c027.png", "c060.png"]
 COL_ORIG = "#D55E00"   # vermillion
 COL_REF = "#009E73"    # bluish green
 COL_MODEL = "#0072B2"  # blue
+# (colour, mask-name, contour linewidth) drawn widest-first so all three nest.
+LAYERS = [(COL_ORIG, "original", 2.6), (COL_REF, "reference", 1.6), (COL_MODEL, "model", 0.8)]
 
 
 def _load_verdicts(path: str) -> dict[str, str]:
     with open(path, newline="") as handle:
         return {row["crop_name"].strip(): row["verdict"].strip() for row in csv.DictReader(handle)}
-
-
-def _overlay(mask: np.ndarray, colour: str, alpha: float = 0.55) -> np.ndarray:
-    """RGBA image: ``colour`` at ``alpha`` where mask is set, transparent elsewhere."""
-    rgba = np.zeros((*mask.shape, 4), dtype=float)
-    rgba[mask] = (*to_rgb(colour), alpha)
-    return rgba
 
 
 def _wfmt(value: float | None) -> str:
@@ -108,56 +106,42 @@ def main() -> None:
             crop = np.asarray(im.convert("L"), dtype=np.uint8)
         return rec, crop, original, reference, prediction
 
-    # --- render ----------------------------------------------------------------
+    # --- render: crop | contour overlay (decam-style outlines, nested widths) --
     plt.rcParams.update({"font.family": "serif", "font.serif": ["DejaVu Serif"], "font.size": 8})
     n = len(EXAMPLES)
-    fig, axes = plt.subplots(n, 2, figsize=(5.6, 2.95 * n))
+    fig, axes = plt.subplots(n, 2, figsize=(5.6, 2.9 * n))
     axes = np.atleast_2d(axes)
 
-    def label_box(ax, text, loc_x, ha):
-        ax.text(loc_x, 0.025, text, transform=ax.transAxes, ha=ha, va="bottom",
+    def corner(ax, text, ha="right", x=0.97):
+        ax.text(x, 0.03, text, transform=ax.transAxes, ha=ha, va="bottom",
                 color="white", fontsize=7,
-                bbox=dict(facecolor="black", alpha=0.45, pad=1.4, edgecolor="none"))
+                bbox=dict(facecolor="black", alpha=0.45, pad=1.2, edgecolor="none"))
 
     for i, name in enumerate(EXAMPLES):
         rec, crop, orig, ref, pred = masks_for(name)
+        masks = {"original": orig, "reference": ref, "model": pred}
         stem = name.replace(".png", "")
-        verdict = verdicts[name]
         ax_img, ax_ovl = axes[i, 0], axes[i, 1]
         for ax in (ax_img, ax_ovl):
             ax.imshow(crop, cmap="gray", vmin=0, vmax=255, interpolation="nearest")
             ax.set_xticks([]); ax.set_yticks([])
-        # filled translucent masks (model under, human on top) + crisp per-mask
-        # contour edges so all three stay distinguishable where they coincide.
-        for mask, colour in ((pred, COL_MODEL), (ref, COL_REF), (orig, COL_ORIG)):
+        for colour, mname, lw in LAYERS:
+            mask = masks[mname]
             if mask.any():
-                ax_ovl.imshow(_overlay(mask, colour, alpha=0.40), interpolation="nearest")
-        for mask, colour in ((pred, COL_MODEL), (ref, COL_REF), (orig, COL_ORIG)):
-            if mask.any():
-                ax_ovl.contour(mask.astype(float), levels=[0.5], colors=[colour], linewidths=1.0)
-
-        label_box(ax_img, f"{stem}  ({rec['stratum']} · {verdict})", 0.025, "left")
-        wo, wr, wm = width_median(orig), width_median(ref), width_median(pred)
-        label_box(ax_ovl, f"width med px  o {_wfmt(wo)} · r {_wfmt(wr)} · m {_wfmt(wm)}", 0.975, "right")
+                ax_ovl.contour(mask.astype(float), levels=[0.5], colors=[colour], linewidths=lw, alpha=0.95)
+        corner(ax_img, f"{stem}  {rec['stratum']}·{verdicts[name]}", ha="left", x=0.03)
+        w = {k: width_median(v) for k, v in masks.items()}
+        corner(ax_ovl, f"width px  o {_wfmt(w['original'])} · r {_wfmt(w['reference'])} · m {_wfmt(w['model'])}")
         if i == 0:
-            ax_img.set_title("crop", fontsize=9)
-            ax_ovl.set_title("mask overlay", fontsize=9)
+            ax_img.set_title("audit crop", fontsize=9)
+            ax_ovl.set_title("mask contours", fontsize=9)
 
-    handles = [
-        Patch(facecolor=COL_ORIG, alpha=0.7, label="original"),
-        Patch(facecolor=COL_REF, alpha=0.7, label="reference (blinded)"),
-        Patch(facecolor=COL_MODEL, alpha=0.7, label="model (>= 0.45)"),
-    ]
+    handles = [Line2D([0], [0], color=c, lw=2.2, label=lab)
+               for c, lab in ((COL_ORIG, "original"), (COL_REF, "reference"), (COL_MODEL, "model >= 0.45"))]
     fig.legend(handles=handles, loc="lower center", ncol=3, fontsize=8, frameon=False,
-               bbox_to_anchor=(0.5, 0.075))
-    fig.suptitle("Gold-audit mask overlays", fontsize=11, y=0.985)
-    fig.text(
-        0.5, 0.014,
-        "Two illustrative crops: c027 (interior trail) and c060 (an fp-control crop judged a real trail).\n"
-        "Reference is a blinded single-author self-reannotation, not an independent gold standard.",
-        ha="center", va="bottom", fontsize=6.6,
-    )
-    fig.subplots_adjust(left=0.015, right=0.985, top=0.93, bottom=0.15, hspace=0.06, wspace=0.03)
+               bbox_to_anchor=(0.5, 0.02))
+    fig.suptitle("Gold-audit mask contours", fontsize=11, y=0.985)
+    fig.subplots_adjust(left=0.012, right=0.988, top=0.93, bottom=0.075, hspace=0.06, wspace=0.025)
 
     out_path = Path(OUT)
     out_path.parent.mkdir(parents=True, exist_ok=True)

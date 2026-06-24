@@ -148,15 +148,19 @@ def main() -> None:
             if mask.any():
                 ax.contour(mask.astype(float), levels=[0.5], colors=[colour], linewidths=lw, alpha=0.95)
         ax.set_xticks([]); ax.set_yticks([])
-    for ax in flat[len(rows):]:
-        ax.axis("off")
-
-    handles = [Line2D([0], [0], color=c, lw=2.4, label=lab)
+    handles = [Line2D([0], [0], color=c, lw=2.8, label=lab)
                for c, lab in ((COL_ORIG, "original"), (COL_REF, "reference"), (COL_MODEL, "model >= 0.45"))]
-    fig.legend(handles=handles, loc="upper center", ncol=3, fontsize=8.5, frameon=False,
-               bbox_to_anchor=(0.5, 0.945))
-    fig.suptitle("Gold-audit mask contours", fontsize=11, y=0.995)
-    fig.subplots_adjust(left=0.008, right=0.992, top=0.88, bottom=0.008, hspace=0.04, wspace=0.025)
+    empties = list(flat[len(rows):])
+    for ax in empties:
+        ax.axis("off")
+    # use the spare bottom-right cell for a vertically stacked legend
+    if empties:
+        empties[0].legend(handles=handles, loc="center", ncol=1, frameon=False,
+                          fontsize=9.5, handlelength=1.8, labelspacing=1.0)
+    else:
+        fig.legend(handles=handles, loc="lower center", ncol=3, fontsize=8.5, frameon=False)
+    fig.suptitle("Gold-audit mask contours", fontsize=11, y=0.96)
+    fig.subplots_adjust(left=0.008, right=0.992, top=0.915, bottom=0.008, hspace=0.04, wspace=0.025)
 
     out_path = Path(OUT)
     out_path.parent.mkdir(parents=True, exist_ok=True)

@@ -104,9 +104,13 @@ trail-free patches; the remaining $82.5\,\%$ are over-painting within
 trail-bearing patches. A one-pixel boundary tolerance raises five-seed precision
 from $0.847$ to $0.946$, and $57\,\%$ of all false positives lie within one
 pixel of a labelled trail. These diagnostics are consistent with the residual error
-being concentrated near labelled trail boundaries; whether that reflects
-thin-label convention or a systematic one-pixel over-paint cannot be separated
-without a gold-standard re-annotation audit.
+being concentrated near labelled trail boundaries. A blinded single-author
+re-annotation of $64$ sealed crops bears this out: the original masks, a
+blinded single-author re-annotation, and the model all have a median width of $6$\,px, and
+the model agrees with the re-annotation about as well as the original labels do,
+with no clear strict-$F_1$ difference (paired $-0.0001$, $95\%$ CI spanning
+zero) --- the residual sits near the single-author labelling floor, not in a
+thin label or a model over-paint.
 
 \summaryfigure{0.88}{../results/figures/thesis_2_boundary_tolerance.pdf}{A
 one-pixel tolerance largely closes the strict precision gap, consistent with
@@ -130,9 +134,9 @@ DECam examples: raw measured-streak frames and the locked MeerLICHT-trained
 U-Net contour. This is a qualitative transfer illustration, not a benchmark.}
 
 \section*{Recommendation \& Next Steps}
-The decisive next experiment is a gold-standard re-annotation audit of a small
-test subset, with explicit mask-width conventions. That would separate true
-detector error from label-boundary convention. A labelled cross-instrument test,
+A blinded single-author re-annotation has been completed and places the model
+near the measured single-author labelling floor; the decisive remaining check is
+a multi-annotator gold-standard audit, to establish inter-annotator agreement. A labelled cross-instrument test,
 especially on DECam-like data, is the next generalisation check; the current
 DECam application is qualitative only.
 

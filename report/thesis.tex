@@ -837,8 +837,8 @@ cross-dataset benchmark.
 The diagnostics below give a consistent pattern: most false-positive pixels
 lie close to labelled trails, consistent with thin or imperfect mask
 boundaries, while a smaller whole-patch component remains genuine background
-confusion. The interpretation stays provisional: no independent
-re-annotation set is available.
+confusion. Section~\ref{sec:ext_reannotation} tests this reading directly
+against a blinded single-author re-annotation.
 
 \subsection{False-positive decomposition}
 \label{sec:ext_fpdecomp}
@@ -881,9 +881,9 @@ recall-for-precision trade: re-scoring the same predictions against ground
 truth dilated by one pixel raises precision from $0.852$ to $0.937$ but drops
 recall to $0.793$, whereas the symmetric tolerance raises both. This is
 consistent with residual error dominated by boundary placement rather
-than spurious detection. The claim remains provisional without a gold-standard
-re-annotation set, and the tolerant score is not treated as equivalent to the
-paper's strict $0.94/0.94$.
+than spurious detection. The blinded re-annotation of
+Section~\ref{sec:ext_reannotation} supports this reading, and the tolerant score
+is not treated as equivalent to the paper's strict $0.94/0.94$.
 
 \begin{figure}[htbp]
   \centering
@@ -946,6 +946,71 @@ ordering: $0.847$ for the base model versus $0.838$ for the attention variant
 ($-0.009$), against pixel Dice $0.884$ and $0.879$ ($-0.005$). Topology
 therefore agrees with the null attention result and shows no hidden connectivity
 advantage.
+
+\subsection{Blinded re-annotation audit}
+\label{sec:ext_reannotation}
+
+The diagnostics above localise the residual but cannot, on their own, separate
+two readings: labels thinner than the visible trail, against which a correct
+prediction scores as a false positive, or a systematic over-paint by the model.
+To distinguish them, a blinded single-author re-annotation was performed on $64$
+sealed $528\times528$ crops, stratified across display-contrast tertiles and
+drawn from several test images. Crop identities were shuffled, and the original
+masks, predictions, and crop--frame mapping were sealed until the new masks and
+verdicts passed validation; the re-annotation is evaluation-only and changes
+neither the locked model nor its threshold. The crops carry four strata:
+interior and endpoint segments for boundary scoring, and false-positive-prone
+and quiet decoy patches as existence controls.
+
+The three renderings agree on width. The original MeerLICHT masks, the
+blinded single-author re-annotation, and the model prediction all have a median stroke
+width of $6$\,px, and the per-crop width differences are centred at zero:
+re-annotation minus original is $+0.10$\,px ($95\%$ CI $[-0.30,+0.53]$) and model
+minus re-annotation is $+0.22$\,px ($[-0.09,+0.54]$), both intervals spanning
+zero. Neither a thin-label convention nor a systematic over-paint is therefore
+supported; all three sources converge on the same width.
+
+At the pixel level the model agrees with the re-annotation about as well as the
+original labels do. Table~\ref{tab:reannotation} reports micro-averaged $F_1$ over the $44$ interior
+and endpoint crops: at strict tolerance the model matches the re-annotation
+($0.893$) as closely as the original consortium labels do ($0.890$), and a
+paired per-crop bootstrap ($B=10{,}000$, equal weight) places the strict
+model-minus-consortium difference at $-0.0001$ ($95\%$ CI $[-0.024,+0.022]$),
+spanning zero: at strict tolerance there is no detectable difference in how well
+the model and the original labels match the blinded re-annotation. At $\pm1$\,px
+the model is marginally lower ($\Delta=-0.015$, CI $[-0.038,+0.003]$, the
+interval only just spanning zero). Because the model was trained on those labels,
+part of this agreement is expected by construction; the informative point is that
+the model adds no detectable strict error beyond this labelling floor rather than
+that it agrees. The pattern is stable across strata, with median widths of
+$6$\,px and strict $F_1$ near $0.86$ on interior segments and $0.89$ on
+endpoints.
+
+A small reference-relative over-firing remains. On the false-positive-prone controls the
+model fires on all $11$ crops while the re-annotation marks a trail on only $5$;
+on the six over-fired crops the spurious area is thin, a median of $134$\,px or
+about $0.05\,\%$ of a crop, and the quiet decoys draw no model detections.
+Figure~\ref{fig:supp_gold_audit} shows representative overlays. The audit is
+bounded by its design: a single, dataset-familiar annotator estimates a
+labelling floor rather than inter-annotator agreement, so a multi-annotator
+gold standard remains the decisive next check (Section~\ref{sec:future}).
+
+\begin{table}[htbp]
+  \centering
+  \caption{Blinded re-annotation audit: micro-averaged strict and $\pm1$\,px
+           $F_1$ over the $44$ interior and endpoint crops. All three sources
+           share a median stroke width of $6$\,px.}
+  \label{tab:reannotation}
+  \begin{tabular}{lrr}
+    \toprule
+    Comparison & strict $F_1$ & $\pm1$\,px $F_1$ \\
+    \midrule
+    Consortium labels vs re-annotation & 0.890 & 0.978 \\
+    Model vs re-annotation             & 0.893 & 0.970 \\
+    Model vs consortium labels         & 0.894 & 0.972 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
 
 %% ----- Model variants as tests of the error diagnosis -----
 \section{Model variants are bounded by the error decomposition}
@@ -1217,8 +1282,10 @@ The findings above are bounded by seven limitations.
         detection of an unlabelled trail pixel scores as a false positive,
         and a model trained on such labels also learns to suppress faint
         extensions. Label-referenced precision is therefore a lower
-        bound where the labels undercover. The re-annotation audit of
-        Section~\ref{sec:future} is the direct mitigation.
+        bound where the labels undercover. The blinded re-annotation of
+        Section~\ref{sec:ext_reannotation} finds no systematic width difference
+        between the labels and the blinded re-annotation; a multi-annotator audit
+        would measure any residual undercoverage directly.
   \item \textbf{Dataset size.} The subset holds 178 images, of which 32 form
         the test set. Image-level bootstrap intervals are accordingly several
         times wider than patch-level ones (Section~\ref{sec:bootstrap}), the
@@ -1282,9 +1349,10 @@ Third, the boundary-placement finding suggests a practical reporting
 standard. The dominant residual sits within about one pixel of the labelled
 boundary, and no tested capacity, protocol, or inference change moves it
 materially. This is consistent with the strict score being saturated by
-annotation granularity on thin structures --- although, without a
-re-annotation audit, label thickness and a systematic one-pixel over-paint
-cannot be distinguished. If that reading holds, annotation protocols should
+annotation granularity, and the blinded re-annotation
+(Section~\ref{sec:ext_reannotation}) bears this out: the model matches the blinded re-annotation about as well as the consortium
+labels do, with no systematic
+width difference between them. If that reading holds, annotation protocols should
 fix and record a mask-width convention, and evaluations of thin-artefact
 detectors should report a $\pm1$\,px boundary-tolerant operating point
 alongside the strict score, so that boundary convention and detection failure
@@ -1360,10 +1428,12 @@ metric.
 \section{Future work}
 \label{sec:future}
 
-Several directions follow from the findings. The most decisive is a
-\emph{gold-standard re-annotation audit} of a sample of test trails: it would
-convert the suggestive boundary-placement reading into a measured label-noise
-floor and establish how much of the strict precision gap is attributable to mask
+Several directions follow from the findings. A blinded single-author
+re-annotation has been completed (Section~\ref{sec:ext_reannotation}) and places
+the model at the labelling floor. The decisive remaining check is a
+\emph{multi-annotator gold-standard audit}: independent annotators would
+establish inter-annotator agreement and convert the single-author floor into an
+agreement-bounded estimate of how much of the strict precision gap is mask
 granularity rather than detector error.
 
 A second priority is \emph{cross-dataset generalisation}: the locked model was
@@ -1492,6 +1562,24 @@ training choices are fixed by the methodology in Chapter~\ref{ch:pipeline}.
            the diamond marks the locked winner (seed $2804$, \texttt{model-best}),
            which lies inside every band.}
   \label{fig:supp_multiseed}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.9\textwidth]{../results/figures/supp_3_gold_audit_overlays.pdf}
+  \caption{Blinded re-annotation overlays for five audit crops. Each panel draws
+           the original MeerLICHT mask (orange), the blinded single-author
+           re-annotation (green), and the locked model prediction at threshold
+           $0.45$ (blue) as nested contours; an empty mask draws no contour. Top
+           row: the three lowest-index interior and endpoint trail crops with all
+           three masks non-empty, where the boundaries are near-coincident.
+           Bottom row: the two lowest-index false-positive-prone control crops
+           where the model fired and the reference is empty, showing a thin
+           model-only over-firing. Crops were selected by this fixed rule, not by
+           eye. The reference is a single-author re-annotation, not an independent
+           gold standard; the figure gives qualitative support for the result of
+           Section~\ref{sec:ext_reannotation}.}
+  \label{fig:supp_gold_audit}
 \end{figure}
 
 \clearpage

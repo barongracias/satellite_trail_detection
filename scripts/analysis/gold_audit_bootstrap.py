@@ -9,9 +9,9 @@ complements the pixel-weighted micro-aggregate already reported in the scored JS
 
 Computes:
   1. parity_ci: per-crop Delta = f1(model_vs_reference) - f1(original_vs_reference)
-     at 0/1 px (mean + 95% CI; CI spanning 0 => the model agrees with the human
-     reference no worse than the original consortium labels do), plus the per-crop
-     mean F1 for model_vs_reference and original_vs_reference separately.
+     at 0/1 px (mean + 95% CI; CI spanning 0 => no clear evidence that the model
+     agrees with the human reference worse than the original consortium labels do),
+     plus the per-crop mean F1 for model_vs_reference and original_vs_reference separately.
   2. width_diff_ci: per-crop (reference - original) and (model - reference) median-
      width differences over boundary crops with all three widths present
      (CIs spanning 0 rule out systematic thinning / over-paint).

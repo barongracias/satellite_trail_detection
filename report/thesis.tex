@@ -78,11 +78,12 @@
   %
   The residual-error analysis localises the gap: $82.5\,\%$ of false positives
   are intra-patch, a one-pixel tolerance raises five-seed precision from $0.847$
-  to $0.946$, and $57\,\%$ of false positives lie within one pixel of the mask ---
-  consistent with error dominated by boundary placement rather than spurious
-  detection. The model, training, and inference variants move the residual only
-  slightly, so on this dataset the remaining gap is unlikely to stem from model
-  capacity, training protocol, or Hough post-processing alone.
+  to $0.946$, and $57\,\%$ of false positives lie within one pixel of the mask.
+  A blinded single-author re-annotation of $64$ sealed crops finds no systematic
+  width bias between the original masks, the re-annotation, and the model. The
+  model, training, and inference variants move the residual only slightly, so on
+  this dataset the remaining gap is unlikely to stem from model capacity,
+  training protocol, or Hough post-processing alone.
 }
 
 
@@ -594,16 +595,15 @@ A probabilistic Hough transform \citep{matas2000} (\texttt{cv2.HoughLinesP}) is
 applied to a lower-threshold probability canvas to recover faint, linear
 detections below the segmentation threshold.
 For each test image the per-patch sigmoid probability maps are max-pooled into
-a partial canvas covering the sampled test patches rather than the full frame,
-since the pre-built test set retains a $1{:}3$ patch sample. The canvas is thresholded at
-$t_{\mathrm{Hough}}=0.1$, after which \texttt{HoughLinesP} is run with a vote
-threshold of $50$, a minimum line length of $100$\,px, and a maximum gap of
-$250$\,px, matching the released ASTA reference implementation of
-\citet{stoppa2024}. Detected segments are drawn back onto the canvas at
-$3$\,px thickness. The evaluation is therefore a patch-canvas approximation to
-the paper's dense full-image step: all positive patches are retained, so
-trail-pixel recall remains meaningful, but dropped negatives can
-underrepresent the background false-positive field.
+a canvas before Hough voting. The sampled evaluation uses the $1{:}3$ patch
+support, while the parity Hough comparison uses full $528$\,px tiling over every
+test image; an independent native dense full-frame pass reproduced that parity
+canvas pixel-for-pixel. The canvas is thresholded at $t_{\mathrm{Hough}}=0.1$,
+after which \texttt{HoughLinesP} is run with a vote threshold of $50$, a minimum
+line length of $100$\,px, and a maximum gap of $250$\,px, matching the released
+ASTA reference implementation of \citet{stoppa2024}. Detected segments are drawn
+back onto the canvas at $3$\,px thickness, making line-rasterisation convention
+the main remaining comparability caveat for strict precision.
 
 \section{Patch CNN classifier for the two-stage variant}
 \label{sec:classifier}
@@ -750,19 +750,17 @@ finely tuned.
 \section{Hough improves pixel completeness}
 \label{sec:hough_results}
 
-Probabilistic Hough post-processing of the reconstructed patch canvas raises
-sampled-support trail-pixel recall from $0.918$ to $0.990$ for the canonical
-seed, equivalently reducing the pixel-level false-negative rate from $0.082$
-to $0.0105$ (five-seed mean $0.077\rightarrow0.0099$). This
-pixel-completeness rate is the quantity comparable to the paper's reported
-$6.98\,\%\rightarrow3.38\,\%$. The image-level detection false-negative rate is
-degenerate here: every positive test image is already hit by at least one
-predicted pixel, so it is $0$ before and after Hough and is not comparable
-to the paper. At patch level, the rate falls only from $0.122$ to $0.103$,
-since this stricter diagnostic counts trail-bearing patches with no recovered
-pixel. Because the canvas is assembled from sampled test patches, all Hough
-comparisons are patch-canvas approximations to the paper's dense-image
-setting.
+Probabilistic Hough post-processing raises trail-pixel recall from $0.918$ to
+$0.990$ for the canonical seed on the full-coverage parity canvas, equivalently
+reducing the pixel-level false-negative rate from $0.082$ to $0.0105$
+(five-seed mean $0.077\rightarrow0.0099$). This pixel-completeness rate is the
+quantity comparable to the paper's reported $6.98\,\%\rightarrow3.38\,\%$, and
+the independent dense full-frame check shows it is not a patch-sampling or seam
+artefact. The image-level detection false-negative rate is degenerate here:
+every positive test image is already hit by at least one predicted pixel, so it
+is $0$ before and after Hough and is not comparable to the paper. At patch level,
+the rate falls only from $0.122$ to $0.103$, since this stricter diagnostic
+counts trail-bearing patches with no recovered pixel.
 
 A qualitative post-hoc example (Figure~\ref{fig:hough_gap}) shows the
 mechanism: the U-Net misses a trail stretch over a bright star, and Hough
@@ -950,50 +948,47 @@ advantage.
 \subsection{Blinded re-annotation audit}
 \label{sec:ext_reannotation}
 
-The diagnostics above localise the residual but cannot, on their own, separate
-two readings: labels thinner than the visible trail, against which a correct
-prediction scores as a false positive, or a systematic over-paint by the model.
-To distinguish them, a blinded single-author re-annotation was performed on $64$
-sealed $528\times528$ crops, stratified across display-contrast tertiles and
-drawn from several test images. Crop identities were shuffled, and the original
-masks, predictions, and crop--frame mapping were sealed until the new masks and
-verdicts passed validation; the re-annotation is evaluation-only and changes
-neither the locked model nor its threshold. The crops carry four strata:
-interior and endpoint segments for boundary scoring, and false-positive-prone
-and quiet decoy patches as existence controls.
+The diagnostics above localise the residual error but leave two explanations:
+visible trails may be wider than the consortium masks, or the model may
+systematically over-paint. To separate these, a blinded single-author,
+evaluation-only re-annotation was performed on $64$ sealed $528\times528$
+crops: crop identities were shuffled, and the original masks, predictions, and
+crop--frame mapping remained sealed until the new masks and verdicts passed
+validation. The sample covered interior and endpoint segments for boundary
+scoring, plus false-positive-prone and quiet decoy patches as existence
+controls, stratified by display contrast.
 
-The three renderings agree on width. The original MeerLICHT masks, the
-blinded single-author re-annotation, and the model prediction all have a median stroke
-width of $6$\,px, and the per-crop width differences are centred at zero:
-re-annotation minus original is $+0.10$\,px ($95\%$ CI $[-0.30,+0.53]$) and model
-minus re-annotation is $+0.22$\,px ($[-0.09,+0.54]$), both intervals spanning
-zero. Neither a thin-label convention nor a systematic over-paint is therefore
-supported; all three sources converge on the same width.
+The audit does not support a systematic width bias. The original MeerLICHT
+masks, the blinded re-annotation, and the model prediction all have median
+stroke width $6$\,px. Per-crop width differences are centred near zero:
+re-annotation minus original is $+0.10$\,px ($95\%$ CI $[-0.30,+0.53]$), and
+model minus re-annotation is $+0.22$\,px ($[-0.09,+0.54]$). The strict
+false-positive gap therefore cannot be explained simply by labels being
+uniformly too thin or by the model being uniformly too wide.
 
-At the pixel level the model agrees with the re-annotation about as well as the
-original labels do. Table~\ref{tab:reannotation} reports micro-averaged $F_1$ over the $44$ interior
-and endpoint crops: at strict tolerance the model matches the re-annotation
-($0.893$) as closely as the original consortium labels do ($0.890$), and a
-paired per-crop bootstrap ($B=10{,}000$, equal weight) places the strict
-model-minus-consortium difference at $-0.0001$ ($95\%$ CI $[-0.024,+0.022]$),
-spanning zero: at strict tolerance there is no detectable difference in how well
-the model and the original labels match the blinded re-annotation. At $\pm1$\,px
-the model is marginally lower ($\Delta=-0.015$, CI $[-0.038,+0.003]$, the
-interval only just spanning zero). Because the model was trained on those labels,
-part of this agreement is expected by construction; the informative point is that
-the model adds no detectable strict error beyond this labelling floor rather than
-that it agrees. The pattern is stable across strata, with median widths of
-$6$\,px and strict $F_1$ near $0.86$ on interior segments and $0.89$ on
-endpoints.
+Pixel agreement gives the same strict-tolerance picture. Over the $44$ interior
+and endpoint crops, the model matches the re-annotation ($F_1=0.893$) about as
+closely as the original consortium labels do ($0.890$), while the model and
+consortium labels score $0.894$ against each other
+(Table~\ref{tab:reannotation}). A paired per-crop bootstrap ($B=10{,}000$,
+equal weight) puts the strict model-minus-consortium difference against the
+re-annotation at $-0.0001$ ($95\%$ CI $[-0.024,+0.022]$). At $\pm1$\,px the
+model is marginally lower ($\Delta=-0.015$, CI $[-0.038,+0.003]$, just spanning
+zero). Because the model was trained on the consortium labels, this is not
+independent confirmation of the model; it shows that this audit detects no
+additional strict error beyond the measured between-source labelling floor. The
+pattern is stable across strata, with median widths of $6$\,px and strict
+$F_1$ near $0.86$ on interior segments and $0.89$ on endpoints.
 
-A small reference-relative over-firing remains. On the false-positive-prone controls the
-model fires on all $11$ crops while the re-annotation marks a trail on only $5$;
-on the six over-fired crops the spurious area is thin, a median of $134$\,px or
-about $0.05\,\%$ of a crop, and the quiet decoys draw no model detections.
-Figure~\ref{fig:supp_gold_audit} shows representative overlays. The audit is
-bounded by its design: a single, dataset-familiar annotator estimates a
-labelling floor rather than inter-annotator agreement, so a multi-annotator
-gold standard remains the decisive next check (Section~\ref{sec:future}).
+The controls leave a small reference-relative over-firing residual. The model
+detects signal on all $11$ false-positive-prone controls, while the
+re-annotation marks a trail on only $5$; on the six over-fired crops the median
+extra area is $134$\,px, about $0.05\,\%$ of a crop. The quiet decoys draw no
+model detections. Figure~\ref{fig:supp_gold_audit} shows representative
+overlays. The audit remains bounded by its design: a single, dataset-familiar
+annotator estimates a labelling floor rather than inter-annotator agreement, so
+a multi-annotator gold standard remains the decisive next check
+(Section~\ref{sec:future}).
 
 \begin{table}[htbp]
   \centering
@@ -1227,14 +1222,14 @@ paper-faithful.
   \end{tabular}
 \end{table}
 
-\noindent Three deviations change the headline comparison: the swept threshold
-and different test population confound precision, leaving recall as the closest
-like-for-like quantity (Section~\ref{sec:replication}); the patch-canvas Hough
-makes completeness figures approximations to the paper's dense-image setting
-(Section~\ref{sec:hough_results}). The remaining departures were not individually isolated: architecture tests
-lock the framework port and output convention, image-level splitting removes
-patch-level leakage, and calibrated noise was validation-screened before
-adoption.
+\noindent The swept threshold and different test population change the headline
+comparison, chiefly by confounding precision and leaving recall as the closest
+like-for-like quantity (Section~\ref{sec:replication}). The Hough comparison is
+checked on a full-coverage canvas, but strict precision remains sensitive to the
+$3$\,px line-rasterisation convention (Section~\ref{sec:hough_results}). The
+remaining departures were not individually isolated: architecture tests lock the
+framework port and output convention, image-level splitting removes patch-level
+leakage, and calibrated noise was validation-screened before adoption.
 
 \section{Interpreting the headline comparison}
 \label{sec:interpretation}
@@ -1388,7 +1383,7 @@ replication reproduces the paper's recall closely: five-seed sampled-test
 recall is $0.923\pm0.006$ (single seed $0.918$) against the reported $0.94$,
 with Dice $0.884\pm0.004$. The Hough stage reproduces the paper's
 completeness behaviour, raising trail-pixel recall from $0.918$ to $0.990$ on
-the patch canvas, a pixel-level false-negative rate of
+the full-coverage parity canvas, a pixel-level false-negative rate of
 $0.082\rightarrow0.0105$ against the paper's
 $6.98\,\%\rightarrow3.38\,\%$. Strict pixel precision sits below the
 published level, at $0.847\pm0.009$ on the sampled test set and $0.780$
@@ -1397,21 +1392,25 @@ recall. That fall
 identifies strict precision as prevalence-dependent and leaves recall as the
 like-for-like comparison across test populations.
 
-The follow-up analyses localise the precision gap rather than merely
-reporting it: $82.5\,\%$ of false-positive pixels lie inside trail-bearing
-patches, a one-pixel boundary tolerance raises five-seed precision from
-$0.847$ to $0.946$ ($F_1$ $0.962$), and $57\,\%$ of all false positives lie
-within one pixel of a labelled trail. The variants behave as that
-decomposition predicts: the classifier gate shifts precision $+1.2$\,pp,
-bounded by the $17.5\,\%$ inter-patch share; the attention-gated U-Net is a
-null at matched capacity, with clDice confirming no hidden topology
-advantage; validation Dice plateaus beyond roughly $70\,\%$ of the training images;
-hard-negative mining adds $+0.007$ precision; the soft-label pilot improves
-no overlap, precision or topology metric; and ensembling with test-time augmentation and
-probability-stratified Hough sit within seed noise. The residual error is
-bounded by the error decomposition: none of the tested architecture,
-training-protocol, or inference changes moves it materially, and these bounded
-and null outcomes are what make the boundary-placement diagnosis credible.
+The follow-up analyses localise the precision gap rather than merely reporting
+it: $82.5\,\%$ of false-positive pixels lie inside trail-bearing patches, a
+one-pixel boundary tolerance raises five-seed precision from $0.847$ to $0.946$
+($F_1$ $0.962$), and $57\,\%$ of all false positives lie within one pixel of a
+labelled trail. A blinded single-author re-annotation then tests the main
+ambiguity in that diagnosis: the original labels, the re-annotation, and the
+model all have median width $6$\,px, with no systematic width bias and no
+detectable strict error beyond the measured single-author labelling floor. The
+variants behave as the decomposition predicts: the classifier gate shifts
+precision $+1.2$\,pp, bounded by the $17.5\,\%$ inter-patch share; the
+attention-gated U-Net is a null at matched capacity, with clDice confirming no
+hidden topology advantage; validation Dice plateaus beyond roughly $70\,\%$ of
+the training images; hard-negative mining adds $+0.007$ precision; the soft-label
+pilot improves no overlap, precision or topology metric; and ensembling with
+test-time augmentation and probability-stratified Hough sit within seed noise.
+The residual error is bounded by the error decomposition and the re-annotation:
+none of the tested architecture, training-protocol, or inference changes moves
+it materially, and these bounded and null outcomes are what make the
+boundary-placement diagnosis credible.
 
 The project also demonstrates a methodology. Faithful replication required
 recovering the architecture from released weights, preregistering selection
@@ -1419,8 +1418,10 @@ rules, and separating sampled from parity evaluation; each step surfaced a
 discrepancy a looser reproduction would have absorbed into an unexplained
 shortfall.
 Treating the remaining gap as an object of analysis then converted a headline
-deficit into a measured, bounded mechanism consistent with one-pixel boundary
-disagreement. Conducted at this level of fidelity, replication is not a
+deficit into a measured, bounded mechanism: one-pixel boundary disagreement, no
+systematic width bias in the blinded single-author audit, and a small
+reference-relative over-firing control. Conducted at this level of fidelity,
+replication is not a
 re-implementation exercise but an instrument for locating where a published
 result's accuracy actually resides: in the detector, in the labels, or in the
 metric.
@@ -1430,7 +1431,7 @@ metric.
 
 Several directions follow from the findings. A blinded single-author
 re-annotation has been completed (Section~\ref{sec:ext_reannotation}) and places
-the model at the labelling floor. The decisive remaining check is a
+the model near the measured single-author labelling floor. The decisive remaining check is a
 \emph{multi-annotator gold-standard audit}: independent annotators would
 establish inter-annotator agreement and convert the single-author floor into an
 agreement-bounded estimate of how much of the strict precision gap is mask
@@ -1567,19 +1568,28 @@ training choices are fixed by the methodology in Chapter~\ref{ch:pipeline}.
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=0.9\textwidth]{../results/figures/supp_3_gold_audit_overlays.pdf}
-  \caption{Blinded re-annotation overlays for five audit crops. Each panel draws
+  \caption{Blinded re-annotation overlays for five audit crops. Contours show
            the original MeerLICHT mask (orange), the blinded single-author
            re-annotation (green), and the locked model prediction at threshold
-           $0.45$ (blue) as nested contours; an empty mask draws no contour. Top
-           row: the three lowest-index interior and endpoint trail crops with all
-           three masks non-empty, where the boundaries are near-coincident.
-           Bottom row: the two lowest-index false-positive-prone control crops
-           where the model fired and the reference is empty, showing a thin
-           model-only over-firing. Crops were selected by this fixed rule, not by
-           eye. The reference is a single-author re-annotation, not an independent
-           gold standard; the figure gives qualitative support for the result of
-           Section~\ref{sec:ext_reannotation}.}
+           $0.45$ (blue). The fixed selection shows the three lowest-index
+           non-empty interior/endpoint crops, where boundaries are
+           near-coincident, and the two lowest-index false-positive-prone
+           controls with model-only over-firing. The reference is a
+           single-author re-annotation, not an independent gold standard.}
   \label{fig:supp_gold_audit}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.72\textwidth]{../results/figures/supp_4_gold_audit_annotation_examples.pdf}
+  \caption{Illustrative crop--mask pairs from the blinded re-annotation audit.
+           Left: sealed audit crops before annotation; right: exported binary
+           re-annotation masks. The full private gold set is not redistributed.
+           Re-annotations were drawn in GIMP at fixed $400\%$ zoom with no
+           per-crop contrast adjustment, using the Pencil tool with a $1$\,px
+           hard edge, $100\%$ hardness, $100\%$ opacity, and dynamics off, then
+           exported as binary 0/255 PNG masks.}
+  \label{fig:supp_gold_audit_process}
 \end{figure}
 
 \clearpage

@@ -1,0 +1,93 @@
+{
+  "source": "results/classical/gold_audit_eval.json",
+  "scope": "scored boundary crops (interior + endpoint), equal-weight per crop",
+  "n_boundary_crops": 44,
+  "seed": 2804,
+  "n_bootstrap": 10000,
+  "ci": "95% percentile",
+  "note": "Equal-weight-per-crop bootstrap; complements (does not replace) the pixel-weighted micro-aggregate in gold_audit_eval.json (model_vs_reference 0.893 / original_vs_reference 0.890 strict F1).",
+  "parity_ci": {
+    "n": 44,
+    "tolerance_0px": {
+      "mean_delta_model_minus_original": -0.000131,
+      "delta_ci95": [
+        -0.024145,
+        0.021868
+      ],
+      "delta_ci_spans_zero": true,
+      "mean_f1_model_vs_reference": 0.874243,
+      "model_vs_reference_ci95": [
+        0.844411,
+        0.899669
+      ],
+      "mean_f1_original_vs_reference": 0.874374,
+      "original_vs_reference_ci95": [
+        0.848679,
+        0.896773
+      ]
+    },
+    "tolerance_1px": {
+      "mean_delta_model_minus_original": -0.015089,
+      "delta_ci95": [
+        -0.038328,
+        0.002616
+      ],
+      "delta_ci_spans_zero": true,
+      "mean_f1_model_vs_reference": 0.962659,
+      "model_vs_reference_ci95": [
+        0.937236,
+        0.982038
+      ],
+      "mean_f1_original_vs_reference": 0.977748,
+      "original_vs_reference_ci95": [
+        0.963226,
+        0.988967
+      ]
+    }
+  },
+  "width_diff_ci": {
+    "n": 44,
+    "reference_minus_original_px": {
+      "mean": 0.104305,
+      "ci95": [
+        -0.298229,
+        0.53228
+      ],
+      "ci_spans_zero": true
+    },
+    "model_minus_reference_px": {
+      "mean": 0.224461,
+      "ci95": [
+        -0.093,
+        0.542595
+      ],
+      "ci_spans_zero": true
+    }
+  },
+  "stratum_breakdown": {
+    "interior": {
+      "n": 29,
+      "mean_f1_original_vs_reference_0px": 0.868785,
+      "mean_f1_original_vs_reference_1px": 0.974525,
+      "mean_f1_model_vs_reference_0px": 0.862691,
+      "mean_f1_model_vs_reference_1px": 0.951945,
+      "mean_f1_model_vs_original_0px": 0.861373,
+      "mean_f1_model_vs_original_1px": 0.95478,
+      "median_width_original_px": 6.0,
+      "median_width_reference_px": 6.0,
+      "median_width_model_px": 6.0
+    },
+    "endpoint": {
+      "n": 15,
+      "mean_f1_original_vs_reference_0px": 0.885181,
+      "mean_f1_original_vs_reference_1px": 0.983979,
+      "mean_f1_model_vs_reference_0px": 0.896578,
+      "mean_f1_model_vs_reference_1px": 0.983372,
+      "mean_f1_model_vs_original_0px": 0.891866,
+      "mean_f1_model_vs_original_1px": 0.98216,
+      "median_width_original_px": 6.0,
+      "median_width_reference_px": 6.0,
+      "median_width_model_px": 6.0
+    }
+  }
+}

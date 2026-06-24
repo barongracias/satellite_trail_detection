@@ -1,25 +1,27 @@
 #!/usr/bin/env python
 """Supplementary qualitative figure for the blinded gold audit (thesis section 6.2).
 
-For two illustrative crops, shows the audit crop image next to a contour overlay
-of the ORIGINAL mask, the blinded single-author REFERENCE re-annotation, and the
-locked MODEL prediction (>= 0.45). The masks are drawn as thin contour outlines
-(in the spirit of the decam raw-vs-overlay figure) with nested line widths so the
-three near-coincident masks read as a layered colour band; an empty mask draws no
-contour, so its absence is visible.
+Five crops chosen by a fixed, non-cherry-picked rule (stated in the caption), each
+shown as the audit crop image next to a 3-way contour overlay of the ORIGINAL
+mask, the blinded single-author REFERENCE re-annotation, and the locked MODEL
+prediction (>= 0.45). Masks are drawn as thin contour outlines with nested line
+widths so the near-coincident boundary masks read as a layered colour band; an
+empty mask draws no contour, so its absence is visible.
 
 INFERENCE-ONLY on the locked model: no retraining, re-tuning, reselection, or
 threshold change. Reuses gold_audit_eval.py's exact loaders (_load_normalised_patch
 + _infer_batch at threshold 0.45, load_raw_mask, load_annotation_mask) so the
 rendered masks match the scored JSON.
 
-The two crops (c027, c060) are author-chosen illustrative examples: c027 is an
-interior "trail" crop (a normal streak with three-way agreement) and c060 is an
-"fp"-stratum control crop the blinded annotator judged to be a real trail (so its
-original mask is empty while reference and model both fire). The reference is a
-blinded single-author self-reannotation, NOT an independent gold standard. Any
-explanatory prose belongs in the thesis figure caption, not baked into the image.
-Saves a single PDF (no SVG).
+Deterministic selection (also stated in the caption):
+  * 3 boundary examples: the three LOWEST-INDEX crops with stratum in
+    {interior, endpoint}, verdict "trail", and original / reference / model all
+    non-empty (agreement cases).
+  * 2 FP-control examples: the two LOWEST-INDEX crops with stratum "fp" where the
+    model fired (prediction non-empty) AND the reference is empty (over-firing).
+
+The reference is a blinded single-author self-reannotation, NOT an independent
+gold standard. Saves a single PDF (no SVG).
 """
 
 from __future__ import annotations
@@ -57,8 +59,8 @@ ANNOT_DIR = Path("data/gold/gold_masks")
 CROP_DIR = Path("data/gold/audit_crops")
 PATCH_DIR = "data/patches"
 OUT = "results/figures/supp_3_gold_audit_overlays.pdf"
+BOUNDARY_STRATA = ("interior", "endpoint")
 
-EXAMPLES = ["c027.png", "c060.png"]
 COL_ORIG = "#D55E00"   # vermillion
 COL_REF = "#009E73"    # bluish green
 COL_MODEL = "#0072B2"  # blue
@@ -80,7 +82,7 @@ def main() -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model, normalisation = load_segmentation_model(CHECKPOINT, device)
 
-    records = {r["crop_name"]: r for r in json.loads(Path(SEALED).read_text())["crops"]}
+    records = sorted(json.loads(Path(SEALED).read_text())["crops"], key=lambda r: r["crop_name"])
     verdicts = _load_verdicts(VERDICTS)
 
     patch_manifest = pd.read_csv(Path(PATCH_DIR) / "manifest.csv")
@@ -91,8 +93,8 @@ def main() -> None:
 
     mask_cache: dict[str, np.ndarray] = {}
 
-    def masks_for(name: str):
-        rec = records[name]
+    def masks_for(rec: dict):
+        name = rec["crop_name"]
         source = rec["source_image"]
         if source not in mask_cache:
             mask_cache[source] = load_raw_mask(source)
@@ -104,12 +106,35 @@ def main() -> None:
         prediction = _infer_batch([patch], model, device)[0] >= THRESHOLD
         with Image.open(CROP_DIR / name) as im:
             crop = np.asarray(im.convert("L"), dtype=np.uint8)
-        return rec, crop, original, reference, prediction
+        return crop, original, reference, prediction
 
-    # --- render: crop | contour overlay (decam-style outlines, nested widths) --
+    # --- deterministic, lowest-index-first selection --------------------------
+    boundary_sel: list[tuple] = []
+    for rec in records:
+        if len(boundary_sel) >= 3:
+            break
+        if rec["stratum"] in BOUNDARY_STRATA and verdicts[rec["crop_name"]] == "trail":
+            crop, orig, ref, pred = masks_for(rec)
+            if orig.any() and ref.any() and pred.any():
+                boundary_sel.append((rec, crop, orig, ref, pred))
+
+    fp_sel: list[tuple] = []
+    for rec in records:
+        if len(fp_sel) >= 2:
+            break
+        if rec["stratum"] == "fp":
+            crop, orig, ref, pred = masks_for(rec)
+            if pred.any() and not ref.any():
+                fp_sel.append((rec, crop, orig, ref, pred))
+
+    rows = boundary_sel + fp_sel
+    if len(boundary_sel) < 3 or len(fp_sel) < 2:
+        print(f"[warn] selection short: {len(boundary_sel)} boundary, {len(fp_sel)} fp")
+
+    # --- render: crop | 3-way contour overlay (nested widths) -----------------
     plt.rcParams.update({"font.family": "serif", "font.serif": ["DejaVu Serif"], "font.size": 8})
-    n = len(EXAMPLES)
-    fig, axes = plt.subplots(n, 2, figsize=(5.6, 2.9 * n))
+    n = len(rows)
+    fig, axes = plt.subplots(n, 2, figsize=(5.6, 2.55 * n + 0.5))
     axes = np.atleast_2d(axes)
 
     def corner(ax, text, ha="right", x=0.97):
@@ -117,10 +142,9 @@ def main() -> None:
                 color="white", fontsize=7,
                 bbox=dict(facecolor="black", alpha=0.45, pad=1.2, edgecolor="none"))
 
-    for i, name in enumerate(EXAMPLES):
-        rec, crop, orig, ref, pred = masks_for(name)
+    for i, (rec, crop, orig, ref, pred) in enumerate(rows):
         masks = {"original": orig, "reference": ref, "model": pred}
-        stem = name.replace(".png", "")
+        stem = rec["crop_name"].replace(".png", "")
         ax_img, ax_ovl = axes[i, 0], axes[i, 1]
         for ax in (ax_img, ax_ovl):
             ax.imshow(crop, cmap="gray", vmin=0, vmax=255, interpolation="nearest")
@@ -129,7 +153,7 @@ def main() -> None:
             mask = masks[mname]
             if mask.any():
                 ax_ovl.contour(mask.astype(float), levels=[0.5], colors=[colour], linewidths=lw, alpha=0.95)
-        corner(ax_img, f"{stem}  {rec['stratum']}·{verdicts[name]}", ha="left", x=0.03)
+        corner(ax_img, f"{stem}  {rec['stratum']}·{verdicts[rec['crop_name']]}", ha="left", x=0.03)
         w = {k: width_median(v) for k, v in masks.items()}
         corner(ax_ovl, f"width px  o {_wfmt(w['original'])} · r {_wfmt(w['reference'])} · m {_wfmt(w['model'])}")
         if i == 0:
@@ -139,17 +163,25 @@ def main() -> None:
     handles = [Line2D([0], [0], color=c, lw=2.2, label=lab)
                for c, lab in ((COL_ORIG, "original"), (COL_REF, "reference"), (COL_MODEL, "model >= 0.45"))]
     fig.legend(handles=handles, loc="lower center", ncol=3, fontsize=8, frameon=False,
-               bbox_to_anchor=(0.5, 0.02))
-    fig.suptitle("Gold-audit mask contours", fontsize=11, y=0.985)
-    fig.subplots_adjust(left=0.012, right=0.988, top=0.93, bottom=0.075, hspace=0.06, wspace=0.025)
+               bbox_to_anchor=(0.5, 0.044))
+    fig.suptitle("Gold-audit mask contours", fontsize=11, y=0.995)
+    fig.text(
+        0.5, 0.01,
+        "Rows 1-3: lowest-index interior/endpoint 'trail' crops with original, reference and model all non-empty.\n"
+        "Rows 4-5: lowest-index 'fp'-control crops where the model fired and the reference is empty. Crops chosen by\n"
+        "this fixed rule, not by eye. Reference = blinded single-author self-reannotation, not an independent gold standard.",
+        ha="center", va="bottom", fontsize=6.2,
+    )
+    fig.subplots_adjust(left=0.012, right=0.988, top=0.965, bottom=0.085, hspace=0.06, wspace=0.025)
 
     out_path = Path(OUT)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_path)
     plt.close(fig)
     print(f"Wrote {out_path}")
-    for name in EXAMPLES:
-        print(f"  {name.replace('.png','')}  stratum={records[name]['stratum']}  verdict={verdicts[name]}")
+    print("Selected crops (fixed rule, lowest-index-first):")
+    for rec, *_ in rows:
+        print(f"  {rec['crop_name'].replace('.png','')}  stratum={rec['stratum']}  verdict={verdicts[rec['crop_name']]}")
 
 
 if __name__ == "__main__":

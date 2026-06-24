@@ -1,6 +1,6 @@
 {
-  "schema_version": 2,
-  "generated": "2026-06-23",
+  "schema_version": 3,
+  "generated": "2026-06-24",
   "annotation_design": "blinded single-author self-reannotation",
   "limitation": "The reference is not an independent gold standard; no second annotator or inter-annotator agreement is available.",
   "checkpoint": "results/checkpoints/model-best.pth",
@@ -65,14 +65,28 @@
       "verdict_trail": 5,
       "verdict_no_trail": 6,
       "reference_has_trail": 5,
-      "model_fired": 11
+      "model_fired": 11,
+      "median_fp_pixels_vs_ref": 371.0,
+      "max_fp_pixels_vs_ref": 1313,
+      "median_fp_fraction": 0.00133078,
+      "n_over_fired": 6,
+      "over_fired_median_fp_pixels_vs_ref": 134.0,
+      "over_fired_max_fp_pixels_vs_ref": 1189,
+      "over_fired_median_fp_fraction": 0.00048066
     },
     "decoy": {
       "n": 7,
       "verdict_trail": 0,
       "verdict_no_trail": 7,
       "reference_has_trail": 0,
-      "model_fired": 0
+      "model_fired": 0,
+      "median_fp_pixels_vs_ref": 0.0,
+      "max_fp_pixels_vs_ref": 0,
+      "median_fp_fraction": 0.0,
+      "n_over_fired": 0,
+      "over_fired_median_fp_pixels_vs_ref": null,
+      "over_fired_max_fp_pixels_vs_ref": null,
+      "over_fired_median_fp_fraction": null
     }
   },
   "evaluation_only": "No retraining, threshold reselection, or replacement of original masks.",

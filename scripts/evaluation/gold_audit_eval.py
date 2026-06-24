@@ -269,6 +269,11 @@ def main() -> None:
                     "verdict": verdict,
                     "reference_has_trail": bool(reference.any()),
                     "model_fired": bool(prediction.any()),
+                    "model_pixels": int(prediction.sum()),
+                    "reference_pixels": int(reference.sum()),
+                    "fp_pixels_vs_ref": int((prediction & ~reference).sum()),
+                    "fp_pixels_vs_orig": int((prediction & ~original).sum()),
+                    "crop_area": CROP_SIZE * CROP_SIZE,
                 }
             )
         per_crop.append(row)
@@ -283,18 +288,36 @@ def main() -> None:
         width_summary["model"],
     )
 
-    def control_summary(stratum: str) -> dict[str, int]:
+    def control_summary(stratum: str) -> dict:
         rows = [row for row in controls if row["stratum"] == stratum]
+        area = CROP_SIZE * CROP_SIZE
+        fp_all = [row["fp_pixels_vs_ref"] for row in rows]
+        over = [row for row in rows if row["model_fired"] and not row["reference_has_trail"]]
+        fp_over = [row["fp_pixels_vs_ref"] for row in over]
+
+        def _med(values: list[int]) -> float | None:
+            return float(np.median(values)) if values else None
+
+        def _max(values: list[int]) -> int | None:
+            return int(max(values)) if values else None
+
         return {
             "n": len(rows),
             "verdict_trail": sum(row["verdict"] == "trail" for row in rows),
             "verdict_no_trail": sum(row["verdict"] == "no_trail" for row in rows),
             "reference_has_trail": sum(row["reference_has_trail"] for row in rows),
             "model_fired": sum(row["model_fired"] for row in rows),
+            "median_fp_pixels_vs_ref": _med(fp_all),
+            "max_fp_pixels_vs_ref": _max(fp_all),
+            "median_fp_fraction": (None if not fp_all else round(_med(fp_all) / area, 8)),
+            "n_over_fired": len(over),
+            "over_fired_median_fp_pixels_vs_ref": _med(fp_over),
+            "over_fired_max_fp_pixels_vs_ref": _max(fp_over),
+            "over_fired_median_fp_fraction": (None if not fp_over else round(_med(fp_over) / area, 8)),
         }
 
     output = {
-        "schema_version": 2,
+        "schema_version": 3,
         "generated": str(date.today()),
         "annotation_design": "blinded single-author self-reannotation",
         "limitation": (

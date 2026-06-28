@@ -2,8 +2,12 @@
 
 [![Documentation Status](https://readthedocs.org/projects/satellite-trail-detection/badge/?version=latest)](https://satellite-trail-detection.readthedocs.io/en/latest/)
 
-Replication and extension of the Stoppa et al. 2024 (A&A 692, A199) satellite-trail
-detection pipeline on a 178-image MeerLICHT subset. A U-Net segmenter produces a binary trail mask, a classical Hough transform bridges gaps in that mask, and a suite of extensions characterises and improves the detector. MPhil Data Intensive Science dissertation, University of Cambridge.
+Replication and diagnostic extension of the Stoppa et al. 2024 (A&A 692, A199)
+satellite-trail detection pipeline on a 178-image MeerLICHT subset. A U-Net
+segmenter produces a binary trail mask, a probabilistic Hough transform bridges
+gaps in that mask, and post-hoc diagnostics localise the remaining strict
+precision gap to boundary-scale label agreement plus a small over-firing
+residual. MPhil Data Intensive Science dissertation, University of Cambridge.
 
 📖 **Documentation:** <https://satellite-trail-detection.readthedocs.io/>
 
@@ -14,7 +18,10 @@ The pipeline:
 3. **U-Net training** with an Optuna sweep, multi-seed top-K retraining, and
    validation-only model selection.
 4. **Hough post-processing** to recover gaps the U-Net misses.
-5. **Classical Hough baseline** as a non-learned reference point.
+5. **Error diagnosis** — boundary-tolerant scoring, FP decomposition, full-frame
+   Hough verification, and a blinded single-author re-annotation audit.
+6. **Model variants** — classifier gating, Attention U-Net, training-protocol
+   pilots, ensembling, and probability-stratified Hough.
 
 ## Live demo
 
@@ -28,7 +35,7 @@ The pipeline:
 │   ├── restudy_topk/         #   per-trial × per-seed retrain configs (U-Net)
 │   └── attention_topk/       #   per-trial × per-seed retrain configs (Attention U-Net)
 ├── docs/                     # Sphinx sources + preregistration record
-├── report/                   # Dissertation LaTeX (gitignored)
+├── report/                   # Dissertation LaTeX sources and compiled report
 ├── results/                  # Logs, checkpoints, figures, JSON metrics (mostly gitignored)
 ├── scripts/
 │   ├── data/                 # Patch build, image/noise stats, dataset inspection, hard-neg mining
@@ -67,6 +74,13 @@ carrying per-patch split, positive-pixel fraction, and per-image normalisation s
 
 **Primary (MeerLICHT).** Training, validation, and test use a 178-image MeerLICHT
 subset with hand-verified trail masks, provided through the MeerLICHT consortium. These are collaboration data and are not redistributed here; they are available on request, subject to the MeerLICHT data policy. All splits are reproducible from the image-level split logic (`src/data/splits.py`, seed `2804`) once the image/mask pairs are in place.
+
+**Gold audit.** The blinded re-annotation audit uses private sealed crops and
+single-author masks under `data/gold/`. Those crops, masks, verdicts, and sealed
+manifest are not redistributed. Only the evaluation code and summary artefacts
+are in the repository, including `results/classical/gold_audit_eval.json`,
+`results/classical/gold_audit_bootstrap.json`, and the corresponding figure
+scripts under `scripts/figures/`.
 
 **Extension (DECam).** The qualitative cold-domain demo uses nine measured-streak DECam detector images from the public NSF NOIRLab Astro Data Archive, retrieved via the RECA codebase (Stoppa-adjacent; arXiv:2603.10790, `iausathub/reca-streaks`). The exact frames are predeclared in `results/classical/decam_cold_manifest.json` (expnum/detector), so the demo is reproducible from the archive without bundling raw FITS. Any use must carry the NOIRLab acknowledgement recorded in `results/classical/decam_cold_inference.json`.
 
@@ -117,56 +131,20 @@ docker build -t satellite-trails .
 docker run --rm satellite-trails pytest -q
 ```
 
-## CSD3 Quickstart
+## CSD3 Reproduction
 
-All long-running stages are Slurm jobs under `slurm/`. The end-to-end path:
+Long-running training and evaluation stages are Slurm jobs under `slurm/`. The
+full reproduction path rebuilds `data/patches/`, computes image/noise
+statistics, runs the balanced Optuna sweep, retrains the top five trials across
+five seeds, evaluates the locked winner, runs Hough post-processing, and
+regenerates report figures from committed JSON artefacts.
 
-```bash
-# 1. Build the patch dataset, per-image stats, and background-noise calibration
-#    (CPU jobs, chained so each waits for the previous).
-rm -rf data/patches
-jid1=$(sbatch --parsable slurm/build_patches_cpu.sbatch)
-jid2=$(MANIFEST=data/patches/manifest.csv \
-       sbatch --parsable --dependency=afterok:$jid1 slurm/compute_image_stats_cpu.sbatch)
-jid3=$(MANIFEST=data/patches/manifest.csv \
-       sbatch --parsable --dependency=afterok:$jid2 slurm/compute_background_noise_stats_cpu.sbatch)
-jid4=$(MANIFEST=data/patches/manifest.csv \
-       sbatch --parsable --dependency=afterok:$jid3 slurm/audit_manifest_cpu.sbatch)
-
-# 2. Optuna sweep (balanced batch-size allocation, validation-only objective)
-STUDY_NAME=unet_paper_arch_noise_f1 \
-CONFIG=configs/experiments/unet_paper_arch_noise_base.yaml \
-N_TRIALS=45 SKIP_RETRAIN=1 \
-  sbatch --dependency=afterok:$jid4 slurm/optuna_sweep.sbatch
-
-# 3. Retrain top-K trials × 5 seeds, then sweep validation thresholds.
-#    Per-trial/seed configs live in configs/experiments/restudy_topk/.
-CONFIG=configs/experiments/restudy_topk/topk_t44_s2804.yaml \
-  sbatch slurm/train_unet_ampere_long.sbatch
-
-# 4. Recreate the locked validation sweep/test eval, then run Hough at the locked threshold.
-#    Do not set THRESHOLD on the sweep command: that skips the validation PR sweep
-#    and would overwrite threshold_sweep_winner_t44_s2804.json with fixed-threshold output.
-CHECKPOINT=results/checkpoints/model-best.pth \
-TAG=winner_t44_s2804 \
-  sbatch slurm/threshold_sweep.sbatch
-CHECKPOINT=results/checkpoints/model-best.pth \
-THRESHOLD=0.45 \
-OUT=results/classical/hough_postprocess_winner_t44_s2804.json \
-  sbatch slurm/hough_postprocess.sbatch
-
-# 5. Prediction figures for the report
-CHECKPOINT=results/checkpoints/model-best.pth \
-THRESHOLD=0.45 \
-HOUGH_JSON=results/classical/hough_postprocess_winner_t44_s2804.json \
-TAG=winner_t44_s2804 \
-  sbatch slurm/visualise_predictions.sbatch
-```
-
-The **locked winner** is committed as `results/checkpoints/model-best.pth` (the
-byte-identical copy of `unet_paper_arch_noise_topk_t44_s2804_best.pth` produced by
-step 3), evaluated at threshold `0.45` with `full_image` normalisation. It is fixed:
-no retraining, threshold tuning, or model reselection downstream of step 3.
+The **locked winner** is committed as `results/checkpoints/model-best.pth`, a
+byte-identical copy of `unet_paper_arch_noise_topk_t44_s2804_best.pth`, and is
+evaluated at threshold `0.45` with `full_image` normalisation. Downstream
+analyses are inference-only: no retraining, threshold reselection, or model
+reselection. The exact CSD3 command sequence is maintained in the ReadTheDocs
+reproduction guide.
 
 ### Classical baseline (local or CSD3)
 
@@ -174,26 +152,42 @@ no retraining, threshold tuning, or model reselection downstream of step 3.
 python -m src.classical.run_hough --config configs/experiments/hough_baseline.yaml
 ```
 
-### Thesis / extension figures (local, from committed JSON metrics)
+### Thesis / extension figures
 
 ```bash
 python -m scripts.figures.make_thesis_figures
 python -m scripts.figures.make_extension_figures
 ```
 
+Most report figures are generated from committed JSON metrics. Gold-audit
+qualitative figures additionally require the private `data/gold/` crops and masks:
+
+```bash
+python -m scripts.figures.make_gold_audit_figure
+python -m scripts.figures.make_gold_audit_annotation_examples
+```
+
 ## Extensions
 
-Four themes, all scored on the same test split as the replication baseline and all
-post-hoc on the locked winner (no re-selection):
+All extensions are post-hoc on the locked winner unless explicitly described as
+separate validation-only model selection; no test metric is used for reselection.
+The final diagnosis is that recall and Hough pixel completeness reproduce closely,
+while the strict precision gap is dominated by boundary-scale label agreement and
+bounded background over-firing.
 
 - **A — Architectural.** Two-stage detector (CNN classifier → U-Net → Hough) and an
   Attention U-Net, each compared against the base U-Net.
 - **B — Error characterisation.** FP decomposition (intra- vs inter-patch),
-  boundary-tolerant evaluation, FP distance-to-mask, and clDice connectivity.
+  boundary-tolerant evaluation, FP distance-to-mask, clDice connectivity, Hough
+  line-thickness accounting, and five-seed diagnostic bands.
 - **C — Training protocol.** Data-efficiency curve (30/50/70/100% of training images),
   hard-negative mining, and a dilated soft-label pilot.
 - **D — Inference time.** Ensemble + test-time augmentation and probability-stratified
   Hough post-processing.
+- **E — Blinded re-annotation audit.** 64 sealed crops were re-annotated under an
+  evaluation-only protocol. The original MeerLICHT masks, the re-annotation, and
+  the locked model all have median stroke width 6 px; strict micro-F1 against the
+  re-annotation is 0.890 for consortium labels and 0.893 for the model.
 
 A qualitative cold-domain illustration applies the locked MeerLICHT model to DECam
 frames (`scripts/figures/decam_cold_inference.py`) — visual inspection only, no
@@ -220,18 +214,27 @@ cross-dataset metrics.
   predates the architecture-faithful model, and the free-sampling study was superseded by
   the committed 45-trial balanced study (`unet_paper_arch_noise_f1.db`). The tracked
   calibration and that balanced study are the artefacts of record.
+- Full-coverage tiled Hough verification is recorded in
+  `results/classical/hough_fullframe_winner_t44_s2804.json`; it reproduces the
+  full-coverage parity canvas pixel-for-pixel, so the Hough completeness result is
+  not a patch-sampling or seam artefact.
+- The gold audit is **evaluation-only**: no retraining, threshold reselection, or
+  mask replacement. Its private inputs remain under gitignored `data/gold/`; the
+  committed summaries are `results/classical/gold_audit_eval.json` (schema v3) and
+  `results/classical/gold_audit_bootstrap.json`.
 
 ### Computational requirements
 
 - **Hardware.** GPU training/inference ran on CSD3 (Cambridge), Ampere partition,
   one NVIDIA A100 (40 GB) per job. CPU-only paths — tests, figure generation, and the
   classical Hough baseline — need no GPU.
-- **Software.** Python 3.11.9; PyTorch CUDA 11.8 wheels (`hpc-requirements.txt`). The
+- **Software.** Python 3.11.x; PyTorch CUDA 11.8 wheels (`hpc-requirements.txt`). The
   full sweep was 45 Optuna trials (balanced batch-size allocation), then the top-5 trials
   retrained at 5 seeds for 75 epochs each; BF16 autocast and TF32 matmul enabled.
 - **Determinism.** `torch`/`numpy`/`random` are seeded and deterministic algorithms are
   requested where available. Residual GPU non-determinism is handled by reporting
-  5-seed means rather than a single run.
+  5-seed means rather than a single run; the post-hoc OpenCV
+  `cv2.HoughLinesP` stage is the remaining non-seeded classical step.
 
 ## Testing
 

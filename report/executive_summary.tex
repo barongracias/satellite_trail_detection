@@ -14,18 +14,21 @@
 \definecolor{rulegray}{HTML}{555555}
 
 \pagestyle{plain}
+\raggedbottom
 \setlength{\parindent}{0pt}
 \setlength{\parskip}{0.24em}
 \titlespacing*{\section}{0pt}{0.65em}{0.25em}
 \titleformat{\section}{\large\bfseries}{}{0pt}{}
 \captionsetup{font=footnotesize,labelfont=bf,skip=2pt}
 
-\newcommand{\summaryfigure}[3]{%
-  \begin{center}
-    \includegraphics[width=#1\linewidth]{#2}
-    \captionof{figure}{#3}
-  \end{center}
-  \vspace{-0.35em}
+\newcommand{\summaryfigure}[4][0.25em]{%
+  \par\smallskip
+  \noindent\begin{minipage}{\linewidth}
+    \centering
+    \includegraphics[width=#2\linewidth]{#3}
+    \captionof{figure}{#4}
+  \end{minipage}
+  \par\vspace{#1}
 }
 
 \begin{document}
@@ -59,6 +62,56 @@ Hough transform that reconnects linear trail evidence missed by the network. The
 replication is used as a diagnostic tool: the aim is not only to reproduce a
 headline score, but to identify where the residual error comes from.
 
+\section*{Key Findings}
+The replication reproduces the target paper's recall closely: five-seed
+sampled-test recall is $0.923\pm0.007$ against the paper's reported $0.94$.
+Strict precision is lower, at $0.847\pm0.010$ on the sampled test set and
+$0.780$ on the parity set that restores the natural negative-patch prevalence.
+This shows that precision is prevalence-sensitive, whereas recall is the cleaner
+like-for-like comparison across the two test populations. Image-cluster
+uncertainty is the relevant interval because source images, not patches, are the
+independent units.
+
+\summaryfigure[0.55em]{0.88}{../results/figures/thesis_1_multiseed_replication.pdf}{Five-seed
+replication performance for the locked U-Net compared with the Stoppa et al.\
+reference. Recall is closely reproduced, while strict precision remains lower,
+motivating the boundary-scale error analysis.}
+
+The Hough stage reproduces the paper's intended completeness behaviour. On the
+full-coverage tiled canvas, trail-pixel recall rises from $0.918$ to $0.990$,
+equivalently reducing the pixel-level false-negative rate from $0.082$ to
+$0.0105$. This does not make the Hough mask a better strict pixel classifier:
+post-Hough line drawing increases false-positive area, reducing strict precision
+from $0.780$ to $0.410$ on the parity canvas.
+
+\summaryfigure[0.55em]{0.88}{../results/figures/hough_gap_bridge_example.pdf}{Hough
+bridging a U-Net gap over a bright star. The example illustrates the mechanism:
+linear post-processing recovers ground-truth trail pixels missed by the
+thresholded U-Net.}
+
+The strict precision gap is localised to boundary scale. False-positive
+decomposition shows that only $17.5\,\%$ of false-positive pixels occur in
+trail-free patches; the remaining $82.5\,\%$ fall within
+trail-bearing patches. A one-pixel boundary tolerance raises five-seed precision
+from $0.847$ to $0.946$, and $57\,\%$ of all false positives lie within one
+pixel of a labelled trail. These diagnostics are consistent with the residual error
+being concentrated near labelled trail boundaries. A blinded single-author
+re-annotation of $64$ sealed crops is consistent with this: the original masks,
+the re-annotation, and the model all share a median width of $6$\,px, and
+the model agrees with the re-annotation about as well as the original labels do,
+with no strict-$F_1$ difference resolved under this design (paired $-0.0001$,
+$95\%$ CI spanning zero). This is a single-author between-source disagreement
+estimate, not inter-annotator agreement. A small over-firing residual remains
+on adversarial controls, so the audit is consistent with boundary-scale
+disagreement rather than a uniformly thin label or model over-paint.
+
+\vspace{0.35em}
+\summaryfigure{0.82}{../results/figures/thesis_2_boundary_tolerance.pdf}{A
+one-pixel tolerance largely closes the strict precision gap, consistent with
+residual disagreement concentrated near labelled boundaries.}
+
+\clearpage
+
 \section*{Methodology}
 The study uses 178 labelled MeerLICHT image/mask pairs split at image level into
 122 training, 24 validation, and 32 test images, avoiding same-image leakage.
@@ -70,53 +123,16 @@ combined binary cross-entropy plus squared-Dice loss.
 Hyperparameters are selected by validation-only Optuna search, the top trials
 are retrained across five seeds, and the final threshold is chosen from a
 validation precision--recall sweep before test metrics are inspected. Hough
-post-processing is evaluated on a full-coverage canvas that reproduces native
-dense full-image inference pixel-for-pixel, with separate precision and
-completeness caveats.
+post-processing is evaluated on a full-coverage tiled canvas that reproduces
+the parity canvas pixel-for-pixel, with separate precision and completeness
+caveats.
 
-\summaryfigure{0.96}{../results/figures/predictions/overlay_grid_winner_t44_s2804.png}{Representative
+\vspace{0.45em}
+\summaryfigure{0.88}{../results/figures/predictions/overlay_grid_winner_t44_s2804.png}{Representative
 test-patch predictions for the locked U-Net: ground truth in green, prediction
 in magenta, and overlap inside the green band.}
 
-\section*{Key Findings}
-The replication reproduces the target paper's recall closely: five-seed
-sampled-test recall is $0.923\pm0.006$ against the paper's reported $0.94$.
-Strict precision is lower, at $0.847\pm0.009$ on the sampled test set and
-$0.780$ on the parity set that restores the natural negative-patch prevalence.
-This shows that precision is prevalence-sensitive, whereas recall is the cleaner
-like-for-like comparison across the two test populations.
-
-The Hough stage reproduces the paper's intended completeness behaviour. On the
-dense full-frame canvas, trail-pixel recall rises from $0.918$ to $0.990$,
-equivalently reducing the pixel-level false-negative rate from $0.082$ to
-$0.0105$. This does not make the Hough mask a better strict pixel classifier:
-post-Hough line drawing increases false-positive area, reducing strict precision
-from $0.780$ to $0.410$ on the parity canvas.
-
-\summaryfigure{0.94}{../results/figures/hough_gap_bridge_example.pdf}{Hough
-bridging a U-Net gap over a bright star. The example illustrates the mechanism:
-linear post-processing recovers ground-truth trail pixels missed by the
-thresholded U-Net.}
-
-The strict precision gap is localised to boundary scale. False-positive
-decomposition shows that only $17.5\,\%$ of false-positive pixels occur in
-trail-free patches; the remaining $82.5\,\%$ are over-painting within
-trail-bearing patches. A one-pixel boundary tolerance raises five-seed precision
-from $0.847$ to $0.946$, and $57\,\%$ of all false positives lie within one
-pixel of a labelled trail. These diagnostics are consistent with the residual error
-being concentrated near labelled trail boundaries. A blinded single-author
-re-annotation of $64$ sealed crops bears this out: the original masks, a
-blinded single-author re-annotation, and the model all have a median width of $6$\,px, and
-the model agrees with the re-annotation about as well as the original labels do,
-with no clear strict-$F_1$ difference (paired $-0.0001$, $95\%$ CI spanning
-zero) --- the residual sits near the single-author labelling floor, not in a
-thin label or a model over-paint.
-
-\summaryfigure{0.88}{../results/figures/thesis_2_boundary_tolerance.pdf}{A
-one-pixel tolerance largely closes the strict precision gap, consistent with
-residual disagreement concentrated near labelled boundaries.}
-
-\section*{Extensions}
+\section*{Extensions \& Transfer}
 Follow-up experiments test whether the residual can be moved by model or
 inference changes. A classifier-gated detector shifts precision by only
 $+1.2$ percentage points, consistent with the $17.5\,\%$ inter-patch upper
@@ -124,30 +140,21 @@ bound. An attention-gated U-Net at matched capacity is a null result, clDice
 shows no hidden topology gain, hard-negative mining adds only $+0.007$
 precision, and ensembling with test-time augmentation sits within seed noise.
 
-\summaryfigure{0.95}{../results/figures/thesis_1_multiseed_replication.pdf}{Five-seed
-replication performance for the locked U-Net compared with the Stoppa et al.\
-reference. Recall is closely reproduced, while strict precision remains lower,
-motivating the boundary-scale error analysis.}
-
-\summaryfigure{1.0}{../results/figures/decam_cold_raw_vs_overlay.pdf}{Cold-domain
+\vspace{0.45em}
+\summaryfigure{0.95}{../results/figures/decam_cold_raw_vs_overlay.pdf}{Cold-domain
 DECam examples: raw measured-streak frames and the locked MeerLICHT-trained
 U-Net contour. This is a qualitative transfer illustration, not a benchmark.}
 
-\section*{Recommendation \& Next Steps}
-A blinded single-author re-annotation has been completed and places the model
-near the measured single-author labelling floor; the decisive remaining check is
-a multi-annotator gold-standard audit, to establish inter-annotator agreement. A labelled cross-instrument test,
+\newpage
+
+\section*{Recommendation \& Impact}
+A blinded single-author re-annotation has been completed and leaves the model
+within a single-author between-source disagreement estimate; the strongest
+remaining check is a multi-annotator gold-standard audit, to establish
+inter-annotator agreement. A labelled cross-instrument test,
 especially on DECam-like data, is the next generalisation check; the current
 DECam application is qualitative only.
 
-A threshold-$0.58$ row is useful only as a diagnostic symmetry check, not a new
-selection result. A resolution experiment is feasible as a synthetic resampling
-stress test, but should not be presented as cross-instrument evidence without
-new labels.
-
-\newpage
-
-\section*{Research Impact \& Conclusion}
 The U-Net plus Hough pipeline closely reproduces the target detector's recall
 and Hough completeness. The tested capacity, training-protocol and
 post-processing changes do not materially reduce the remaining strict-precision
@@ -156,7 +163,7 @@ strict scores alongside boundary-tolerant scores and annotation conventions is
 more informative than another architecture tweak.
 
 \section*{References}
-{\scriptsize
+{\footnotesize
 [1] F. Stoppa et al., ``Automated detection of satellite trails in ground-based
 observations using U-Net and Hough transform,'' \emph{Astronomy \& Astrophysics},
 692, A199, 2024.
@@ -168,11 +175,16 @@ Understanding}, 78(1), 2000.
 }
 
 \section*{Declaration of Use of Autogeneration Tools}
-{\scriptsize
-Codex (ChatGPT) and Claude Code supported library usage, plotting and scripting
-boilerplate, function docstrings, and project-structure review. All prose and
-reported numbers were manually reviewed, and all metrics derive from the
-repository artefacts.
+{\footnotesize
+I have used Codex (ChatGPT) and Claude Code to support me across this work,
+primarily in the following areas:
+\begin{itemize}
+  \item Providing advice and usage support for libraries like PyTorch and PIL.
+  \item Generating boilerplate code for plotting, testing and scripting.
+  \item Generating function docstrings.
+  \item Reviewing and auditing project structure for completeness, consistency,
+        accuracy and best practices in software engineering.
+\end{itemize}
 }
 
 \end{document}

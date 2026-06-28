@@ -2,10 +2,12 @@
 Satellite Trail Detection
 =========================
 
-Replication and extension of the Stoppa et al. 2024 (A&A 692, A199) satellite-trail
-detection pipeline on a 178-image MeerLICHT subset: a U-Net segmenter produces a
-binary trail mask, a classical Hough transform bridges gaps in that mask, and a suite
-of extensions characterises and improves the detector.
+Replication and diagnostic extension of the Stoppa et al. 2024 (A&A 692, A199)
+satellite-trail detection pipeline on a 178-image MeerLICHT subset: a U-Net
+segmenter produces a binary trail mask, a probabilistic Hough transform bridges
+gaps in that mask, and post-hoc diagnostics localise the remaining strict
+precision gap to boundary-scale label agreement plus a small over-firing
+residual.
 
 MPhil Data Intensive Science dissertation, University of Cambridge
 (supervisor: Dr Eduardo Gonzalez-Solares).
@@ -18,17 +20,30 @@ The pipeline at a glance
 #. **U-Net training** with an Optuna sweep, multi-seed top-K retraining, and
    validation-only model selection.
 #. **Hough post-processing** to recover gaps the U-Net misses.
-#. **Classical Hough baseline** as a non-learned reference point.
+#. **Error diagnosis** — boundary-tolerant scoring, FP decomposition, full-frame
+   Hough verification, and a blinded single-author re-annotation audit.
+#. **Model variants** — classifier gating, Attention U-Net, training-protocol
+   pilots, ensembling, and probability-stratified Hough.
 
 Quick links
 -----------
 
 - :doc:`getting_started` — install the package locally, on CSD3, or via Docker.
 - :doc:`usage` — load the locked model and run inference, Hough, and the baseline.
+- :doc:`csd3_reproduction` — rebuild the patch data and reproduce the locked CSD3
+  training/evaluation sequence.
 - :doc:`api/index` — the full ``src/`` API reference, grouped by sub-package.
 
-For the end-to-end CSD3 reproduction commands and the data policy, see the project
-``README`` on `GitHub <https://github.com/barongracias/satellite_trail_detection>`_.
+Live demo
+---------
+
+`trail-scope <https://github.com/barongracias/trail-scope>`_ is a separate
+FastAPI/Next.js demo of the locked detector. It is intended for interactive
+inspection of U-Net + Hough overlays, not for reproducing the dissertation
+experiments.
+
+For the data policy and repository overview, see the project ``README`` on
+`GitHub <https://github.com/barongracias/satellite_trail_detection>`_.
 
 .. toctree::
    :maxdepth: 2
@@ -37,6 +52,7 @@ For the end-to-end CSD3 reproduction commands and the data policy, see the proje
 
    getting_started
    usage
+   csd3_reproduction
    api/index
 
 Indices

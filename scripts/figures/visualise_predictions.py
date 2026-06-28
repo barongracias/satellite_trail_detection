@@ -1,9 +1,11 @@
 #!/usr/bin/env python
-"""Prediction-visualisation figures for the final reported checkpoint (M5.1).
+"""Prediction-visualisation figures for a locked segmentation checkpoint.
 
-Run against the final reported checkpoint — either the M5.2 re-Optuna retrain
-if it beats the winning ablation on val_f1, or the winning ablation itself.
-Decision rule lives in agents/PLAN.md M5.1; this script does not enforce it.
+Run this after model, seed, and threshold selection have already been fixed. For
+the final thesis figures, the checkpoint is the committed locked U-Net winner
+(``results/checkpoints/model-best.pth``) at threshold 0.45; comparator figures use
+their own validation-locked checkpoints and thresholds. This script renders the
+chosen checkpoint only; it does not select, tune, or compare models.
 
 Produces four figure types under results/figures/predictions/:
 1. Test-patch overlay grid: a compact deterministic subset with GT and prediction
@@ -16,9 +18,10 @@ Produces four figure types under results/figures/predictions/:
 
 Usage:
     python scripts/figures/visualise_predictions.py \\
-        --checkpoint results/checkpoints/unet_<tag>_best.pth \\
-        --threshold 0.72 \\
-        --hough_json results/classical/hough_postprocess_<tag>.json
+        --checkpoint results/checkpoints/model-best.pth \\
+        --threshold 0.45 \\
+        --hough_json results/classical/hough_postprocess_winner_t44_s2804.json \\
+        --tag winner_t44_s2804
 """
 
 from __future__ import annotations

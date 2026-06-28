@@ -82,6 +82,21 @@ Classical Hough baseline (local or CSD3):
 
 Two-stage detector (CNN classifier gate → U-Net → Hough):
 
+.. warning::
+
+   This command is not self-contained from a clean clone. The locked U-Net
+   checkpoint is committed, but the classifier checkpoint is intentionally
+   off-git. Provide a classifier checkpoint with recorded provenance, or retrain
+   it before running the two-stage path:
+
+   .. code-block:: bash
+
+      python -m src.training.train_classifier \
+          --config configs/experiments/classifier_base.yaml
+
+   That training command writes ``results/checkpoints/classifier_base_latest.pth``
+   and a validation-only summary used to choose the classifier operating point.
+
 .. code-block:: bash
 
    python -m src.inference.two_stage \
@@ -99,3 +114,10 @@ Thesis and extension figures (local, from committed JSON metrics):
 
    python -m scripts.figures.make_thesis_figures
    python -m scripts.figures.make_extension_figures
+
+Gold-audit qualitative figures require the private ``data/gold/`` crops and masks:
+
+.. code-block:: bash
+
+   python -m scripts.figures.make_gold_audit_figure
+   python -m scripts.figures.make_gold_audit_annotation_examples

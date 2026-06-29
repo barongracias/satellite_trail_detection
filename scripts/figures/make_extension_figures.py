@@ -75,8 +75,8 @@ def fig_fp_distance_histogram() -> None:
             color=COLORS["red"],
         )
     ax.set_xlabel("Distance from FP pixel to nearest GT trail (px)", fontsize=7)
-    ax.set_ylabel("Cumulative fraction of FP pixels", fontsize=7)
-    ax.set_title("Cumulative FP distance to nearest GT trail", fontsize=8)
+    ax.set_ylabel("Distance-defined FP fraction", fontsize=7)
+    ax.set_title("Cumulative distance-defined FP to nearest GT trail", fontsize=8)
     ax.set_xlim(0, xmax)
     ax.set_ylim(0, 1.0)
     fig.subplots_adjust(left=0.16, bottom=0.18, top=0.78)

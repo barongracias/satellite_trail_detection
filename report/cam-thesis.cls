@@ -503,8 +503,9 @@ This dissertation does not exceed the prescribed limit of 60\,000 words.}
 
 % Cambridge thesis submission guidelines require the title and author be in the abstract.
 % For more info see https://www.cambridgestudents.cam.ac.uk/your-course/examinations/graduate-exam-information/after-examination/degree-approval-and-1
-\textbf{\large \@title}
-\par\vspace{0.3cm}
+{\raggedright\hyphenpenalty=10000\exhyphenpenalty=10000%
+\textbf{\large \@title}\par}
+\vspace{0.3cm}
 \noindent\textit{\@author}
 \par\vspace{0.6cm}
 

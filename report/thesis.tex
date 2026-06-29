@@ -18,7 +18,7 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Thesis meta-information
 %%%%%
-\title{Automated Detection of Satellite Trails in Ground-Based Observations\\
+\title{Automated Detection of Satellite Trails in Ground-Based Observations
        Using U-Net and the Probabilistic Hough Transform}
 
 \author{Baron Gracias}
@@ -63,27 +63,29 @@
   wide-field observatories.
   %
   This dissertation replicates the U-Net plus probabilistic Hough transform
-  pipeline of \citet{stoppa2024} on a labelled MeerLICHT subset, reimplemented in
-  PyTorch with an architecture-faithful network, a combined binary cross-entropy
-  and squared-Dice loss, validation-only model and threshold selection, and Hough
-  post-processing of the probability map. The replication is then examined
-  through four analyses: residual error, model variants, training-protocol
-  sensitivity, and inference-time strategies.
+  pipeline of \citet{stoppa2024} on a labelled MeerLICHT subset. The PyTorch
+  implementation uses an architecture-faithful U-Net, a combined binary
+  cross-entropy and squared-Dice loss, validation-only model and threshold
+  selection, and Hough post-processing of the probability map. The replication is
+  then examined through four analyses: residual error, model variants,
+  training-protocol sensitivity, and inference-time strategies.
   %
-  It reproduces the paper's recall (five-seed test recall $0.923$ against $0.94$)
-  and its Hough completeness (trail-pixel recall $0.918\rightarrow0.990$; a
-  pixel-level false-negative rate $0.082\rightarrow0.0105$ comparable to the
-  paper's $6.98\,\%\rightarrow3.38\,\%$), while strict pixel precision sits below
-  the paper and is prevalence-dependent.
+  The replication reproduces the paper's recall (five-seed test recall $0.923$
+  against $0.94$) and its Hough completeness (trail-pixel recall
+  $0.918\rightarrow0.990$; a pixel-level false-negative rate
+  $0.082\rightarrow0.0105$ comparable to the paper's
+  $6.98\,\%\rightarrow3.38\,\%$), while strict pixel precision sits below the
+  paper and is prevalence-dependent.
   %
   The residual-error analysis narrows the gap: $82.5\,\%$ of false positives
   fall in trail-bearing patches, and separate tolerance and distance diagnostics
   place much of the residual within one pixel of the mask.
   A blinded single-author re-annotation of $64$ sealed crops finds no systematic
-  width bias between the original masks, the re-annotation, and the model. The
-  model, training, and inference variants move the residual only slightly, so on
-  this dataset the remaining gap is unlikely to stem from model capacity,
-  training protocol, or Hough post-processing alone.
+  width bias between the original masks, the re-annotation, and the model.
+  Model, training, and inference variants move the residual only slightly. The
+  evidence therefore supports a narrow conclusion: recall and Hough completeness
+  reproduce, while the remaining strict-precision gap is most consistent with
+  boundary-scale annotation disagreement on this dataset.
 }
 
 
@@ -101,11 +103,11 @@
 \chapter{Introduction and Context}
 \label{ch:introduction}
 
-The population of low-Earth orbit is growing quickly. CelesTrak listed
+The low-Earth-orbit satellite population is growing quickly. CelesTrak listed
 15{,}848 active satellites on 27 May 2026, of which approximately 14{,}600
 occupied orbits below 2{,}000\,km, including more than 10{,}000 Starlink
-spacecraft \citep{celestrak2026}. Authorisations extend further: 15{,}000
-second-generation Starlink satellites are approved \citep{fcc2026}, and
+spacecraft \citep{celestrak2026}. Regulatory approvals extend further:
+15{,}000 second-generation Starlink satellites are approved \citep{fcc2026}, and
 policy reviews treat proposals exceeding 100{,}000 spacecraft as realistic
 \citep{walker2020,walker2021}. Each sunlit satellite crossing a wide-field
 exposure leaves a bright, near-linear trail that corrupts photometry and
@@ -116,9 +118,9 @@ The contamination is already measurable. Starlink trails affected under
 $0.5\,\%$ of Zwicky Transient Facility twilight images in late 2019 but
 $18\,\%$ by August 2021 \citep{mroz2022}; Rubin Observatory simulations
 indicate that approximately $10\,\%$ of LSST images would contain at least one
-trail under a 40{,}000-satellite scenario \citep{rubin2026}; wide-field
+trail under a 40{,}000-satellite scenario \citep{rubin2026}. Other wide-field
 twilight exposures can reach $30$--$40\,\%$ contamination
-\citep{hainaut2020,bassa2022}; and $4.3\pm0.4\,\%$ of Hubble ACS/WFC images
+\citep{hainaut2020,bassa2022}, and $4.3\pm0.4\,\%$ of Hubble ACS/WFC images
 taken in 2018--2021 contained trails \citep{kruk2023}. At these
 rates manual flagging does not scale: a survey instrument such as MeerLICHT
 \citep{bloemen2016} produces $10{,}560\times10{,}560$-pixel frames throughout
@@ -133,14 +135,14 @@ pipeline.
 dissertation: a U-Net \citep{ronneberger2015} trained on manually annotated
 MeerLICHT images, followed by a probabilistic Hough transform
 \citep{hough1962,matas2000} applied to the network's output probability map.
-The division of labour is deliberate. The U-Net supplies per-pixel soft
-detection that survives the crowded stellar background, and the Hough stage
-exploits the one prior the network does not encode explicitly, that a
-satellite trail is globally linear, to connect fragmented detections and
-extend partially recovered trails. The published pipeline reaches precision
+The two stages serve complementary roles. The U-Net supplies per-pixel soft
+detection that survives the crowded stellar background. The Hough stage exploits
+the one prior the network does not encode explicitly, that a satellite trail is
+globally linear, to connect fragmented detections and extend partially recovered
+trails. The published pipeline reaches precision
 and recall both approaching $0.94$ and was applied at scale to around
-200{,}000 full MeerLICHT fields; its reported behaviour is detailed in
-Section~\ref{sec:related_target}, and this work's numbers are deferred to
+200{,}000 full MeerLICHT fields. The published behaviour is summarised in
+Section~\ref{sec:related_target}; the replication results are reported in
 Chapter~\ref{ch:analysis}.
 
 \section{Background and related work}
@@ -151,19 +153,16 @@ Chapter~\ref{ch:analysis}.
 \label{sec:related_classical}
 
 Classical satellite-trail detection usually treats trails as geometric line
-features. The Hough transform \citep{hough1962}, its bounded
-$(\rho,\theta)$ parameterisation \citep{duda1972}, and the progressive
-probabilistic variant for noisy segments \citep{matas2000} map image pixels into
-line-parameter space, making them natural tools for long, straight artefacts.
-Astronomical applications include Hough-style voting and renewal strings for
-survey cleaning \citep{storkey2004}, masked-star Hough validation in crowded
-fields \citep{bektesevic2017}, Radon-style matched filtering for faint streaks
-\citep{nir2018}, space-debris and {DECam} survey workflows
-\citep{virtanen2016,serrano2026}, and modified Radon recovery in Hubble ACS
-imaging \citep{stark2026}. Their shared limitation is sensitivity to faint,
-fragmented, or background-confused trails, where reliable voting and
-instrument-specific preprocessing become difficult; this motivates learned
-segmentation before geometric post-processing.
+features. Hough and Radon-family methods map image pixels into line-parameter
+space, making them natural tools for long, straight artefacts
+\citep{hough1962,duda1972,matas2000}. Astronomical uses include survey
+cleaning, masked-star validation in crowded fields, faint-streak matched
+filtering, space-debris and {DECam} workflows, and Hubble ACS trail recovery
+\citep{storkey2004,bektesevic2017,nir2018,virtanen2016,serrano2026,stark2026}.
+Their shared limitation is sensitivity to faint, fragmented, or
+background-confused trails, where reliable voting and instrument-specific
+preprocessing become difficult; this motivates learned segmentation before
+geometric post-processing.
 
 \subsection{Deep learning for astronomical segmentation}
 \label{sec:related_dl}
@@ -176,10 +175,9 @@ thin, sparse artefacts are deepCR \citep{zhang2020} and Cosmic-CoNN
 \citep{paillassa2020} covers contaminant masking including satellite and
 aircraft trails, and trails have since been targeted with U-Net plus
 line-segment detection \citep{chen2025}, multi-band attention U-Nets
-\citep{yu2025}, end-to-end streak cataloguing \citep{carrillo2026}, and
-frequency-domain alert-stream classification \citep{carvajal2025}. No published
-trail-detection pipeline was found that gates a segmentation U-Net with a
-lightweight patch classifier, although deep-learning classifiers already operate
+\citep{yu2025}, and end-to-end streak cataloguing \citep{carrillo2026}. No
+published trail-detection pipeline was found that gates a segmentation U-Net
+with a lightweight patch classifier, although classifiers are already used
 elsewhere in the MeerLICHT ecosystem \citep{hosenie2021}.
 Section~\ref{sec:ext_twostage} therefore treats this as a narrow follow-up test.
 
@@ -200,7 +198,8 @@ search (Chapter~\ref{ch:pipeline}).
 
 This dissertation has three aims. The first is a faithful PyTorch replication
 of the \citet{stoppa2024} pipeline on the labelled MeerLICHT subset, with the
-network architecture recovered from the released model, not the
+network architecture reconstructed from the released Keras \texttt{model-best.h5}
+file, not the
 paper's text alone, and with model and threshold selection locked on
 validation data before any test metric is inspected. The second is to
 diagnose the residual error of that replication: to establish where the
@@ -225,10 +224,10 @@ The contributions are:
         (Section~\ref{sec:software}).
 \end{itemize}
 
-Sky-coordinate projection, horizon and zenith-angle analysis, and
-exposure-time-normalised trend modelling are out of scope: the available data
-are 8-bit PNG renders with no surviving FITS or WCS headers
-(Section~\ref{sec:meerlicht}).
+Because the available data are 8-bit PNG renders with no surviving FITS, WCS,
+exposure, or photometric-calibration headers, this dissertation does not
+analyse sky-coordinate projection, horizon or zenith angle, or
+exposure-time-normalised trends (Section~\ref{sec:meerlicht}).
 
 \section{Code and data availability}
 \label{sec:availability}
@@ -239,14 +238,14 @@ are available in the
 with rendered API documentation on
 \href{https://satellite-trail-detection.readthedocs.io}{Read the Docs}. The
 MeerLICHT image and mask subset is collaboration data, provided through the
-supervisor under the MeerLICHT data policy, and is not redistributed; the splits
-are reproducible from \texttt{src/data/splits.py} (seed $2804$). The DECam frames
+MeerLICHT collaboration under the MeerLICHT data policy, and is not
+redistributed; the splits are reproducible from \texttt{src/data/splits.py}
+(seed $2804$). The DECam frames
 used in Section~\ref{sec:predictions} are public NSF NOIRLab Astro Data Archive
 products, identified by exposure and detector number in
 \texttt{results/classical/decam\_cold\_manifest.json}. All training and
 evaluation runs used the Cambridge Service for Data Driven Discovery (CSD3),
-operated by the University of Cambridge Research Computing Service and funded
-by EPSRC Tier-2 capital grant EP/T022159/1 and DiRAC funding from the STFC.
+operated by the University of Cambridge Research Computing Service.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% CHAPTER 2 -- Data exploration (EDA)
@@ -655,7 +654,7 @@ RNG is not separately seeded, so its reruns are near- but not bit-identical.
 \section{Software engineering}
 \label{sec:software}
 
-The code is an installable Python package with command-line entry points for
+The code is packaged as an installable Python project with module-level command-line interfaces for
 each pipeline stage. Experiments use YAML configuration plus runtime overrides,
 so runs are reproducible from configuration and seed.
 
@@ -696,7 +695,8 @@ treating it as an optimisation target.
            are at threshold $0.58$ on a 20{,}000-patch test set; this work uses
            the realised $122/24/32$ image split and the validation-selected
            threshold $0.45$ (per-seed $0.41$--$0.50$). Cluster-bootstrap intervals are in
-           Section~\ref{sec:bootstrap}.}
+           Section~\ref{sec:bootstrap}. Dashes mean that exact values are not
+           numerically tabulated in the paper.}
   \label{tab:replication}
   \small
   \begin{tabular}{p{0.40\textwidth}ccccc}
@@ -715,9 +715,9 @@ treating it as an optimisation target.
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=0.85\textwidth]{../results/figures/thesis_1_multiseed_replication.pdf}
-  \caption{Five-seed replication summary against the paper reference, showing
-           precision, recall, $F_1$, and Dice for the locked validation-selected
-           U-Net configuration.}
+  \caption{Five-seed replication summary for the locked validation-selected
+           U-Net configuration. Paper-reference markers are shown only for the
+           explicitly reported precision and recall values.}
   \label{fig:replication}
 \end{figure}
 
@@ -806,13 +806,13 @@ uncertainty but still visible.
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=0.92\linewidth]{../results/figures/predictions/overlay_grid_winner_t44_s2804.png}
-  \caption{Representative test-patch predictions for the locked winner: image,
-           ground-truth mask (green), and predicted mask (magenta), with overlap
-           shown as magenta inside the green band.}
+  \caption{Diagnostic selection of test-patch predictions for the locked winner:
+           image, ground-truth mask (green), and predicted mask (magenta), with
+           overlap shown as magenta inside the green band.}
   \label{fig:predictions}
 \end{figure}
 
-A representative selection of locked-winner test predictions is shown in
+A diagnostic selection of locked-winner test predictions is shown in
 Figure~\ref{fig:predictions}; false-positive galleries for the winning U-Net and
 attention variant on the same eight patches are in
 Appendix~\ref{app:supplementary}. They include diffraction-spike examples:
@@ -921,10 +921,10 @@ minority.
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=0.85\textwidth]{../results/figures/ext_1_fp_distance_histogram.pdf}
-  \caption{Cumulative fraction of false-positive pixels within distance $d$ of
-           the nearest ground-truth trail. The distance-defined curve excludes
-           $63{,}662$ whole-patch FP pixels; $69.3\,\%$ of distance-defined and
-           $57.2\,\%$ of all FP pixels lie within $1$\,px.}
+  \caption{Cumulative fraction of distance-defined false-positive pixels within
+           distance $d$ of the nearest ground-truth trail. The plotted curve
+           excludes $63{,}662$ whole-patch FP pixels; $69.3\,\%$ of
+           distance-defined and $57.2\,\%$ of all FP pixels lie within $1$\,px.}
   \label{fig:fp_distance}
 \end{figure}
 
@@ -1040,7 +1040,7 @@ architecture.
 
 The classifier-gated detector (gate architecture and training in
 Section~\ref{sec:classifier}) is reported descriptively as an
-operating-characteristic surface over the classifier and U-Net thresholds
+operating-characteristic Pareto front over the classifier and U-Net thresholds
 (Figure~\ref{fig:two_stage_pareto}), not as a single selected replacement for the
 locked U-Net. The gate suppresses only empty-patch false positives, so its
 gain is bounded by the inter-patch share. At the illustrative high-recall operating point used for
@@ -1060,7 +1060,7 @@ empty-dominated patch stream.
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=0.8\textwidth]{../results/figures/thesis_5_two_stage_pareto.pdf}
-  \caption{Two-stage operating-characteristic (Pareto) surface over the
+  \caption{Two-stage operating-characteristic Pareto front over the
            classifier and U-Net thresholds; test-side and descriptive, not a
            validated improvement. The annotated point shifts precision
            $+1.2$\,pp and recall $-0.4$\,pp versus the locked baseline.}
@@ -1332,10 +1332,11 @@ The error characterisation carries three implications beyond this
 replication, and a practical reading for deployment.
 
 First, where masks omit visible trail pixels, strict label-referenced precision
-becomes a lower bound, and the Hough stage makes this concrete: it extrapolates
-linear extent the network under-detects, but where the annotation also omits that
-extent the recovered pixels score as false positives---the metric penalises
-exactly the recovery the stage was built for. Reported precision for this
+is best read as a conservative estimate, and the Hough stage makes this concrete:
+it extrapolates linear extent the network under-detects, but where the
+annotation also omits that extent the recovered pixels score as false
+positives---the metric can penalise the recovery the stage was built for.
+Reported precision for this
 detector family should therefore be read alongside a statement of label quality;
 comparisons across papers with different annotation conventions conflate
 detector quality with labelling convention.
@@ -1510,7 +1511,7 @@ training choices are fixed by the methodology in Chapter~\ref{ch:pipeline}.
            half of the $0.780\rightarrow0.410$ precision fall while completeness
            stays above $0.97$, consistent with about half the fall arising from
            the $3$\,px rasterisation convention over the roughly $6$\,px masks
-           and the remainder from a genuine off-trail false-positive floor.}
+           and the remainder not being recovered by $1$\,px line thinning.}
   \label{fig:supp_hough_thickness}
 \end{figure}
 
@@ -1535,8 +1536,8 @@ training choices are fixed by the methodology in Chapter~\ref{ch:pipeline}.
            $0.45$ (blue). The fixed selection shows the three lowest-index
            non-empty interior/endpoint crops, where boundaries are
            near-coincident, and the two lowest-index false-positive-prone
-           controls with model-only over-firing. The reference is a
-           single-author re-annotation, not an independent gold standard.}
+           controls with model-only over-firing. The single-author
+           re-annotation is not an independent gold standard.}
   \label{fig:supp_gold_audit}
 \end{figure}
 

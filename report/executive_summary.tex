@@ -74,8 +74,9 @@ independent units.
 
 \summaryfigure[0.55em]{0.88}{../results/figures/thesis_1_multiseed_replication.pdf}{Five-seed
 replication performance for the locked U-Net compared with the Stoppa et al.\
-reference. Recall is closely reproduced, while strict precision remains lower,
-motivating the boundary-scale error analysis.}
+reference. Paper-reference markers are shown only for the explicitly reported
+precision and recall values; recall is closely reproduced while strict precision
+remains lower, motivating the boundary-scale error analysis.}
 
 The Hough stage reproduces the paper's intended completeness behaviour. On the
 full-coverage tiled canvas, trail-pixel recall rises from $0.918$ to $0.990$,
@@ -128,9 +129,9 @@ the parity canvas pixel-for-pixel, with separate precision and completeness
 caveats.
 
 \vspace{0.45em}
-\summaryfigure{0.88}{../results/figures/predictions/overlay_grid_winner_t44_s2804.png}{Representative
-test-patch predictions for the locked U-Net: ground truth in green, prediction
-in magenta, and overlap inside the green band.}
+\summaryfigure{0.88}{../results/figures/predictions/overlay_grid_winner_t44_s2804.png}{Diagnostic
+selection of test-patch predictions for the locked U-Net: ground truth in green,
+prediction in magenta, and overlap inside the green band.}
 
 \section*{Extensions \& Transfer}
 Follow-up experiments test whether the residual can be moved by model or

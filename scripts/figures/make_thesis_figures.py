@@ -41,12 +41,9 @@ COLORS = {
     "yellow": "#F0E442",
     "black": "#000000",
 }
-PAPER_F1 = (2.0 * PAPER_PRECISION * PAPER_RECALL) / (PAPER_PRECISION + PAPER_RECALL)
 PAPER_VALUES = {
     "precision": PAPER_PRECISION,
     "recall": PAPER_RECALL,
-    "f1": PAPER_F1,
-    "dice": PAPER_F1,
 }
 
 
@@ -137,7 +134,8 @@ def figure_multiseed_replication() -> None:
             np.full(len(SEEDS), x[i]) + jitter, series[metric],
             s=16, color=COLORS["black"], alpha=0.7, zorder=3,
         )
-        ax.scatter(x[i], PAPER_VALUES[metric], marker="D", s=24, color=COLORS["orange"], zorder=4)
+        if metric in PAPER_VALUES:
+            ax.scatter(x[i], PAPER_VALUES[metric], marker="D", s=24, color=COLORS["orange"], zorder=4)
     ax.set_xticks(x)
     ax.set_xticklabels([METRIC_LABELS[m] for m in METRICS])
     ax.set_ylabel("Test score")

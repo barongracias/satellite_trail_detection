@@ -30,6 +30,8 @@ Quick links
 
 - :doc:`getting_started` — install the package locally, on CSD3, or via Docker.
 - :doc:`usage` — load the locked model and run inference, Hough, and the baseline.
+- :doc:`reproduction_map` — map thesis sections, figures, and tables to the
+  scripts, configs, and result artefacts that produced them.
 - :doc:`csd3_reproduction` — rebuild the patch data and reproduce the locked CSD3
   training/evaluation sequence.
 - :doc:`api/index` — the full ``src/`` API reference, grouped by sub-package.
@@ -52,6 +54,7 @@ For the data policy and repository overview, see the project ``README`` on
 
    getting_started
    usage
+   reproduction_map
    csd3_reproduction
    api/index
 

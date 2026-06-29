@@ -8,7 +8,7 @@ Two figures, both purely from already-written locked-model diagnostic JSONs
       Strict pixel precision vs drawn Hough line thickness {1,2,3} on the parity
       canvas, decomposing the post-Hough precision fall into the share
       recoverable by thinning the rasterised line (line-drawing convention over
-      the ~6 px masks) vs the residual genuine off-trail false-positive floor.
+      the ~6 px masks) vs the residual not recovered by 1 px thinning.
       Companion panel shows trail-pixel completeness (post-Hough pixel recall)
       stays high across thicknesses -- the recovery reconnects gaps, it does not
       buy precision by dropping detections.
@@ -77,14 +77,14 @@ def fig_hough_thickness_recovery() -> None:
         axL.text(xi, p - 0.025, f"{p:.2f}", ha="center", va="top",
                  color="black", fontsize=7, zorder=3)
     # two light bands: green = recoverable by thinning 3 px -> 1 px;
-    # orange = residual genuine off-trail FP floor (thick1 -> pre-Hough).
+    # orange = residual not recovered by 1 px thinning (thick1 -> pre-Hough).
     axL.axhspan(p3, p1, color=COLORS["green"], alpha=0.16, zorder=0)
     axL.axhspan(p1, pre, color=COLORS["red"], alpha=0.12, zorder=0)
     # pre-Hough reference + the two share labels, all right-aligned at one x
     axL.axhline(pre, color=COLORS["black"], linestyle="--", lw=1.0, zorder=1)
     lbl_x = 2.55
     axL.text(lbl_x, pre + 0.022, f"pre-Hough {pre:.2f}", ha="right", fontsize=6.5)
-    axL.text(lbl_x, (pre + p1) / 2, f"{(1 - conv_share)*100:.0f}% genuine FP",
+    axL.text(lbl_x, (pre + p1) / 2, f"{(1 - conv_share)*100:.0f}% residual",
              ha="right", va="center", fontsize=6.5, color=COLORS["red"])
     axL.text(lbl_x, (p1 + p3) / 2, f"{conv_share*100:.0f}% rasterisation",
              ha="right", va="center", fontsize=6.5, color=COLORS["green"])

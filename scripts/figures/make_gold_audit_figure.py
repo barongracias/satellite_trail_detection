@@ -149,7 +149,7 @@ def main() -> None:
                 ax.contour(mask.astype(float), levels=[0.5], colors=[colour], linewidths=lw, alpha=0.95)
         ax.set_xticks([]); ax.set_yticks([])
     handles = [Line2D([0], [0], color=c, lw=2.8, label=lab)
-               for c, lab in ((COL_ORIG, "original"), (COL_REF, "reference"), (COL_MODEL, "model >= 0.45"))]
+               for c, lab in ((COL_ORIG, "original"), (COL_REF, "single-author re-annotation"), (COL_MODEL, "model >= 0.45"))]
     empties = list(flat[len(rows):])
     for ax in empties:
         ax.axis("off")

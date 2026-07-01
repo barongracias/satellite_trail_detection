@@ -470,26 +470,28 @@ false-positive distance, and boundary-tolerant metrics
 \section{Data pipeline}
 \label{sec:datapipeline}
 
-The on-disk patch builder extracts $528\times528$ patches at stride $528$
-(Section~\ref{sec:patching}), writing canonical orientations at the $1{:}3$
-sampling ratio. The builder records
-the source image, split, patch coordinates, positive-pixel fraction, and
-full-image display-space mean and standard deviation in the manifest. The last
-two fields implement the \texttt{full\_image} normalisation mode: each
-patch is converted to $[0,1]$ and normalised with the statistics of its parent
-image, matching the paper's per-image standardisation better than a
-per-patch z-score.
+The on-disk patch builder implements the extraction scheme from
+Section~\ref{sec:patching}: it writes $528\times528$ stride-$528$ patches at
+the $1{:}3$ sampling ratio, stored in their original extracted orientation.
+Each manifest row records the source image, split, patch coordinates,
+positive-pixel fraction, and full-image display-space mean and standard
+deviation. The last two fields implement the \texttt{full\_image}
+normalisation mode: each patch is converted to $[0,1]$ and normalised with the
+statistics of its parent image, matching the paper's per-image standardisation
+rather than normalising each patch independently.
 
 \subsection{Data augmentation}
 \label{sec:augmentation}
 
-Training patches receive random horizontal flips, vertical flips, and
-$k\times90^{\circ}$ rotations applied identically to image and mask at load
-time, so stored patches keep their canonical orientation and can appear in
-different orientations across epochs; validation and test patches are not
-geometrically augmented. Training images also receive signal-dependent
-stochastic noise (images only, never masks or evaluation splits). For a
-patch-pixel value $p\in[0,1]$ the augmentation samples
+Training patches are augmented at load time with random horizontal flips,
+vertical flips, and $k\times90^{\circ}$ rotations applied identically to each
+image and mask. Stored patches therefore keep their original extracted
+orientation while appearing in different orientations across epochs. Validation
+and test patches are not augmented. Training images also receive
+signal-dependent stochastic noise; masks and evaluation splits do not. This is not 
+modelled as Poisson--Gaussian CCD noise since the inputs are display renders 
+rather than calibrated electron counts.
+For a patch-pixel value $p\in[0,1]$ the augmentation samples
 \[
   p_{\mathrm{noisy}} =
   \mathrm{clip}\!\left(p + \mathcal{N}\!\left(0,\;
@@ -499,14 +501,10 @@ where $m$ is the noise multiplier and $\alpha,\beta$ are calibrated once from
 empty-mask training patches by
 \texttt{scripts/data/compute\_background\_noise\_stats.py}, so the injected
 noise matches the measured background variation. The locked calibration uses
-$9{,}894$ empty train patches, giving $\alpha=0.0209$ and $\beta=0.0886$.
-It is described as
-signal-dependent stochastic noise rather than Poisson--Gaussian CCD noise
-because the inputs are display renders, not calibrated electron counts. The
-active configuration fixes $m=1.0$ as a calibrated,
-robustness-motivated choice rather than a tuned gain; a preliminary three-seed
-screen over multipliers $\{0.5, 1.0, 2.0\}$ found no gain meeting the
-preregistered adoption criterion.
+$9{,}894$ empty train patches, giving $\alpha=0.0209$ and $\beta=0.0886$. The active configuration
+fixes $m=1.0$; a preliminary three-seed screen compared a no-noise control
+with multipliers $m\in\{0.5,1.0,2.0\}$. The $m=1.0$ setting was kept for 
+robustness, although a validation-$F_1$ gain was not decisive.
 
 \section{Network architecture}
 \label{sec:architecture}
@@ -522,8 +520,8 @@ preregistered adoption criterion.
   \label{fig:unet}
 \end{figure}
 
-The replication network (Figure~\ref{fig:unet}) follows the released Stoppa
-et al.\ model configuration rather than only the paper's textual description: an
+The replication network (Figure~\ref{fig:unet}) was reconstructed from the
+released Stoppa et al. Keras \texttt{model-best.h5} configuration: an
 encoder--decoder with skip
 connections and filters progressing $8\to16\to32\to64\to128$, average-pooling
 downsampling, transposed-convolution upsampling, and LeakyReLU activations with
@@ -537,11 +535,10 @@ decoder block are
 The network uses no batch normalisation. The $3\times3$ convolutions use He-normal initialisation
 \citep{he2015delving}; the transposed convolutions and the final $1\times1$ head use
 Glorot-uniform initialisation; all biases are initialised to zero. Inputs are
-$528\times528$ single-channel patches and the output is a single-channel logit
-map of identical spatial dimensions: the model returns logits, and the sigmoid
-is applied explicitly in the loss, threshold, Hough, and visualisation paths.
-The network has $485{,}673$ trainable parameters
-(\texttt{base\_channels}~$=8$).
+$528\times528$ single-channel patches and the output is a
+single-channel logit map with identical spatial dimensions. Sigmoid conversion
+is applied outside the model in the loss, thresholding, Hough, and visualisation paths. Altogether, the
+network has $485{,}673$ trainable parameters (\texttt{base\_channels}~$=8$).
 
 \section{Loss function}
 \label{sec:loss}
@@ -560,52 +557,53 @@ where
   \qquad \epsilon = 10^{-4},
 \]
 with $p_i$ the sigmoid probabilities and $g_i$ the binary targets. The Dice term
-follows \citet{milletari2016}; combined with BCE it sits in the Combo-loss
-family of \citet{taghanaki2019}. The BCE term uses
+follows \citet{milletari2016}; combining it with BCE follows the
+Combo-loss family of \citet{taghanaki2019}. The BCE term uses
 \texttt{BCEWithLogitsLoss} without a class-balancing \texttt{pos\_weight},
 matching the paper-faithful path and avoiding a second imbalance correction on
-top of the sampled patch prior. Losses are evaluated in FP32 even when the
-forward pass uses BF16 autocast \citep{micikevicius2018,kalamkar2019}.
+top of the sampled patch prior. Losses are evaluated in FP32 even though the
+forward pass uses BF16 autocast \citep{micikevicius2018,kalamkar2019}, avoiding
+low-precision accumulation in the BCE and Dice reductions.
 
 \section{Hyperparameter search}
 \label{sec:optuna}
 
 Hyperparameter search uses Optuna \citep{akiba2019} with a tree-structured
 Parzen estimator and median pruner ($n_{\mathrm{startup}}=15$, 10 warm-up
-epochs). Forty-five trials are balanced across batch sizes $\{8,16,32\}$
-(fifteen each) after a preliminary free-sampling sweep concentrated most of its
-trials on one batch size and pruned large-batch trials under a higher
-conditional learning-rate ceiling. The searched continuous hyperparameters are
-learning rate (log-uniform in $[10^{-4},10^{-3}]$) and BCE weight
-$\lambda_{\mathrm{BCE}}$ (uniform in $[0.2,0.8]$); dropout, normalisation, and
-noise multiplier are fixed. Each trial runs for 20 epochs and is scored by
+epochs). The 45 trials are balanced across batch sizes $\{8,16,32\}$, with
+15 trials assigned to each batch size. Within each batch-size stratum, the
+continuous hyperparameters are learning rate and BCE weight
+$\lambda_{\mathrm{BCE}}$; dropout, normalisation, and noise multiplier are
+fixed. Appendix~\ref{app:hparam} gives the full search-space and
+fixed-configuration table. Each trial runs for 20 epochs and is scored by
 threshold-swept validation $F_1$, matching the final selection criterion.
 Pruning uses in-epoch validation Dice at the fixed training threshold as an
-efficiency heuristic, while only completed trials are rescored by swept
+early-pruning signal; only completed trials are rescored by swept
 validation $F_1$. The top five trials by validation $F_1$ are retrained for 75
-epochs at five seeds
-($2804, 1234, 42, 7, 13$), and the winner is chosen by mean threshold-swept
-validation $F_1$ across seeds \emph{before any test metric is inspected}. The
-preregistered tie-breaker, applied when trial means fall within $0.001$
-validation $F_1$, prefers lower batch size, then lower learning rate, then lower
-trial index. The selected base U-Net is trial~44
+epochs at five seeds ($2804, 1234, 42, 7, 13$), with the winner chosen by mean
+threshold-swept validation $F_1$ across seeds \emph{before any test metric is
+inspected}. The preregistered tie-breaker, applied when means fall within
+$0.001$ validation $F_1$, prefers simpler/lower-risk configurations: lower
+batch size, then lower learning rate, then lower trial index. The selected base
+U-Net is trial~44
 (\texttt{batch\_size}=32, learning rate $2.89\times10^{-4}$,
 $\lambda_{\mathrm{BCE}}=0.655$), with mean validation $F_1=0.854$ across the
 five retrained seeds; trial~32 reached a marginally higher raw mean ($0.855$),
 but trial~44 won the within-$0.001$ tie band on the lower-learning-rate rule.
-The full search space is given in Appendix~\ref{app:hparam}.
+
+\newpage
 
 \section{Threshold selection}
 \label{sec:threshold}
 
 A precision--recall curve is swept on the validation set to select the
-$F_1$-optimal threshold, which is applied unchanged to the test evaluation;
-each reported seed uses its own validation-selected threshold, with $0.45$ for
-the canonical seed 2804 (the paper fixes $0.58$). Within each run, the saved
-best epoch is selected by validation Dice at the fixed training threshold, and
-the saved checkpoint is then threshold-swept for trial ranking and
-operating-point selection; checkpointing and operating-point selection
-therefore use related, but different, validation criteria.
+$F_1$-optimal threshold, which is applied unchanged to the test evaluation.
+Each reported seed uses its own validation-selected threshold, with $0.45$ for
+the primary seed 2804 (the paper fixes $0.58$). Within each run, the saved
+best epoch is selected by validation Dice at the fixed
+training threshold. That checkpoint is then swept over thresholds on the
+validation set, and the resulting best validation $F_1$ is used for trial ranking
+and for choosing the probability threshold used at test time.
 
 \section{Hough post-processing}
 \label{sec:hough}
@@ -616,36 +614,43 @@ detections below the segmentation threshold.
 For each test image the per-patch sigmoid probability maps are max-pooled into
 a canvas before Hough voting. The sampled evaluation uses the $1{:}3$ patch
 support, while the parity Hough comparison uses full $528$\,px tiling over every
-test image; an independent full-coverage tiled pass reproduced that
+test image. An independent full-coverage tiled pass reproduced that
 parity canvas pixel-for-pixel, ruling out a patch-sampling or seam gap. The
 canvas is thresholded at $t_{\mathrm{Hough}}=0.1$,
 after which \texttt{HoughLinesP} is run with a vote threshold of $50$, a minimum
 line length of $100$\,px, and a maximum gap of $250$\,px, matching the released
-ASTA reference implementation of \citet{stoppa2024}. Detected segments are drawn
+ASTA reference implementation from \citet{stoppa2024}. Detected segments are drawn
 back onto the canvas at $3$\,px thickness, making line-rasterisation convention
-the main remaining comparability caveat for strict precision.
+a primary comparability caveat for strict precision.
 
 \section{Patch CNN classifier for the two-stage variant}
 \label{sec:classifier}
 
-The two-stage variant of Section~\ref{sec:ext_twostage} places a lightweight
+A two-stage variant tests whether an inexpensive patch-level gate can reduce
+empty-patch false positives and U-Net inference cost without losing trail-bearing
+patches. Section~\ref{sec:ext_twostage} explores placing a lightweight
 convolutional neural network (CNN) patch classifier in front of the U-Net. The
 classifier is intentionally simple: a four-block strided encoder followed by
-global average pooling and a single fully connected logit head, trained on the
-sampled training manifest with labels derived from the patch positive-pixel fraction and a
-\texttt{pos\_weight} equal to the train-split negative-to-positive ratio.
+global average pooling and a single fully connected logit head. It is trained on
+the sampled training manifest with labels derived from the patch
+positive-pixel fraction and a \texttt{pos\_weight} equal to the train-split
+negative-to-positive ratio.
 Validation reports both the maximum-$F_1$ and a high-recall
 (recall~$\ge0.99$) operating point, because a patch rejected by the gate is
 unrecoverable downstream. The classifier and the U-Net are trained
 independently and composed only at inference, keeping the gate a
-single-variable change to the locked pipeline; the classifier never sees test
+single-variable change to the locked pipeline. The classifier never sees test
 data during U-Net selection.
+
+\newpage
 
 \section{Evaluation metrics}
 \label{sec:metrics}
 
 Segmentation quality is reported with pixel precision, recall, Dice (equal to
-$F_1$ for binary masks), and IoU. Topology is assessed with the centreline Dice
+$F_1$ for binary masks), and IoU. Because trails are thin connected structures,
+pixel overlap alone can miss whether a prediction preserves centreline continuity.
+Topology is therefore assessed with the centreline Dice
 (clDice) \citep{shit2021}. Boundary disagreement is isolated with a
 boundary-tolerant precision/recall/$F_1$ score at
 $k\in\{0,1,2,3\}$\,px, where $k=0$ is the strict metric and $k>0$ allows a
@@ -655,16 +660,18 @@ distance to the nearest ground-truth trail pixel, with whole-patch false
 positives reported separately because they have no defined trail distance.
 Uncertainty is quantified primarily by a cluster bootstrap over source images,
 resampling images with replacement and aggregating their patches before
-recomputing each metric; a patch-level bootstrap is reported only as a
+recomputing each metric. Patch-level bootstrap is reported only as a
 secondary diagnostic.
 
 \section{Determinism and reproducibility}
 \label{sec:reproducibility}
 
-All experiments seed the Python, NumPy, and PyTorch generators (canonical seed
-$2804$), enable cuDNN deterministic mode, fix the cuBLAS workspace, and seed
-DataLoader workers. Residual GPU non-determinism is absorbed by five-seed
-retraining of the top trials and seed-averaged reporting. The probabilistic
+All experiments seed Python, NumPy, PyTorch, and DataLoader workers. CUDA
+settings use \texttt{cudnn.deterministic=true} and
+\texttt{cudnn.benchmark=false}; the cuBLAS workspace is fixed, and
+deterministic PyTorch algorithms are requested with warnings rather than hard
+failures. Residual GPU non-determinism is absorbed by five-seed retraining of
+the top trials and seed-averaged reporting. The probabilistic
 Hough stage (\texttt{cv2.HoughLinesP}) is the one post-hoc step whose OpenCV
 RNG is not separately seeded, so its reruns are near- but not bit-identical.
 
@@ -677,11 +684,10 @@ so runs are reproducible from configuration and seed.
 
 Correctness is checked by a \texttt{pytest} suite covering image and mask
 pairing, patch geometry, the recovered architecture, loss and segmentation
-metrics, the shared Hough runner, and training entry points; Ruff handles static
-checks. Separate CUDA and CPU requirement files are maintained, and a portable
-CPU Docker image runs the tests by default. NumPy-style docstrings are rendered
-with Sphinx and served on ReadTheDocs; routines are referenced by file, for
-example \texttt{src/training/train\_unet.py}.
+metrics, the shared Hough runner, and training entry points. Ruff handles static
+checks. Separate CUDA and CPU requirements are maintained, and a portable
+CPU Docker image runs the project. NumPy-style docstrings are rendered
+with Sphinx and served on ReadTheDocs.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% CHAPTER 5 -- Analysis and comparison

@@ -253,7 +253,7 @@ operated by the University of Cambridge Research Computing Service.
 %% imbalance, the realised splits, and mask quality including the
 %% mask under-coverage overlays the supervisor asked for.
 %%%%%
-\chapter{Data Exploration}
+\chapter{Dataset and Annotation Characteristics}
 \label{ch:data}
 
 \section{The MeerLICHT subset}
@@ -375,7 +375,7 @@ are phrased as `consistent with' boundary disagreement, not as proof of label er
 %% splits and validation-only selection, and the evaluation philosophy. The
 %% concrete configuration lives in Ch4.
 %%%%%
-\chapter{Methodology}
+\chapter{Methodological Framing}
 \label{ch:methodology}
 
 \section{Problem formulation}
@@ -394,7 +394,7 @@ cannot distinguish merged from separated trails. The formulation is label-refere
 success is measured against the available binary masks, so boundary placement
 and mask under-coverage impact precision.
 
-\section{Why learned segmentation with geometric post-processing}
+\section[Learned segmentation with geometric post-processing]{Learned segmentation with geometric\\ post-processing}
 \label{sec:why_method}
 
 The pipeline pairs a learned segmentation stage with a classical geometric stage.
@@ -412,7 +412,7 @@ choices follow this framing: the U-Net supplies pixel-level segmentation, the
 BCE--Dice loss handles severe foreground imbalance, and evaluation protocols
 separate selection, prevalence, and label-boundary effects.
 
-\section{Why a U-Net}
+\section{U-Net architecture choice}
 \label{sec:why_unet}
 
 The U-Net encoder--decoder with skip connections \citep{ronneberger2015} preserves full spatial
@@ -429,7 +429,7 @@ segmenters, such as ViT, are not explored as replication baselines because they
 would change the detector family and introduce data and tuning demands that are
 poorly matched to this relatively small dataset.
 
-\section{Why a combined BCE and Dice loss}
+\section{Combined BCE and Dice loss}
 \label{sec:why_loss}
 
 The foreground occupies a tiny fraction of pixels, so a pure cross-entropy
@@ -443,7 +443,7 @@ applied in the final pipeline as the $1{:}3$ patch sampling
 and Dice term already address the imbalance. Stacking another class weight would
 bias the model towards over-prediction.
 
-\section{Evaluation philosophy}
+\section{Evaluation protocol and assumptions}
 \label{sec:eval_philosophy}
 
 Four principles govern the evaluation. Model and threshold selection are
@@ -464,7 +464,7 @@ false-positive distance, and boundary-tolerant metrics
 %% Scope: the concrete, settled configuration. Most of this chapter is
 %% methodology boilerplate that will not change and is filled in below.
 %%%%%
-\chapter{Training, Architecture, and Data Pipeline}
+\chapter{Model Implementation and Training Protocol}
 \label{ch:pipeline}
 
 \section{Data pipeline}
@@ -675,7 +675,7 @@ the top trials and seed-averaged reporting. The probabilistic
 Hough stage (\texttt{cv2.HoughLinesP}) is the one post-hoc step whose OpenCV
 RNG is not separately seeded, so its reruns are near- but not bit-identical.
 
-\section{Software engineering}
+\section{Reproducibility and software structure}
 \label{sec:software}
 
 The code is packaged as an installable Python project with module-level command-line interfaces for
@@ -697,7 +697,7 @@ with Sphinx and served on ReadTheDocs.
 \chapter{Replication and Error Diagnosis}
 \label{ch:analysis}
 
-\section{Replication of the ASTA detector}
+\section{Replication of the target detector}
 \label{sec:replication}
 
 The validation-selected winner (trial~44; Section~\ref{sec:selection}) is
@@ -743,7 +743,7 @@ rest of the chapter analyses this gap rather than treating it as an optimisation
   \label{fig:replication}
 \end{figure}
 
-\section{Validation-locked model selection}
+\section{Validation-only model selection}
 \label{sec:selection}
 
 Trial~44 was selected by mean validation $F_1$ across the five-seed retraining
@@ -864,7 +864,7 @@ rather than a cross-dataset benchmark.
 \end{figure}
 
 %% ----- Residual error localisation (the core finding) -----
-\section{Diagnostics localise much of the strict precision gap near the boundary}
+\section{Diagnostics localise much of the precision gap near boundaries}
 \label{sec:ext_error}
 
 The diagnostics below separate where the residual false positives occur from why
@@ -959,6 +959,8 @@ remains away from any labelled trail.
   \label{fig:fp_distance}
 \end{figure}
 
+\newpage
+
 \subsection{Relative display-contrast diagnostics}
 \label{sec:ext_faint}
 
@@ -996,9 +998,9 @@ The diagnostics above localise the residual error but leave two explanations:
 visible trails may be wider than their masks, or the model may
 systematically over-paint. To separate these, a single-author,
 evaluation-only re-annotation was performed on $64$ sealed $528\times528$
-crops. With interior and endpoint segments for boundary
-scoring, plus false-positive-prone and quiet decoy patches as existence
-controls, stratified by display contrast.
+crops. Stratified by display contrast and comprising
+interior and endpoint segments for boundary scoring plus false-positive-prone
+and quiet decoy patches as existence controls.
 
 The audit does not support a systematic width bias. The original MeerLICHT
 masks, the blinded re-annotation, and the model prediction all have median
@@ -1055,22 +1057,22 @@ a large width mismatch is visible, not what the unique true mask should be. A
 multi-annotator audit remains the most valuable check (Section~\ref{sec:future}).
 
 %% ----- Model variants as tests of the error diagnosis -----
-\section{Model variants under stated protocols}
+\section{Model variants as diagnostic checks}
 \label{sec:ext_arch}
 
-The model variants test the error diagnosis. If the precision gap were
+Model variants test the error diagnosis. If the precision gap were
 dominated by empty-patch false positives, a patch classifier or hard-negative
-training should give a material precision gain; if by missing faint structure,
+training should improve precision; if by missing faint structure,
 attention gates might improve overlap or topology. The observed results are
-narrower: the gate shifts precision in a direction consistent with the
+narrower: the gate shifts precision consistent with the
 $17.5\,\%$ inter-patch bound, and attention does not improve the base
 architecture.
 
 \subsection{Classifier-gated detector}
 \label{sec:ext_twostage}
 
-The classifier-gated detector (gate architecture and training in
-Section~\ref{sec:classifier}) is reported descriptively as an
+The classifier-gated detector uses the CNN described in
+Section~\ref{sec:classifier}. It is reported as an
 operating-characteristic Pareto front over the classifier and U-Net thresholds
 (Figure~\ref{fig:two_stage_pareto}), not as a single selected replacement for the
 locked U-Net. The gate suppresses only empty-patch false positives, so its
@@ -1079,43 +1081,41 @@ Figure~\ref{fig:two_stage_pareto} ($t_{\mathrm{clf}}=0.18$,
 $t_{\mathrm{U\mbox{-}Net}}=0.45$), the gate routes $2{,}625$ patches to the
 U-Net ($75.3\,\%$ of the sampled test set), improving precision from $0.852$ to
 $0.864$ while reducing recall from $0.918$ to $0.914$ and giving Dice $0.888$.
-End-to-end recall counts classifier-rejected positive patches as false
+Recall counts classifier-rejected positive patches as false
 negatives, exposing the classifier false-negative rate ($0.096$ at this
 operating point) as a hard recall ceiling. The gate gives a bounded precision
 gain (the $+1.2$\,pp shift is about one five-seed precision SD) and a real
 compute saving at this operating point, but not an
 order-of-magnitude saving: it skips $24.7\,\%$ of sampled-test U-Net forwards.
-Larger savings would require a more aggressive gate on a denser, naturally
-empty-dominated patch stream.
+Greater savings would be expected on a full-grid or production stream, where
+empty patches dominate.
 
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=0.8\textwidth]{../results/figures/thesis_5_two_stage_pareto.pdf}
   \caption{Two-stage operating-characteristic Pareto front over the
-           classifier and U-Net thresholds; test-side and descriptive, not a
-           validated improvement. The annotated point shifts precision
-           $+1.2$\,pp and recall $-0.4$\,pp versus the locked baseline.}
+           classifier and U-Net thresholds. The annotated point shifts precision
+           $+1.2$\,pp and recall $-0.4$\,pp.}
   \label{fig:two_stage_pareto}
 \end{figure}
 
 \subsection{Attention-gated U-Net}
 \label{sec:ext_attention}
 
-Under a matched protocol (the balanced sweep, top-five five-seed retraining,
-and validation-only selection of Section~\ref{sec:optuna}), the
-attention-gated U-Net \citep{oktay2018} does not improve on
-the base network despite carrying roughly $1\,\%$ more parameters. Its winner
-(trial~7, selected over the marginally higher trial~35 by the same
-lower-batch-size tie-breaker) reaches test precision $0.838$, recall $0.924$,
-and Dice $0.879$ at threshold $0.48$, against the base Dice of $0.884$
+The attention-gated U-Net \citep{oktay2018} is a near-capacity-matched
+variant, carrying roughly $1\,\%$ more parameters than the base U-Net. Under
+the matched search and validation-only selection protocol of
+Section~\ref{sec:optuna}, it does not improve on the base network: the selected
+attention model reaches test precision $0.838$, recall $0.924$, and Dice
+$0.879$ at threshold $0.48$, against the base Dice of $0.884$
 (Table~\ref{tab:base_vs_attention}). The five-seed validation-restudy means are
 $0.854$ for the base model ($90\,\%$ interval $[0.851,\,0.856]$) and $0.851$ for
 the attention model ($[0.850,\,0.852]$), so the comparison is best read as
 matched-protocol null evidence rather than as a decisive architectural ranking.
-Together with the clDice result (Section~\ref{sec:ext_cldice}), the attention variant
-reveals no hidden connectivity or faint-trail advantage on this dataset.
-Supplementary Figure~\ref{fig:fp_fn_gallery_attn} shows the corresponding
-false-positive/false-negative gallery for the attention model.
+Together with the clDice result (Section~\ref{sec:ext_cldice}), this gives no
+evidence that attention recovers more continuous or faint trail structure on
+this dataset.
+Supplementary Figure~\ref{fig:fp_fn_gallery_attn} shows the attention-model gallery.
 
 \begin{table}[htbp]
   \centering
@@ -1144,12 +1144,10 @@ Retraining the winning configuration on nested $30/50/70/100\,\%$ subsets of the
 training images (validation and test held fixed) shows validation Dice flat to
 $50\,\%$, rising at $70\,\%$, then near-constant
 (Figure~\ref{fig:data_efficiency}). Because the hyperparameters are transferred
-from the $100\,\%$-tuned winner rather than re-tuned per fraction, the curve is a
-conservative estimate at each data size; it is a
-single-seed, indicative result, plotted without a confidence band. The fixed
+from the $100\,\%$-tuned winner rather than re-tuned per fraction, the curve is a single-seed, indicative
+learning curve rather than an optimised estimate at each data size. The fixed
 threshold-$0.5$ validation Dice values are $0.842$, $0.842$, $0.854$, and
-$0.856$ for $30$, $50$, $70$, and $100\,\%$ of the training images,
-respectively, so the main gain occurs before the final fraction. On this
+$0.856$, respectively, so most of the gain occurs before the final fraction. On this
 single-seed curve the plateau suggests that the 178-image subset does not
 obviously bind this architecture, which is consistent with the replication
 reading of Section~\ref{sec:replication}.
@@ -1157,43 +1155,46 @@ reading of Section~\ref{sec:replication}.
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=0.8\textwidth]{../results/figures/thesis_4_data_efficiency.pdf}
-  \caption{Validation Dice versus training-image fraction (single seed 2804;
-           fixed-threshold history metric at $0.5$, not threshold-swept).
-           Hyperparameters are transferred from the $100\,\%$ winner rather
-           than re-tuned per fraction.}
+  \caption{Validation Dice versus training-image fraction (fixed-threshold at $0.5$).
+           Hyperparameters are transferred from the $100\,\%$ winner.}
   \label{fig:data_efficiency}
 \end{figure}
 
 \subsection{Hard-negative mining}
 \label{sec:ext_hardneg}
 
-Appending 150 mined hard-negative (false-positive empty) patches to the training
-set yields a small precision gain in this single-seed confirmation: $+0.007$
-precision ($0.852\rightarrow0.859$) at essentially unchanged recall ($-0.001$),
-for $+0.003$ Dice. This $+0.007$ change is within the five-seed precision
+Hard negatives were mined by running the locked model on labelled-empty patches
+and adding false-positive empty patches back into the training set.
+Appending 150 mined hard-negatives to the training set gives a small precision gain
+in a single-seed retrain: $+0.007$ precision ($0.852\rightarrow0.859$) at
+essentially unchanged recall ($-0.001$), for $+0.003$ Dice.
+This $+0.007$ change is within the five-seed precision
 dispersion ($\pm0.010$; Section~\ref{sec:bootstrap}), so it is directional
-rather than a resolved gain, and is bounded by, and consistent with, the
+rather than resolved; its small size is consistent with the
 $17.5\,\%$ inter-patch false-positive share.
 
-\subsection{Soft-label (dilated-target) pilot}
+\subsection{Dilated soft-label pilot}
 \label{sec:ext_softlabel}
 
-A single-seed pilot replacing the hard targets with $1$\,px dilated soft-edged
-targets (training only; validation and test masks unchanged) improves no overlap,
-precision or topology metric (Table~\ref{tab:soft_label}). The soft model predicts wider trails, with
-its validation-optimal threshold rising from $0.45$ to $0.62$, giving recall
+This pilot tests whether the boundary residuals can be reduced by softening the
+training masks. Instead of training on binary hard labels alone, the trail core
+remains labelled $1$, while a $1$\,px dilated boundary band is assigned an
+intermediate target value; validation and test masks remain hard-labelled. The
+pilot does not improve any overlap, precision, or topology metric
+(Table~\ref{tab:soft_label}). The soft model predicts wider trails, with its
+validation-optimal threshold rising from $0.45$ to $0.62$, giving recall
 $+0.008$ but precision $-0.022$, exact Dice $-0.009$, clDice $-0.013$, and a
-near-identical $\pm1$\,px $F_1$ ($-0.001$): the boundary band is absorbed into
-wider predictions rather than sharpening localisation. The pilot is reported as a null result,
-consistent with the boundary-placement interpretation.
+near-identical $\pm1$\,px $F_1$ ($-0.001$). The boundary band is absorbed into
+wider predictions rather than sharpening localisation. This is
+a null result, consistent with the boundary-placement interpretation.
 
 \begin{table}[htbp]
   \centering
-  \caption{Soft-label (dilated-target) pilot versus the hard-label winner; a
-           single-seed protocol variant with no metric gain. Both columns are
-           primary seed-2804 values, so the hard-label $\pm1$\,px $F_1$ here
-           is the seed-2804 figure ($0.963$); the five-seed mean is $0.962$
-           (Section~\ref{sec:ext_boundary}).}
+  \caption{Single-seed dilated soft-label pilot compared with the matched
+           hard-label winner. Validation and test
+           masks remain hard-labelled, so the hard-label $\pm1$\,px $F_1$ is
+           the matched-seed value rather than the five-seed mean in
+           Section~\ref{sec:ext_boundary}.}
   \label{tab:soft_label}
   \begin{tabular}{lrrr}
     \toprule
@@ -1210,20 +1211,26 @@ consistent with the boundary-placement interpretation.
 \subsection{Ensembling with test-time augmentation}
 \label{sec:ext_ensemble}
 
-A five-checkpoint ensemble with test-time augmentation reaches Dice $0.8885$
-(precision $0.852$, recall $0.929$ at threshold $0.44$), against the single-model
-$0.8836$. The $+0.005$ Dice improvement is comparable to the five-seed dispersion
-of the single model, so it is not treated as a material gain.
+This inference-time check asks whether averaging over model seeds and simple
+test-time transforms improves the locked single-model result without changing
+training. A five-checkpoint ensemble with test-time augmentation reaches Dice
+$0.8885$ (precision $0.852$, recall $0.929$ at threshold $0.44$), against the
+single-model $0.8836$. The $+0.005$ Dice improvement is comparable to the
+five-seed dispersion of the single model, so it is not treated as a material
+gain. Given the added inference cost, the ensemble is therefore a robustness
+check rather than a compelling production improvement for this dataset.
 
-\subsection{Probability-stratified Hough}
+\subsection{Probability-stratified Hough check}
 \label{sec:ext_probhough}
 
-Replacing the binary Hough input with a probability-stratified canvas is a
-clean null: pixel recall changes by $+0.00003$, the patch-level
-false-negative rate is identical, and Hough false-positive pixels rise from
-$2{,}725{,}702$ to $2{,}785{,}274$. The locked binary Hough already recovers
-essentially all recoverable pixels, so stratification only adds false
-positives.
+This final inference-time check asks whether the Hough stage loses useful
+confidence information by reducing the U-Net probability map to a binary canvas.
+Replacing the binary Hough input with a probability-stratified canvas is a clean
+null: pixel recall changes by $+0.00003$, the patch-level false-negative rate is
+identical, and Hough false-positive pixels rise from $2{,}725{,}702$ to
+$2{,}785{,}274$. The result suggests that the Hough limitation is not missing
+probability weighting: the locked binary stage is already recall-saturated, and
+probability stratification adds false-positive pixels without measurable recall benefit.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% CHAPTER 6 -- Discussion

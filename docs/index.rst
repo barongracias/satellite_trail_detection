@@ -5,9 +5,9 @@ Satellite Trail Detection
 Replication and diagnostic extension of the Stoppa et al. 2024 (A&A 692, A199)
 satellite-trail detection pipeline on a 178-image MeerLICHT subset: a U-Net
 segmenter produces a binary trail mask, a probabilistic Hough transform bridges
-gaps in that mask, and post-hoc diagnostics localise the remaining strict
-precision gap to boundary-scale label agreement plus a small over-firing
-residual.
+gaps in that mask, and post-hoc diagnostics place much of the remaining strict
+precision gap near annotated boundaries, with a bounded empty-patch/background
+component.
 
 MPhil Data Intensive Science dissertation, University of Cambridge
 (supervisor: Dr Eduardo Gonzalez-Solares).

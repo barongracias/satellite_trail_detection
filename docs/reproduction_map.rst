@@ -99,7 +99,7 @@ Component map
        ``results/classical/hough_fullframe_winner_t44_s2804.json``;
        ``results/classical/hough_summary.json``
      - Section 5.3 and Discussion. Completeness comparison only; strict
-       precision remains sensitive to rasterisation and prevalence.
+       precision remains sensitive to line drawing and prevalence.
    * - Prediction overlays and DECam cold check
      - ``scripts/figures/visualise_predictions.py``;
        ``scripts/figures/decam_cold_inference.py``
@@ -116,8 +116,8 @@ Component map
        ``results/classical/boundary_tolerant_*.json``;
        ``results/classical/geometry_eval_*.json``;
        ``results/classical/diagnostics_multiseed_summary.json``
-     - Sections 5.6.1--5.6.3 and Appendix B. These localise disagreement to the
-       boundary scale but do not by themselves prove label error.
+     - Sections 5.6.1--5.6.3 and Appendix B. These place much of the residual
+       near labelled boundaries but do not by themselves prove label error.
    * - Display-contrast and topology checks
      - ``scripts/figures/faint_streak_analysis.py``;
        ``scripts/evaluation/geometry_eval.py``

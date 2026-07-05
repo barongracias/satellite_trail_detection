@@ -5,9 +5,9 @@
 Replication and diagnostic extension of the Stoppa et al. 2024 (A&A 692, A199)
 satellite-trail detection pipeline on a 178-image MeerLICHT subset. A U-Net
 segmenter produces a binary trail mask, a probabilistic Hough transform bridges
-gaps in that mask, and post-hoc diagnostics localise the remaining strict
-precision gap to boundary-scale label agreement plus a small over-firing
-residual. MPhil Data Intensive Science dissertation, University of Cambridge.
+gaps in that mask, and post-hoc diagnostics place much of the remaining strict
+precision gap near annotated boundaries, with a bounded empty-patch/background
+component. MPhil Data Intensive Science dissertation, University of Cambridge.
 
 📖 **Documentation:** <https://satellite-trail-detection.readthedocs.io/>
 
@@ -73,7 +73,7 @@ carrying per-patch split, positive-pixel fraction, and per-image normalisation s
 ### Availability
 
 **Primary (MeerLICHT).** Training, validation, and test use a 178-image MeerLICHT
-subset with hand-verified trail masks, provided through the MeerLICHT consortium. These are collaboration data and are not redistributed here; they are available on request, subject to the MeerLICHT data policy. All splits are reproducible from the image-level split logic (`src/data/splits.py`, seed `2804`) once the image/mask pairs are in place.
+subset with hand-verified trail masks, provided through the MeerLICHT collaboration. These are collaboration data and are not redistributed here; they are available on request, subject to the MeerLICHT data policy. All splits are reproducible from the image-level split logic (`src/data/splits.py`, seed `2804`) once the image/mask pairs are in place.
 
 **Gold audit.** The blinded re-annotation audit uses private sealed crops and
 single-author masks under `data/gold/`. Those crops, masks, verdicts, and sealed
@@ -172,8 +172,9 @@ python -m scripts.figures.make_gold_audit_annotation_examples
 All extensions are post-hoc on the locked winner unless explicitly described as
 separate validation-only model selection; no test metric is used for reselection.
 The final diagnosis is that recall and Hough pixel completeness reproduce closely,
-while the strict precision gap is dominated by boundary-scale label agreement and
-bounded background over-firing.
+while diagnostics place much of the strict precision residual near annotated
+boundaries. The single-author re-annotation supports this interpretation
+directionally, without acting as a true-mask oracle.
 
 - **A — Architectural.** Two-stage detector (CNN classifier → U-Net → Hough) and an
   Attention U-Net, each compared against the base U-Net.
@@ -187,7 +188,7 @@ bounded background over-firing.
 - **E — Blinded re-annotation audit.** 64 sealed crops were re-annotated under an
   evaluation-only protocol. The original MeerLICHT masks, the re-annotation, and
   the locked model all have median stroke width 6 px; strict micro-F1 against the
-  re-annotation is 0.890 for consortium labels and 0.893 for the model.
+  re-annotation is 0.890 for the original labels and 0.893 for the model.
 
 A qualitative cold-domain illustration applies the locked MeerLICHT model to DECam
 frames (`scripts/figures/decam_cold_inference.py`) — visual inspection only, no

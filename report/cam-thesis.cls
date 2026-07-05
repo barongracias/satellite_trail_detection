@@ -291,7 +291,7 @@
 \newcommand{\@supervision}{}
 \newcommand{\supervision}[1]{\renewcommand{\@supervision}{#1}}
 
-% DOCVAR: wordcount (The visible word-count line printed below the contents.)
+% DOCVAR: wordcount (The visible word-count line printed on the title page.)
 \newcommand{\@wordcount}{}
 \newcommand{\wordcount}[1]{\renewcommand{\@wordcount}{#1}}
 
@@ -442,7 +442,7 @@ This dissertation does not exceed the prescribed limit of 60\,000 words.}
 \fi
 {\normalsize\textsc{\@college{}}}\\[0.25em]
 {\normalsize\textsc{University of Cambridge}}\\[0.25em]
-{\small\@date{}}
+{\small\@date{}\par}
 \end{center}
 \end{titlepage}
 \hypersetup{pdfsubject={\@subjectline},pdfkeywords={\@keywords}}
@@ -547,8 +547,7 @@ This dissertation does not exceed the prescribed limit of 60\,000 words.}
 \ifx\@wordcount\@empty\else
 \vfill
 \begin{center}
-Total \LaTeX{} Word Count: \@wordcount{}/7000 (excluding Contents, Figures,
-Tables, Bibliography and Appendix)
+Total \LaTeX{} Word Count: \@wordcount{}/7,000
 \end{center}
 \fi
 

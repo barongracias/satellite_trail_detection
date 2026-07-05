@@ -53,14 +53,14 @@
 Low-Earth-orbit satellite constellations increasingly cross wide-field
 astronomical exposures, leaving bright linear trails that corrupt photometry,
 astrometry, and transient-source catalogues. Manual inspection does not scale
-to survey operation, so observatories need automated trail masks that are
-reliable at the pixel level and cheap enough to run inside reduction pipelines.
+to survey operation, so observatories need pixel-reliable automated masks that
+can run inside reduction pipelines.
 
 This project replicates the satellite-trail detector of Stoppa et al. (2024):
 a U-Net trained on labelled MeerLICHT image patches, followed by a probabilistic
 Hough transform that reconnects linear trail evidence missed by the network. The
-replication is used as a diagnostic tool: the aim is not only to reproduce a
-headline score, but to identify where the residual error comes from.
+replication is used diagnostically: it tests where the residual error comes
+from, not only whether a headline score reproduces.
 
 \section*{Key Findings}
 The replication reproduces the target paper's recall closely: five-seed
@@ -73,10 +73,10 @@ uncertainty is the relevant interval because source images, not patches, are the
 independent units.
 
 \summaryfigure[0.55em]{0.88}{../results/figures/thesis_1_multiseed_replication.pdf}{Five-seed
-replication performance for the locked U-Net compared with the Stoppa et al.\
-reference. Paper-reference markers are shown only for the explicitly reported
+replication performance for the locked U-Net compared with Stoppa et al.\
+Paper-reference markers are shown only for the explicitly reported
 precision and recall values; recall is closely reproduced while strict precision
-remains lower, motivating the boundary-scale error analysis.}
+remains lower, motivating the boundary-near error analysis.}
 
 The Hough stage reproduces the paper's intended completeness behaviour. On the
 full-coverage tiled canvas, trail-pixel recall rises from $0.918$ to $0.990$,
@@ -86,25 +86,25 @@ post-Hough line drawing increases false-positive area, reducing strict precision
 from $0.780$ to $0.410$ on the parity canvas.
 
 \summaryfigure[0.55em]{0.88}{../results/figures/hough_gap_bridge_example.pdf}{Hough
-bridging a U-Net gap over a bright star. The example illustrates the mechanism:
+bridging a U-Net gap over a bright star:
 linear post-processing recovers ground-truth trail pixels missed by the
 thresholded U-Net.}
 
-The strict precision gap is localised to boundary scale. False-positive
-decomposition shows that only $17.5\,\%$ of false-positive pixels occur in
-trail-free patches; the remaining $82.5\,\%$ fall within
+Diagnostics place much of the strict precision gap near annotated boundaries.
+False-positive decomposition shows that only $17.5\,\%$ of false-positive
+pixels occur in trail-free patches; the remaining $82.5\,\%$ fall within
 trail-bearing patches. A one-pixel boundary tolerance raises five-seed precision
 from $0.847$ to $0.946$, and $57\,\%$ of all false positives lie within one
-pixel of a labelled trail. These diagnostics are consistent with the residual error
-being concentrated near labelled trail boundaries. A blinded single-author
+pixel of a labelled trail. These diagnostics are consistent with residual error
+concentrated near labelled trail boundaries. A blinded single-author
 re-annotation of $64$ sealed crops is consistent with this: the original masks,
 the re-annotation, and the model all share a median width of $6$\,px, and
 the model agrees with the re-annotation about as well as the original labels do,
 with no strict-$F_1$ difference resolved under this design (paired $-0.0001$,
-$95\%$ CI spanning zero). This is a single-author between-source disagreement
-estimate, not inter-annotator agreement. A small over-firing residual remains
-on adversarial controls, so the audit is consistent with boundary-scale
-disagreement rather than a uniformly thin label or model over-paint.
+$95\%$ CI spanning zero). This is a single-author comparison between mask
+sources, not inter-annotator agreement. A small over-firing residual remains on
+adversarial controls, so the audit supports a boundary-scale interpretation
+without implying a uniformly thin label or model over-paint.
 
 \vspace{0.35em}
 \summaryfigure{0.82}{../results/figures/thesis_2_boundary_tolerance.pdf}{A
@@ -130,7 +130,7 @@ caveats.
 
 \vspace{0.45em}
 \summaryfigure{0.88}{../results/figures/predictions/overlay_grid_winner_t44_s2804.png}{Diagnostic
-selection of test-patch predictions for the locked U-Net: ground truth in green,
+test-patch predictions for the locked U-Net: ground truth in green,
 prediction in magenta, and overlap inside the green band.}
 
 \section*{Extensions \& Transfer}
@@ -150,14 +150,13 @@ U-Net contour. This is a qualitative transfer illustration, not a benchmark.}
 
 \section*{Recommendation \& Impact}
 The practical result is a high-completeness trail masker whose remaining
-strict-precision gap is mostly boundary-near. The appropriate reporting
-standard is therefore strict precision/recall plus a boundary-tolerant operating
+strict-precision gap is largely boundary-near. The reporting standard should be
+strict precision/recall plus a boundary-tolerant operating
 point and an explicit mask-width convention. The strongest remaining check is a
 multi-annotator annotation audit, which would establish inter-annotator
 agreement and test how much of the strict precision gap reflects mask
-granularity rather than detector error. A labelled cross-instrument test,
-especially on DECam-like data, is the next generalisation check; the current
-DECam application is qualitative only.
+granularity rather than detector error. A labelled cross-instrument test is the
+next generalisation check; the current DECam application is qualitative only.
 
 The U-Net plus Hough pipeline closely reproduces the target detector's recall
 and Hough completeness. The tested capacity, training-protocol and

@@ -149,19 +149,22 @@ U-Net contour. This is a qualitative transfer illustration, not a benchmark.}
 \newpage
 
 \section*{Recommendation \& Impact}
-A blinded single-author re-annotation has been completed and leaves the model
-within a single-author between-source disagreement estimate; the strongest
-remaining check is a multi-annotator gold-standard audit, to establish
-inter-annotator agreement. A labelled cross-instrument test,
+The practical result is a high-completeness trail masker whose remaining
+strict-precision gap is mostly boundary-near. The appropriate reporting
+standard is therefore strict precision/recall plus a boundary-tolerant operating
+point and an explicit mask-width convention. The strongest remaining check is a
+multi-annotator annotation audit, which would establish inter-annotator
+agreement and test how much of the strict precision gap reflects mask
+granularity rather than detector error. A labelled cross-instrument test,
 especially on DECam-like data, is the next generalisation check; the current
 DECam application is qualitative only.
 
 The U-Net plus Hough pipeline closely reproduces the target detector's recall
 and Hough completeness. The tested capacity, training-protocol and
 post-processing changes do not materially reduce the remaining strict-precision
-gap; the diagnostics place a majority of false positives within one pixel of a labelled trail. For operational masking, this means reporting
-strict scores alongside boundary-tolerant scores and annotation conventions is
-more informative than another architecture tweak.
+residual. For operational masking, the evidence points to reporting strict
+scores alongside boundary-tolerant scores and annotation conventions rather than
+prioritising another architecture tweak.
 
 \section*{References}
 {\footnotesize

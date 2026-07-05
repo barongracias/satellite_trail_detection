@@ -41,10 +41,10 @@
 
 % Word count per Course Handbook 4.3.2: includes summary/abstract, tables,
 % footnotes, and non-auto-generation appendices; excludes table of contents,
-% equations, figure captions, bibliography, and the auto-generation appendix.
-% Handbook basis ~6,950 with section headings excluded (texcount body ~6,595
-% + abstract ~175 + table cells ~255 - auto-generation appendix 75).
-\wordcount{6950}
+% photographs/diagrams, equations, figure captions, lists, bibliography,
+% acknowledgements, and the auto-generation appendix.
+% Current handbook-style rounded count: 6,920.
+\wordcount{6920}
 
 \subjectline{Data Intensive Science}
 \keywords{satellite trails, U-Net, Hough transform, deep learning, MeerLICHT,
@@ -82,10 +82,14 @@
   place much of the residual within one pixel of the mask.
   A single-author re-annotation of $64$ sealed crops finds no systematic
   width bias between the original masks, the re-annotation, and the model.
-  Model, training, and inference variants move the residual only slightly. The
-  evidence therefore supports a narrow conclusion: recall and Hough completeness
-  reproduce, while the remaining strict-precision gap is most consistent with
-  boundary-scale annotation disagreement on this dataset.
+  Model, training, and inference variants move the residual only slightly.
+  Taken together, the evidence supports, but does not prove, a narrow
+  interpretation: the remaining strict-precision gap is most consistent with
+  boundary-scale annotation disagreement on this dataset. The practical
+  implication is that high-completeness masking can still be useful when strict
+  pixel precision is boundary-limited, and that thin-artefact detectors should
+  report strict scores alongside boundary-tolerant diagnostics and mask-width
+  conventions.
 }
 
 
@@ -177,8 +181,7 @@ aircraft trails, and trails have since been targeted with U-Net plus
 line-segment detection \citep{chen2025}, multi-band attention U-Nets
 \citep{yu2025}, and end-to-end streak cataloguing \citep{carrillo2026}. No
 published trail-detection pipeline was found that gates a segmentation U-Net
-with a lightweight patch classifier, although classifiers are already used
-elsewhere in the MeerLICHT ecosystem \citep{hosenie2021}.
+with a lightweight patch classifier.
 Section~\ref{sec:ext_twostage} therefore treats this as a narrow follow-up test.
 
 \subsection{The target pipeline: Stoppa et al.\ (2024)}
@@ -214,7 +217,9 @@ The contributions are:
         reproduces the paper's recall and Hough pixel completeness
         (Chapter~\ref{ch:analysis});
   \item a residual-error characterisation that localises the strict precision
-        gap at the one-pixel boundary scale;
+        gap at the one-pixel boundary scale and motivates explicit reporting
+        of mask-width conventions and boundary-tolerant diagnostics for thin
+        satellite-trail masks;
   \item controlled tests of a classifier-gated detector, an attention-gated
         U-Net, hard-negative mining, soft labels, ensembling, and
         probability-stratified Hough, each interpreted against that
@@ -562,8 +567,8 @@ Combo-loss family of \citet{taghanaki2019}. The BCE term uses
 \texttt{BCEWithLogitsLoss} without a class-balancing \texttt{pos\_weight},
 matching the paper-faithful path and avoiding a second imbalance correction on
 top of the sampled patch prior. Losses are evaluated in FP32 even though the
-forward pass uses BF16 autocast \citep{micikevicius2018,kalamkar2019}, avoiding
-low-precision accumulation in the BCE and Dice reductions.
+forward pass uses BF16 autocast, avoiding low-precision accumulation in the BCE
+and Dice reductions.
 
 \section{Hyperparameter search}
 \label{sec:optuna}
@@ -920,9 +925,10 @@ truth dilated by one pixel raises precision from $0.852$ to $0.937$ but drops
 recall to $0.793$, whereas the symmetric tolerance raises both. This is consistent
 with much of the residual error occurring at boundary scale rather than as detections
 far from any labelled trail. The re-annotation of
-Section~\ref{sec:ext_reannotation} supports this reading. The tolerant score is
-therefore used only as a diagnostic: it relaxes the pixel-matching rule and is
-not directly comparable to the paper's $0.94/0.94$.
+Section~\ref{sec:ext_reannotation} is consistent with this reading, while
+remaining a single-author between-source check rather than a true-mask oracle.
+The tolerant score is therefore used only as a diagnostic: it relaxes the
+pixel-matching rule and is not directly comparable to the paper's $0.94/0.94$.
 
 \begin{figure}[htbp]
   \centering
@@ -1072,11 +1078,11 @@ architecture.
 \label{sec:ext_twostage}
 
 The classifier-gated detector uses the CNN described in
-Section~\ref{sec:classifier}. It is reported as an
-operating-characteristic Pareto front over the classifier and U-Net thresholds
-(Figure~\ref{fig:two_stage_pareto}), not as a single selected replacement for the
-locked U-Net. The gate suppresses only empty-patch false positives, so its
-gain is bounded by the inter-patch share. At the illustrative high-recall operating point used for
+Section~\ref{sec:classifier}. Results are reported as an operating-characteristic
+Pareto front over the classifier and U-Net thresholds
+(Figure~\ref{fig:two_stage_pareto}). The locked U-Net remains the baseline. The
+gate suppresses only empty-patch false positives, so its gain is bounded by the
+inter-patch share. At the illustrative high-recall operating point used for
 Figure~\ref{fig:two_stage_pareto} ($t_{\mathrm{clf}}=0.18$,
 $t_{\mathrm{U\mbox{-}Net}}=0.45$), the gate routes $2{,}625$ patches to the
 U-Net ($75.3\,\%$ of the sampled test set), improving precision from $0.852$ to
@@ -1144,8 +1150,8 @@ Retraining the winning configuration on nested $30/50/70/100\,\%$ subsets of the
 training images (validation and test held fixed) shows validation Dice flat to
 $50\,\%$, rising at $70\,\%$, then near-constant
 (Figure~\ref{fig:data_efficiency}). Because the hyperparameters are transferred
-from the $100\,\%$-tuned winner rather than re-tuned per fraction, the curve is a single-seed, indicative
-learning curve rather than an optimised estimate at each data size. The fixed
+from the $100\,\%$-tuned winner and each fraction is trained once, the curve is
+indicative. It is not an optimised estimate at each data size. The fixed
 threshold-$0.5$ validation Dice values are $0.842$, $0.842$, $0.854$, and
 $0.856$, respectively, so most of the gain occurs before the final fraction. On this
 single-seed curve the plateau suggests that the 178-image subset does not
@@ -1184,8 +1190,8 @@ pilot does not improve any overlap, precision, or topology metric
 (Table~\ref{tab:soft_label}). The soft model predicts wider trails, with its
 validation-optimal threshold rising from $0.45$ to $0.62$, giving recall
 $+0.008$ but precision $-0.022$, exact Dice $-0.009$, clDice $-0.013$, and a
-near-identical $\pm1$\,px $F_1$ ($-0.001$). The boundary band is absorbed into
-wider predictions rather than sharpening localisation. This is
+near-identical $\pm1$\,px $F_1$ ($-0.001$). The boundary band mainly widens the
+predictions, with no corresponding localisation gain. This is
 a null result, consistent with the boundary-placement interpretation.
 
 \begin{table}[htbp]
@@ -1217,8 +1223,8 @@ training. A five-checkpoint ensemble with test-time augmentation reaches Dice
 $0.8885$ (precision $0.852$, recall $0.929$ at threshold $0.44$), against the
 single-model $0.8836$. The $+0.005$ Dice improvement is comparable to the
 five-seed dispersion of the single model, so it is not treated as a material
-gain. Given the added inference cost, the ensemble is therefore a robustness
-check rather than a compelling production improvement for this dataset.
+gain. Given the added inference cost, the ensemble mainly serves as a robustness
+check for this dataset.
 
 \subsection{Probability-stratified Hough check}
 \label{sec:ext_probhough}
@@ -1401,12 +1407,12 @@ than summed.
 
 For the motivating problem of satellite trails contaminating survey images, the
 work supports high-completeness trail masking and identifies which residual
-errors matter for downstream use. Dilating the predicted mask by one pixel
-before image stacking would cover most boundary-placement residuals, so the
-strict-precision gap may matter less for masking; this effect remains untested
-here. The classifier gate is best treated as a compute feature:
-it skips $24.7\,\%$ of U-Net forwards, and likely more under the full-image
-patch distribution, with precision headroom capped by the $17.5\,\%$
+errors matter for downstream use. Applying a one-pixel dilation before image
+stacking is therefore a plausible downstream masking test, because it targets
+the measured boundary residual; its effect on stacking, photometry, and false
+masking remains untested here. The classifier gate is best treated as a compute
+feature: it skips $24.7\,\%$ of U-Net forwards, and likely more under the
+full-image patch distribution, with precision headroom capped by the $17.5\,\%$
 inter-patch share. Because operating points depend on the image distribution, a
 deployed detector should re-select its threshold on deployment-like data.
 
@@ -1447,14 +1453,13 @@ explanations without making the boundary diagnosis decisive. None resolves the
 residual materially, so boundary-placement remains the most consistent reading.
 
 The broader methodological lesson is that faithful replication can diagnose
-discrepancies as well as confirm headline results. Here, reconstructing the
-architecture from the released Keras model, locking model and threshold
-selection before test evaluation, and keeping sampled and parity evaluations
-separate made the precision shortfall interpretable rather than leaving it as
-an unexplained reproduction gap. Analysing that gap directly converted a
-headline deficit into a measured, bounded mechanism. At this level of control,
-the comparison becomes a way to locate where a published result's accuracy
-resides: in the detector, in the labels, or in the metric.
+discrepancies as well as confirm headline results. Here, validation-locked
+selection and separate sampled/parity evaluations made the precision shortfall
+interpretable. For astronomy, the useful outcome is a controlled case showing
+that high-completeness satellite-trail masking can coexist with boundary-limited
+strict precision, while still requiring caution about deployment readiness.
+Evaluations of thin artefact detectors should therefore keep strict scores,
+tolerant scores, and annotation conventions visible together.
 
 \section{Future work}
 \label{sec:future}
@@ -1464,11 +1469,11 @@ cross-instrument generalisation, and downstream trail handling. The strongest
 remaining check is a \emph{multi-annotator annotation audit}. Independent
 annotators would establish inter-annotator agreement and turn the
 single-author between-source estimate (Section~\ref{sec:ext_reannotation}) into
-a direct estimate of how much of the strict precision gap is mask granularity
-rather than detector error. A smaller mask-cleaning experiment would test
-component-level choices, such as removing isolated small objects before
-training and evaluation, while treating the cleaned masks as a new target
-rather than a correction to the locked results.
+a direct estimate of how much mask granularity contributes to the strict
+precision gap. A smaller mask-cleaning experiment would test component-level
+choices, such as removing isolated small objects before training and evaluation.
+The cleaned masks would define a new target and leave the locked results
+unchanged.
 A second priority is a \emph{labelled cross-instrument evaluation} - the DECam
 application here is qualitative only (Figure~\ref{fig:decam_cold_montage}) -
 paired with a classical baseline following \citet{serrano2026}. Attention

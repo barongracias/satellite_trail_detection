@@ -98,7 +98,7 @@ Component map
      - ``results/classical/hough_postprocess_winner_t44_s*_parity.json``;
        ``results/classical/hough_fullframe_winner_t44_s2804.json``;
        ``results/classical/hough_summary.json``
-     - Section 5.3 and Discussion. Completeness comparison only; strict
+     - Section 5.3 and Discussion. Completeness comparison only; pixel
        precision remains sensitive to line drawing and prevalence.
    * - Prediction overlays and DECam cold check
      - ``scripts/figures/visualise_predictions.py``;
@@ -116,7 +116,7 @@ Component map
        ``results/classical/boundary_tolerant_*.json``;
        ``results/classical/geometry_eval_*.json``;
        ``results/classical/diagnostics_multiseed_summary.json``
-     - Sections 5.6.1--5.6.3 and Appendix B. These place much of the residual
+     - Sections 5.6.1--5.6.3 and Appendix A. These place much of the error
        near labelled boundaries but do not by themselves prove label error.
    * - Display-contrast and topology checks
      - ``scripts/figures/faint_streak_analysis.py``;
@@ -124,7 +124,7 @@ Component map
      - ``results/classical/faint_streak_t44_s2804.json``;
        ``results/figures/faint_streak_*.pdf``;
        ``results/figures/fp_intensity.pdf``
-     - Sections 5.6.4--5.6.5 and Appendix B. Display-space proxies only; not
+     - Sections 5.6.4--5.6.5 and Appendix A. Display-space proxies only; not
        calibrated flux or SNR.
    * - Blinded single-author re-annotation audit
      - ``scripts/evaluation/export_audit_crops.py``;
@@ -137,8 +137,8 @@ Component map
        ``results/classical/gold_audit_bootstrap.json``;
        ``results/figures/supp_3_gold_audit_overlays.pdf``;
        ``results/figures/supp_4_gold_audit_annotation_examples.pdf``
-     - Section 5.6.6 and Appendix B. Requires private ``data/gold/`` inputs; the
-       audit is directional, not an independent multi-annotator gold standard.
+     - Section 5.6.6 and Appendix A. Requires private ``data/gold/`` inputs; the
+       audit is directional, not an independent multi-annotator ground-truth mask.
    * - Classifier-gated two-stage detector
      - ``src/training/train_classifier.py``;
        ``src/inference/two_stage.py``;
@@ -178,7 +178,7 @@ Component map
        ``results/figures/ext_*.pdf``;
        ``results/figures/supp_*.pdf``;
        ``results/figures/unet_architecture.pdf``
-     - Figures in Chapters 2, 4, 5, Appendix B, and the executive summary. Most
+     - Figures in Chapters 2, 4, 5, Appendix A, and the executive summary. Most
        run locally from committed JSON metrics; gold-audit overlays require
        private audit inputs for native regeneration.
 

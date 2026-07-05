@@ -65,7 +65,7 @@ from, not only whether a headline score reproduces.
 \section*{Key Findings}
 The replication reproduces the target paper's recall closely: five-seed
 sampled-test recall is $0.923\pm0.007$ against the paper's reported $0.94$.
-Strict precision is lower, at $0.847\pm0.010$ on the sampled test set and
+Pixel precision is lower, at $0.847\pm0.010$ on the sampled test set and
 $0.780$ on the parity set that restores the natural negative-patch prevalence.
 This shows that precision is prevalence-sensitive, whereas recall is the cleaner
 like-for-like comparison across the two test populations. Image-cluster
@@ -73,16 +73,16 @@ uncertainty is the relevant interval because source images, not patches, are the
 independent units.
 
 \summaryfigure[0.55em]{0.88}{../results/figures/thesis_1_multiseed_replication.pdf}{Five-seed
-replication performance for the locked U-Net compared with Stoppa et al.\
+replication performance for the selected U-Net compared with Stoppa et al.\
 Paper-reference markers are shown only for the explicitly reported
-precision and recall values; recall is closely reproduced while strict precision
+precision and recall values; recall is closely reproduced while pixel precision
 remains lower, motivating the boundary-near error analysis.}
 
 The Hough stage reproduces the paper's intended completeness behaviour. On the
 full-coverage tiled canvas, trail-pixel recall rises from $0.918$ to $0.990$,
 equivalently reducing the pixel-level false-negative rate from $0.082$ to
-$0.0105$. This does not make the Hough mask a better strict pixel classifier:
-post-Hough line drawing increases false-positive area, reducing strict precision
+$0.0105$. This does not make the Hough mask a better pixel classifier:
+post-Hough line drawing increases false-positive area, reducing pixel precision
 from $0.780$ to $0.410$ on the parity canvas.
 
 \summaryfigure[0.55em]{0.88}{../results/figures/hough_gap_bridge_example.pdf}{Hough
@@ -90,26 +90,26 @@ bridging a U-Net gap over a bright star:
 linear post-processing recovers ground-truth trail pixels missed by the
 thresholded U-Net.}
 
-Diagnostics place much of the strict precision gap near annotated boundaries.
+Diagnostics place much of the pixel-precision gap near annotated boundaries.
 False-positive decomposition shows that only $17.5\,\%$ of false-positive
 pixels occur in trail-free patches; the remaining $82.5\,\%$ fall within
 trail-bearing patches. A one-pixel boundary tolerance raises five-seed precision
 from $0.847$ to $0.946$, and $57\,\%$ of all false positives lie within one
-pixel of a labelled trail. These diagnostics are consistent with residual error
-concentrated near labelled trail boundaries. A blinded single-author
-re-annotation of $64$ sealed crops is consistent with this: the original masks,
+pixel of a labelled trail. These diagnostics place much of the error near
+labelled trail boundaries. A blinded single-author
+re-annotation of $64$ sealed crops supports this reading: the original masks,
 the re-annotation, and the model all share a median width of $6$\,px, and
 the model agrees with the re-annotation about as well as the original labels do,
-with no strict-$F_1$ difference resolved under this design (paired $-0.0001$,
+with no pixel-$F_1$ difference resolved under this design (paired $-0.0001$,
 $95\%$ CI spanning zero). This is a single-author comparison between mask
-sources, not inter-annotator agreement. A small over-firing residual remains on
+sources, not inter-annotator agreement. A small over-firing component remains on
 adversarial controls, so the audit supports a boundary-scale interpretation
 without implying a uniformly thin label or model over-paint.
 
 \vspace{0.35em}
 \summaryfigure{0.82}{../results/figures/thesis_2_boundary_tolerance.pdf}{A
-one-pixel tolerance largely closes the strict precision gap, consistent with
-residual disagreement concentrated near labelled boundaries.}
+one-pixel tolerance largely closes the pixel-precision gap, supporting a
+boundary-near interpretation.}
 
 \clearpage
 
@@ -130,11 +130,11 @@ caveats.
 
 \vspace{0.45em}
 \summaryfigure{0.88}{../results/figures/predictions/overlay_grid_winner_t44_s2804.png}{Diagnostic
-test-patch predictions for the locked U-Net: ground truth in green,
+test-patch predictions for the selected U-Net: ground truth in green,
 prediction in magenta, and overlap inside the green band.}
 
 \section*{Extensions \& Transfer}
-Follow-up experiments test whether the residual can be moved by model or
+Follow-up experiments test whether the precision gap can be reduced by model or
 inference changes. A classifier-gated detector shifts precision by only
 $+1.2$ percentage points, consistent with the $17.5\,\%$ inter-patch upper
 bound. An attention-gated U-Net at matched capacity is a null result, clDice
@@ -142,26 +142,27 @@ shows no hidden topology gain, hard-negative mining adds only $+0.007$
 precision, and ensembling with test-time augmentation sits within seed noise.
 
 \vspace{0.45em}
-\summaryfigure{0.95}{../results/figures/decam_cold_raw_vs_overlay.pdf}{Cold-domain
-DECam examples: raw measured-streak frames and the locked MeerLICHT-trained
-U-Net contour. This is a qualitative transfer illustration, not a benchmark.}
+\summaryfigure{0.95}{../results/figures/decam_cold_inference_montage.pdf}{Cold-domain
+DECam examples: selected MeerLICHT-trained U-Net contours and Hough overlays on
+predeclared measured-streak frames. This is a qualitative transfer illustration,
+not a benchmark.}
 
 \newpage
 
 \section*{Recommendation \& Impact}
-The practical result is a high-completeness trail masker whose remaining
-strict-precision gap is largely boundary-near. The reporting standard should be
-strict precision/recall plus a boundary-tolerant operating
+The practical result is a high-recall trail masker whose remaining
+pixel-precision gap is largely boundary-near. The reporting standard should be
+pixel precision/recall plus a boundary-tolerant operating
 point and an explicit mask-width convention. The strongest remaining check is a
 multi-annotator annotation audit, which would establish inter-annotator
-agreement and test how much of the strict precision gap reflects mask
+agreement and test how much of the precision gap reflects mask
 granularity rather than detector error. A labelled cross-instrument test is the
 next generalisation check; the current DECam application is qualitative only.
 
 The U-Net plus Hough pipeline closely reproduces the target detector's recall
 and Hough completeness. The tested capacity, training-protocol and
-post-processing changes do not materially reduce the remaining strict-precision
-residual. For operational masking, the evidence points to reporting strict
+post-processing changes do not materially reduce the remaining pixel-precision
+gap. For operational masking, the evidence points to reporting pixel
 scores alongside boundary-tolerant scores and annotation conventions rather than
 prioritising another architecture tweak.
 

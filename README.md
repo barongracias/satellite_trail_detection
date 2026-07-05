@@ -5,8 +5,8 @@
 Replication and diagnostic extension of the Stoppa et al. 2024 (A&A 692, A199)
 satellite-trail detection pipeline on a 178-image MeerLICHT subset. A U-Net
 segmenter produces a binary trail mask, a probabilistic Hough transform bridges
-gaps in that mask, and post-hoc diagnostics place much of the remaining strict
-precision gap near annotated boundaries, with a bounded empty-patch/background
+gaps in that mask, and post-hoc diagnostics place much of the remaining
+pixel-precision gap near annotated boundaries, with a bounded empty-patch/background
 component. MPhil Data Intensive Science dissertation, University of Cambridge.
 
 📖 **Documentation:** <https://satellite-trail-detection.readthedocs.io/>
@@ -172,9 +172,9 @@ python -m scripts.figures.make_gold_audit_annotation_examples
 All extensions are post-hoc on the locked winner unless explicitly described as
 separate validation-only model selection; no test metric is used for reselection.
 The final diagnosis is that recall and Hough pixel completeness reproduce closely,
-while diagnostics place much of the strict precision residual near annotated
+while diagnostics place much of the pixel-precision residual near annotated
 boundaries. The single-author re-annotation supports this interpretation
-directionally, without acting as a true-mask oracle.
+directionally, without acting as an independent ground-truth mask.
 
 - **A — Architectural.** Two-stage detector (CNN classifier → U-Net → Hough) and an
   Attention U-Net, each compared against the base U-Net.
@@ -187,7 +187,7 @@ directionally, without acting as a true-mask oracle.
   Hough post-processing.
 - **E — Blinded re-annotation audit.** 64 sealed crops were re-annotated under an
   evaluation-only protocol. The original MeerLICHT masks, the re-annotation, and
-  the locked model all have median stroke width 6 px; strict micro-F1 against the
+  the locked model all have median stroke width 6 px; pixel micro-F1 against the
   re-annotation is 0.890 for the original labels and 0.893 for the model.
 
 A qualitative cold-domain illustration applies the locked MeerLICHT model to DECam
@@ -199,7 +199,8 @@ cross-dataset metrics.
 - Global seed `2804`; multi-seed runs use `{2804, 1234, 42, 7, 13}`.
 - Image-level split stratified by trail-pixel quartile. Target 70/15/15; the realised
   split on the 178-image subset is **122 train / 24 val / 32 test** (per-quartile
-  flooring sends the remainder to test — leakage-safe and conservative).
+  flooring sends the remainder to test, preventing same-image leakage and reserving
+  a larger held-out fraction).
 - Model and threshold selection are **validation-only**; test metrics are never used
   for selection or tie-breaking.
 - Every experiment is reproducible from a `configs/` file plus runtime overrides.

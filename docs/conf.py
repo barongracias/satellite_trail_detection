@@ -8,6 +8,7 @@ only needs to read the source and its docstrings, not execute it.
 from __future__ import annotations
 
 import sys
+from importlib.util import find_spec
 from pathlib import Path
 
 # Make the project importable for autodoc (repo root holds src/ and scripts/).
@@ -26,8 +27,10 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinx.ext.intersphinx",
     "sphinx_autodoc_typehints",
-    "sphinx_copybutton",
 ]
+
+if find_spec("sphinx_copybutton") is not None:
+    extensions.append("sphinx_copybutton")
 
 # Mock everything third-party: with these absent, autodoc imports the project
 # modules cleanly and renders their docstrings/signatures without the real deps.

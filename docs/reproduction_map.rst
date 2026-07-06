@@ -124,8 +124,8 @@ Component map
      - ``results/classical/faint_streak_t44_s2804.json``;
        ``results/figures/faint_streak_*.pdf``;
        ``results/figures/fp_intensity.pdf``
-     - Sections 5.6.4--5.6.5 and Appendix A. Display-space proxies only; not
-       calibrated flux or SNR.
+     - Sections 5.6.4--5.6.5 and Appendix A. Uses display-intensity summaries
+       only; not calibrated flux or SNR.
    * - Blinded single-author re-annotation audit
      - ``scripts/evaluation/export_audit_crops.py``;
        ``scripts/evaluation/validate_audit_annotations.py``;

@@ -3,7 +3,7 @@
 
 Reads the locked geometry/Hough result JSONs and emits only the thesis-useful
 figures. Marginal/null comparisons that are clearer as report tables are
-documented in agents/plots.md instead of being saved as image artifacts.
+kept in the report rather than saved as separate image artifacts.
 """
 
 from __future__ import annotations

@@ -1,8 +1,7 @@
 #!/usr/bin/env python
-"""Export blinded audit crops for the M9.4 gold-standard re-annotation audit.
+"""Export blinded audit crops for the single-author re-annotation audit.
 
-Cuts ~64 crops of 528x528 raw-image pixels in four strata (sample spec
-finalised 2026-06-12 in agents/PLAN.md):
+Cuts ~64 crops of 528x528 raw-image pixels in four strata:
 
   - INTERIOR  (~30): one crop per sampled cleaned GT component at a random
     along-trail position, ~equal counts per display-contrast tertile, from

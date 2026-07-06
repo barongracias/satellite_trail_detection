@@ -44,11 +44,11 @@
 % photographs/diagrams, equations, figure captions, lists, bibliography,
 % acknowledgements, and the auto-generation appendix.
 % Current conservative handbook-style TeXcount count: 6,806, using text plus
-% section headings. Text-only TeXcount gives 6,614.
+% section headings. Text-only TeXcount gives 6,627.
 %TC:preambleinclude \abstract [1]
 %TC:envir table [] 1
 %TC:envir tabular [0] 1
-\wordcount{6,806}
+\wordcount{6,819}
 
 \subjectline{Data Intensive Science}
 \keywords{satellite trails, U-Net, Hough transform, deep learning, MeerLICHT,
@@ -294,12 +294,14 @@ long, thin annotated structures. The densest-patch overlays show masks following
 the visible trails, while exposing occasional endpoint under-coverage
 (Figure~\ref{fig:mask_quality}).
 
-The masks are sufficient for supervised training, with one characterised caveat:
-full-frame overlays show occasional mask under-coverage at faint endpoints and
-low-contrast stretches. If the model detects a visible trail segment omitted
-from the mask, those pixels are still counted as false positives. Thus,
-label-referenced precision is a conservative estimate where masks omit visible
-trail pixels. Section~\ref{sec:ext_boundary} explores this sensitivity.
+The masks are sufficient for supervised training, with characterised caveats.
+Very small isolated labels, where present, are retained because the reproduction
+target is the supplied masks. Full-frame overlays also show occasional
+under-coverage at faint endpoints and low-contrast stretches. If the model
+detects a visible trail segment omitted from the mask, those pixels are still
+counted as false positives. Thus, label-referenced precision is conservative
+where masks omit visible trail pixels. Section~\ref{sec:ext_boundary} explores
+this sensitivity.
 
 \begin{figure}[htbp]
   \centering

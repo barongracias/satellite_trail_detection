@@ -34,7 +34,7 @@ The pipeline:
 ├── configs/experiments/      # Versioned experiment configs (YAML)
 │   ├── restudy_topk/         #   per-trial × per-seed retrain configs (U-Net)
 │   └── attention_topk/       #   per-trial × per-seed retrain configs (Attention U-Net)
-├── docs/                     # Sphinx sources + preregistration record
+├── docs/                     # Sphinx sources + reproduction guide
 ├── report/                   # Dissertation LaTeX sources and compiled report
 ├── results/                  # Logs, checkpoints, figures, JSON metrics (mostly gitignored)
 ├── scripts/
